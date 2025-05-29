@@ -247,3 +247,44 @@ func printMatrix(data []float32, rows, cols int) {
 	}
 }
 ```
+
+Output should be something like...
+
+```bash
+% go run .
+=== Small Matrix Test (2x3 * 3x2) ===
+
+Performing CPU matrix multiplication...
+CPU MatMul took 19.292µs
+Result C (CPU):
+[58.00, 64.00]
+[139.00, 154.00]
+
+Performing GPU matrix multiplication...
+GPU MatMul took 71.746833ms
+Result C (GPU):
+[58.00, 64.00]
+[139.00, 154.00]
+
+Expected Result:
+[58.00, 64.00]
+[139.00, 154.00]
+
+=== Verification ===
+✓ CPU result matches expected values
+✓ GPU result matches expected values
+✓ CPU and GPU results match
+
+Performance comparison (small matrix): GPU was 0.00x the speed of CPU
+
+=== Large Matrix Test ===
+Multiplying 1024x512 by 512x1024 matrices...
+Performing large CPU matrix multiplication...
+Large CPU MatMul took 429.120916ms
+Performing large GPU matrix multiplication...
+Large GPU MatMul took 2.931833ms
+✓ Large matrix CPU and GPU results match
+
+Performance comparison (large matrix): GPU was 146.37x the speed of CPU
+GPU acceleration achieved! Time saved: 426.189083ms
+```
