@@ -8,13 +8,12 @@ package tensor
 */
 import "C"
 import (
-	"fmt" // Not strictly needed for this version, but often useful for tensor ops
+	"fmt"
 	"runtime"
 	"unsafe"
 )
 
-// Tensor represents a multi-dimensional array of float32,
-// potentially backed by a Metal GPU buffer.
+// Tensor represents a multi-dimensional array of float32, potentially backed by a Metal GPU buffer.
 type Tensor struct {
 	Shape     []int          // Dimensions of the tensor (e.g., [rows, cols] for a matrix)
 	Data      []float32      // CPU-side data
@@ -39,7 +38,7 @@ func NewTensor(shape []int, data []float32) (*Tensor, error) {
 		isOnGPU: false,
 		isOwner: true, // New tensors own their CPU data
 	}
-	// It's common practice to set a finalizer to ensure GPU resources are cleaned up
+	// TODO: It's common practice to set a finalizer to ensure GPU resources are cleaned up
 	// even if ReleaseGPU() isn't called explicitly. However, for a production library,
 	// explicit management is preferred for predictable behavior. For now, rely on defer.
 	// runtime.SetFinalizer(t, (*Tensor).finalizer)

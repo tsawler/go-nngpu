@@ -1,6 +1,5 @@
 package matrix
 
-
 /*
 #cgo LDFLAGS: -framework Metal -framework MetalPerformanceShaders -framework Foundation -framework Accelerate
 #include <stdlib.h>
@@ -11,8 +10,8 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/tsawler/go-nngpu/tensor" // Import the tensor package
 	_ "github.com/tsawler/go-nngpu/internal/cgo" // Import the cgo package to ensure it gets compiled
+	"github.com/tsawler/go-nngpu/tensor"
 )
 
 // MatMul performs matrix multiplication C = A * B on the GPU.
