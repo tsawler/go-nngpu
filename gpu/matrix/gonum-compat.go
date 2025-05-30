@@ -59,8 +59,12 @@ func (g *GPUDense) At(i, j int) float64 {
 }
 
 func (g *GPUDense) T() mat.Matrix {
-	// Implement transpose if needed
-	panic("transpose not implemented yet")
+	// Implement transpose using our GPU implementation
+	transposed, err := Transpose(g.tensor)
+	if err != nil {
+		panic(err)
+	}
+	return &GPUDense{tensor: transposed}
 }
 
 // Implement mat.Mutable interface for setting values
@@ -243,6 +247,36 @@ func (g *GPUDense) Scale(scalar float64) {
 	g.tensor = result
 }
 
+// Phase 3: Advanced matrix operations
+
+// Inverse computes the matrix inverse using GPU acceleration
+func (g *GPUDense) Inverse() *GPUDense {
+	result, err := Inverse(g.tensor)
+	if err != nil {
+		panic(err)
+	}
+	return &GPUDense{tensor: result}
+}
+
+// Det computes the matrix determinant using GPU acceleration
+func (g *GPUDense) Det() float64 {
+	det, err := Determinant(g.tensor)
+	if err != nil {
+		panic(err)
+	}
+	return float64(det)
+}
+
+// LU performs LU decomposition and returns L, U matrices and pivot indices
+func (g *GPUDense) LU() (*GPUDense, *GPUDense, []int) {
+	lu, err := LU(g.tensor)
+	if err != nil {
+		panic(err)
+	}
+	
+	return &GPUDense{tensor: lu.L}, &GPUDense{tensor: lu.U}, lu.PivotIndices
+}
+
 // ToGonum converts back to a standard gonum Dense matrix
 func (g *GPUDense) ToGonum() *mat.Dense {
 	if err := g.tensor.RetrieveCPU(); err != nil {
@@ -403,6 +437,93 @@ func GPUDivElem(a, b mat.Matrix) *mat.Dense {
 	return mat.NewDense(rows, cols, data)
 }
 
+// Phase 3: Advanced GPU operations with Gonum compatibility
+
+// GPUInverse is a drop-in replacement for gonum's matrix inverse
+func GPUInverse(a mat.Matrix) *mat.Dense {
+	gpuA := FromGonum(a)
+	defer gpuA.ReleaseGPU()
+
+	result, err := Inverse(gpuA.tensor)
+	if err != nil {
+		panic(err)
+	}
+	defer result.ReleaseGPU()
+
+	// Convert back to gonum format
+	if err := result.RetrieveCPU(); err != nil {
+		panic(err)
+	}
+
+	rows, cols := result.Shape[0], result.Shape[1]
+	data := make([]float64, len(result.Data))
+	for i, v := range result.Data {
+		data[i] = float64(v)
+	}
+
+	return mat.NewDense(rows, cols, data)
+}
+
+// GPUDeterminant is a drop-in replacement for gonum's matrix determinant
+func GPUDeterminant(a mat.Matrix) float64 {
+	gpuA := FromGonum(a)
+	defer gpuA.ReleaseGPU()
+
+	det, err := Determinant(gpuA.tensor)
+	if err != nil {
+		panic(err)
+	}
+
+	return float64(det)
+}
+
+// GPULUDecomposition represents LU decomposition results in Gonum format
+type GPULUDecomposition struct {
+	L            *mat.Dense
+	U            *mat.Dense
+	PivotIndices []int
+}
+
+// GPULU is a drop-in replacement for gonum's LU decomposition
+func GPULU(a mat.Matrix) *GPULUDecomposition {
+	gpuA := FromGonum(a)
+	defer gpuA.ReleaseGPU()
+
+	lu, err := LU(gpuA.tensor)
+	if err != nil {
+		panic(err)
+	}
+	defer lu.ReleaseGPU()
+
+	// Convert L matrix to gonum format
+	if err := lu.L.RetrieveCPU(); err != nil {
+		panic(err)
+	}
+	lRows, lCols := lu.L.Shape[0], lu.L.Shape[1]
+	lData := make([]float64, len(lu.L.Data))
+	for i, v := range lu.L.Data {
+		lData[i] = float64(v)
+	}
+	lMatrix := mat.NewDense(lRows, lCols, lData)
+
+	// Convert U matrix to gonum format
+	if err := lu.U.RetrieveCPU(); err != nil {
+		panic(err)
+	}
+	uRows, uCols := lu.U.Shape[0], lu.U.Shape[1]
+	uData := make([]float64, len(lu.U.Data))
+	for i, v := range lu.U.Data {
+		uData[i] = float64(v)
+	}
+	uMatrix := mat.NewDense(uRows, uCols, uData)
+
+	return &GPULUDecomposition{
+		L:            lMatrix,
+		U:            uMatrix,
+		PivotIndices: lu.PivotIndices,
+	}
+}
+
 // BatchGPUMatMul keeps matrices on GPU for multiple operations
 func BatchGPUMatMul(operations []struct{ A, B mat.Matrix }) []*mat.Dense {
 	results := make([]*mat.Dense, len(operations))
@@ -420,6 +541,17 @@ func BatchGPUAdd(operations []struct{ A, B mat.Matrix }) []*mat.Dense {
 
 	for i, op := range operations {
 		results[i] = GPUAdd(op.A, op.B)
+	}
+
+	return results
+}
+
+// BatchGPUInverse performs multiple matrix inversions efficiently
+func BatchGPUInverse(matrices []mat.Matrix) []*mat.Dense {
+	results := make([]*mat.Dense, len(matrices))
+
+	for i, m := range matrices {
+		results[i] = GPUInverse(m)
 	}
 
 	return results

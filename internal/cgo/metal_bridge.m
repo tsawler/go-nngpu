@@ -1,7 +1,13 @@
-// metal_bridge.m - Fixed version with correct MPS APIs
+// metal_bridge.m - Working version with CLAPACK (warnings suppressed)
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <MetalPerformanceShaders/MetalPerformanceShaders.h>
+
+// Suppress deprecation warnings for CLAPACK
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#import <Accelerate/Accelerate.h>
+#pragma clang diagnostic pop
 
 #include "metal_bridge.h"
 #include <stdlib.h>
@@ -448,3 +454,269 @@ int perform_mps_matrix_scalar_multiply(
         return 0;
     }
 }
+
+// --- Phase 3: Advanced Matrix Operations using CLAPACK (with warnings suppressed) ---
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
+int perform_matrix_inverse(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    GPUPtr resultMatrixPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        // Verify it's a square matrix
+        if (rows != cols) {
+            set_c_error_message(err, @"Matrix inverse requires a square matrix.");
+            return -1;
+        }
+
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputMatrixPtr;
+        id<MTLBuffer> result_buffer = (__bridge id<MTLBuffer>)resultMatrixPtr;
+
+        if (!input_buffer || !result_buffer) {
+            set_c_error_message(err, @"Invalid input or output buffer pointers.");
+            return -2;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        float *result_data = (float*)result_buffer.contents;
+        
+        // Copy input to result buffer first (sgetrf modifies in-place)
+        memcpy(result_data, input_data, rows * cols * sizeof(float));
+        
+        // Use LAPACK's sgetrf (LU factorization) + sgetri (compute inverse from LU)
+        __CLPK_integer n = (__CLPK_integer)rows;
+        __CLPK_integer lda = n;
+        __CLPK_integer *ipiv = malloc(n * sizeof(__CLPK_integer));
+        __CLPK_integer info;
+        
+        if (!ipiv) {
+            set_c_error_message(err, @"Failed to allocate memory for pivot indices.");
+            return -3;
+        }
+        
+        // Step 1: LU factorization
+        sgetrf_(&n, &n, result_data, &lda, ipiv, &info);
+        
+        if (info != 0) {
+            free(ipiv);
+            if (info > 0) {
+                set_c_error_message(err, @"Matrix is singular and cannot be inverted (LU factorization failed).");
+                return -4;
+            } else {
+                set_c_error_message(err, @"LU factorization failed with invalid parameter at position %d.", -info);
+                return -5;
+            }
+        }
+        
+        // Step 2: Compute inverse from LU factorization
+        __CLPK_integer lwork = n * n; // Workspace size
+        float *work = malloc(lwork * sizeof(float));
+        
+        if (!work) {
+            free(ipiv);
+            set_c_error_message(err, @"Failed to allocate workspace for matrix inversion.");
+            return -6;
+        }
+        
+        sgetri_(&n, result_data, &lda, ipiv, work, &lwork, &info);
+        
+        free(ipiv);
+        free(work);
+        
+        if (info != 0) {
+            if (info > 0) {
+                set_c_error_message(err, @"Matrix is singular and cannot be inverted (inversion failed).");
+                return -7;
+            } else {
+                set_c_error_message(err, @"Matrix inversion failed with invalid parameter at position %d.", -info);
+                return -8;
+            }
+        }
+        
+        return 0;
+    }
+}
+
+int perform_matrix_determinant(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    float *determinant,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        // Verify it's a square matrix
+        if (rows != cols) {
+            set_c_error_message(err, @"Matrix determinant requires a square matrix.");
+            return -1;
+        }
+
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputMatrixPtr;
+
+        if (!input_buffer || !determinant) {
+            set_c_error_message(err, @"Invalid input buffer pointer or determinant pointer.");
+            return -2;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        
+        // Create a copy since LU factorization modifies the matrix
+        float *matrix_copy = malloc(rows * cols * sizeof(float));
+        if (!matrix_copy) {
+            set_c_error_message(err, @"Failed to allocate memory for matrix copy.");
+            return -3;
+        }
+        
+        memcpy(matrix_copy, input_data, rows * cols * sizeof(float));
+        
+        // Use LAPACK's sgetrf for LU factorization to compute determinant
+        __CLPK_integer n = (__CLPK_integer)rows;
+        __CLPK_integer lda = n;
+        __CLPK_integer *ipiv = malloc(n * sizeof(__CLPK_integer));
+        __CLPK_integer info;
+        
+        if (!ipiv) {
+            free(matrix_copy);
+            set_c_error_message(err, @"Failed to allocate memory for pivot indices.");
+            return -4;
+        }
+        
+        sgetrf_(&n, &n, matrix_copy, &lda, ipiv, &info);
+        
+        if (info != 0) {
+            free(matrix_copy);
+            free(ipiv);
+            if (info > 0) {
+                // Matrix is singular, determinant is 0
+                *determinant = 0.0f;
+                return 0;
+            } else {
+                set_c_error_message(err, @"LU factorization failed with invalid parameter at position %d.", -info);
+                return -5;
+            }
+        }
+        
+        // Compute determinant from LU factorization
+        // det(A) = det(P) * det(L) * det(U) = det(P) * 1 * product of diagonal elements of U
+        // det(P) = (-1)^(number of row swaps)
+        
+        *determinant = 1.0f;
+        int num_swaps = 0;
+        
+        // Count row swaps and compute product of diagonal elements
+        for (int i = 0; i < n; i++) {
+            if (ipiv[i] != i + 1) { // FORTRAN indexing is 1-based
+                num_swaps++;
+            }
+            *determinant *= matrix_copy[i * n + i]; // Diagonal element of U
+        }
+        
+        // Apply sign from permutation matrix
+        if (num_swaps % 2 == 1) {
+            *determinant = -*determinant;
+        }
+        
+        free(matrix_copy);
+        free(ipiv);
+        
+        return 0;
+    }
+}
+
+int perform_matrix_lu_decomposition(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    GPUPtr lMatrixPtr, GPUPtr uMatrixPtr, 
+    int *pivotIndices, // Array of pivot indices (size = min(rows, cols))
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputMatrixPtr;
+        id<MTLBuffer> l_buffer = (__bridge id<MTLBuffer>)lMatrixPtr;
+        id<MTLBuffer> u_buffer = (__bridge id<MTLBuffer>)uMatrixPtr;
+
+        if (!input_buffer || !l_buffer || !u_buffer || !pivotIndices) {
+            set_c_error_message(err, @"Invalid input or output buffer pointers.");
+            return -1;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        float *l_data = (float*)l_buffer.contents;
+        float *u_data = (float*)u_buffer.contents;
+        
+        // Create a copy for LU factorization
+        float *lu_copy = malloc(rows * cols * sizeof(float));
+        if (!lu_copy) {
+            set_c_error_message(err, @"Failed to allocate memory for LU copy.");
+            return -2;
+        }
+        
+        memcpy(lu_copy, input_data, rows * cols * sizeof(float));
+        
+        // Use LAPACK's sgetrf for LU factorization
+        __CLPK_integer m = (__CLPK_integer)rows;
+        __CLPK_integer n = (__CLPK_integer)cols;
+        __CLPK_integer lda = m;
+        __CLPK_integer *ipiv = malloc(MIN(m, n) * sizeof(__CLPK_integer));
+        __CLPK_integer info;
+        
+        if (!ipiv) {
+            free(lu_copy);
+            set_c_error_message(err, @"Failed to allocate memory for pivot indices.");
+            return -3;
+        }
+        
+        sgetrf_(&m, &n, lu_copy, &lda, ipiv, &info);
+        
+        if (info != 0) {
+            free(lu_copy);
+            free(ipiv);
+            if (info > 0) {
+                set_c_error_message(err, @"Matrix is singular at element (%d, %d).", info, info);
+                return -4;
+            } else {
+                set_c_error_message(err, @"LU factorization failed with invalid parameter at position %d.", -info);
+                return -5;
+            }
+        }
+        
+        // Extract L and U matrices from the packed LU result
+        // Initialize L as identity matrix and U as zero matrix
+        memset(l_data, 0, rows * rows * sizeof(float));
+        memset(u_data, 0, cols * cols * sizeof(float));
+        
+        // Set L diagonal to 1
+        for (long i = 0; i < rows && i < cols; i++) {
+            l_data[i * rows + i] = 1.0f;
+        }
+        
+        // Extract L (lower triangular) and U (upper triangular)
+        for (long i = 0; i < rows; i++) {
+            for (long j = 0; j < cols; j++) {
+                if (i > j && i < rows && j < rows) {
+                    // Lower triangular part goes to L
+                    l_data[i * rows + j] = lu_copy[i * cols + j];
+                } else if (i <= j) {
+                    // Upper triangular part (including diagonal) goes to U
+                    u_data[i * cols + j] = lu_copy[i * cols + j];
+                }
+            }
+        }
+        
+        // Convert FORTRAN pivot indices (1-based) to C pivot indices (0-based)
+        long min_dim = MIN(rows, cols);
+        for (long i = 0; i < min_dim; i++) {
+            pivotIndices[i] = ipiv[i] - 1;
+        }
+        
+        free(lu_copy);
+        free(ipiv);
+        
+        return 0;
+    }
+}
+
+#pragma clang diagnostic pop

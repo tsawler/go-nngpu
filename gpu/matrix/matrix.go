@@ -9,6 +9,7 @@ import "C"
 import (
 	"fmt"
 	"runtime"
+	"unsafe"
 
 	"github.com/tsawler/go-nngpu/tensor"
 	_ "github.com/tsawler/go-nngpu/internal/cgo"
@@ -409,4 +410,188 @@ func ScalarMul(A *tensor.Tensor, scalar float32) (*tensor.Tensor, error) {
 	}
 
 	return resultTensor, nil
+}
+
+// Phase 3: Advanced Matrix Operations using Accelerate Framework
+
+// Inverse computes the matrix inverse using the Accelerate framework
+func Inverse(A *tensor.Tensor) (*tensor.Tensor, error) {
+	if len(A.Shape) != 2 {
+		return nil, fmt.Errorf("Inverse requires 2D tensor (matrix)")
+	}
+	if A.Shape[0] != A.Shape[1] {
+		return nil, fmt.Errorf("Inverse requires square matrix, got %dx%d", A.Shape[0], A.Shape[1])
+	}
+
+	rows := A.Shape[0]
+	cols := A.Shape[1]
+	resultSize := rows * cols
+	resultData := make([]float32, resultSize)
+	resultTensor, err := tensor.NewTensor([]int{rows, cols}, resultData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create result tensor: %w", err)
+	}
+
+	if err := A.EnsureGPU(); err != nil {
+		return nil, fmt.Errorf("failed to move tensor A to GPU: %w", err)
+	}
+	if err := resultTensor.EnsureGPU(); err != nil {
+		return nil, fmt.Errorf("failed to move result tensor to GPU: %w", err)
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cErr C.CError
+	retCode := C.perform_matrix_inverse(
+		C.GPUPtr(A.GPUPtr()), C.long(rows), C.long(cols),
+		C.GPUPtr(resultTensor.GPUPtr()),
+		C.DevicePtr(A.DevicePtr()),
+		&cErr,
+	)
+
+	if retCode != 0 {
+		var errMsg string
+		if cErr.message != nil {
+			errMsg = C.GoString(cErr.message)
+			C.free_c_error_message(cErr.message)
+		}
+		return nil, fmt.Errorf("matrix inverse failed (code %d): %s", retCode, errMsg)
+	}
+
+	return resultTensor, nil
+}
+
+// Determinant computes the matrix determinant using the Accelerate framework
+func Determinant(A *tensor.Tensor) (float32, error) {
+	if len(A.Shape) != 2 {
+		return 0, fmt.Errorf("Determinant requires 2D tensor (matrix)")
+	}
+	if A.Shape[0] != A.Shape[1] {
+		return 0, fmt.Errorf("Determinant requires square matrix, got %dx%d", A.Shape[0], A.Shape[1])
+	}
+
+	if err := A.EnsureGPU(); err != nil {
+		return 0, fmt.Errorf("failed to move tensor A to GPU: %w", err)
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var determinant C.float
+	var cErr C.CError
+	retCode := C.perform_matrix_determinant(
+		C.GPUPtr(A.GPUPtr()), C.long(A.Shape[0]), C.long(A.Shape[1]),
+		&determinant,
+		C.DevicePtr(A.DevicePtr()),
+		&cErr,
+	)
+
+	if retCode != 0 {
+		var errMsg string
+		if cErr.message != nil {
+			errMsg = C.GoString(cErr.message)
+			C.free_c_error_message(cErr.message)
+		}
+		return 0, fmt.Errorf("matrix determinant failed (code %d): %s", retCode, errMsg)
+	}
+
+	return float32(determinant), nil
+}
+
+// LUDecomposition represents the result of LU decomposition
+type LUDecomposition struct {
+	L            *tensor.Tensor // Lower triangular matrix
+	U            *tensor.Tensor // Upper triangular matrix
+	PivotIndices []int          // Pivot indices for row swaps
+}
+
+// ReleaseGPU releases GPU resources for the LU decomposition
+func (lu *LUDecomposition) ReleaseGPU() {
+	if lu.L != nil {
+		lu.L.ReleaseGPU()
+	}
+	if lu.U != nil {
+		lu.U.ReleaseGPU()
+	}
+}
+
+// LU performs LU decomposition using the Accelerate framework
+func LU(A *tensor.Tensor) (*LUDecomposition, error) {
+	if len(A.Shape) != 2 {
+		return nil, fmt.Errorf("LU decomposition requires 2D tensor (matrix)")
+	}
+
+	rows := A.Shape[0]
+	cols := A.Shape[1]
+	
+	// Create L matrix (rows x rows) and U matrix (rows x cols)
+	lData := make([]float32, rows*rows)
+	uData := make([]float32, rows*cols)
+	
+	lTensor, err := tensor.NewTensor([]int{rows, rows}, lData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create L tensor: %w", err)
+	}
+	
+	uTensor, err := tensor.NewTensor([]int{rows, cols}, uData)
+	if err != nil {
+		lTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to create U tensor: %w", err)
+	}
+
+	if err := A.EnsureGPU(); err != nil {
+		lTensor.ReleaseGPU()
+		uTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to move tensor A to GPU: %w", err)
+	}
+	if err := lTensor.EnsureGPU(); err != nil {
+		lTensor.ReleaseGPU()
+		uTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to move L tensor to GPU: %w", err)
+	}
+	if err := uTensor.EnsureGPU(); err != nil {
+		lTensor.ReleaseGPU()
+		uTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to move U tensor to GPU: %w", err)
+	}
+
+	// Allocate pivot indices array
+	minDim := rows
+	if cols < rows {
+		minDim = cols
+	}
+	pivotIndices := make([]int, minDim)
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	// Convert Go slice to C array
+	cPivotIndices := (*C.int)(unsafe.Pointer(&pivotIndices[0]))
+
+	var cErr C.CError
+	retCode := C.perform_matrix_lu_decomposition(
+		C.GPUPtr(A.GPUPtr()), C.long(rows), C.long(cols),
+		C.GPUPtr(lTensor.GPUPtr()), C.GPUPtr(uTensor.GPUPtr()),
+		cPivotIndices,
+		C.DevicePtr(A.DevicePtr()),
+		&cErr,
+	)
+
+	if retCode != 0 {
+		var errMsg string
+		if cErr.message != nil {
+			errMsg = C.GoString(cErr.message)
+			C.free_c_error_message(cErr.message)
+		}
+		lTensor.ReleaseGPU()
+		uTensor.ReleaseGPU()
+		return nil, fmt.Errorf("LU decomposition failed (code %d): %s", retCode, errMsg)
+	}
+
+	return &LUDecomposition{
+		L:            lTensor,
+		U:            uTensor,
+		PivotIndices: pivotIndices,
+	}, nil
 }

@@ -89,6 +89,31 @@ int perform_mps_matrix_scalar_multiply(
     CError *err
 );
 
+// Phase 3: Matrix inverse using Accelerate framework
+int perform_matrix_inverse(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    GPUPtr resultMatrixPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Matrix determinant using Accelerate framework
+int perform_matrix_determinant(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    float *determinant,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// LU decomposition using Accelerate framework
+int perform_matrix_lu_decomposition(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    GPUPtr lMatrixPtr, GPUPtr uMatrixPtr, 
+    int *pivotIndices, // Array of pivot indices (size = min(rows, cols))
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
 // Function to free error message allocated by Objective-C
 void free_c_error_message(char *message);
 
