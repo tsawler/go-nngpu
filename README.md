@@ -1017,7 +1017,7 @@ func main() {
 	fmt.Println("  ✓ Enhanced Gonum compatibility layer with all decompositions")
 	fmt.Println("  ✓ Performance testing for all advanced operations")
 	fmt.Println("  ✓ Robust error handling and memory management")
-	fmt.Println("\nNext phases include:")
+	fmt.Println("\nNext phase could include:")
 	fmt.Println("  - Sparse matrix support")
 	fmt.Println("  - GPU compute shaders for better performance")
 	fmt.Println("  - Additional specialized decompositions")
@@ -1099,13 +1099,13 @@ Output should be something like...
 ==============================================
 
 Performing CPU matrix multiplication...
-CPU MatMul took 17.625µs
+CPU MatMul took 16.291µs
 Result C (CPU):
 [58.00, 64.00]
 [139.00, 154.00]
 
 Performing GPU matrix multiplication...
-GPU MatMul took 48.778375ms
+GPU MatMul took 53.006166ms
 Result C (GPU):
 [58.00, 64.00]
 [139.00, 154.00]
@@ -1119,7 +1119,7 @@ Expected Result:
 ✓ GPU result matches expected values
 ✓ CPU and GPU results match
 
-Performance comparison (matrix multiplication): GPU was 2767.57x slower than CPU (overhead dominates for small matrices)
+Performance comparison (matrix multiplication): GPU was 3253.71x slower than CPU (overhead dominates for small matrices)
 
 
 ====================================
@@ -1181,7 +1181,7 @@ Matrix F (for inverse testing):
 [0.00, 1.00, 2.00]
 
 --- Matrix Inverse Test ---
-GPU Matrix Inverse took 61.75µs
+GPU Matrix Inverse took 65.334µs
 Inverse of F:
 [0.75, -0.50, 0.25]
 [-0.50, 1.00, -0.50]
@@ -1193,12 +1193,12 @@ F * F^-1 (should be identity matrix):
 ✓ Matrix inverse is correct (F * F^-1 = I)
 
 --- Matrix Determinant Test ---
-GPU Matrix Determinant took 2.375µs
+GPU Matrix Determinant took 2.667µs
 Determinant of F: 4.000000
 ✓ Determinant calculation is correct
 
 --- LU Decomposition Test ---
-GPU LU Decomposition took 14.625µs
+GPU LU Decomposition took 19.041µs
 L matrix (Lower triangular):
 [1.00, 0.00, 0.00]
 [1.00, 1.00, 0.00]
@@ -1225,51 +1225,41 @@ Matrix G (for QR decomposition):
 [4.00, 5.00, 6.00]
 [7.00, 8.00, 9.00]
 [10.00, 11.00, 12.00]
-GPU QR Decomposition took 17.375µs
+GPU QR Decomposition took 23.792µs
 Q matrix (Orthogonal):
-[-0.18, -0.37, -0.55]
-[-0.73, -0.82, -0.41]
-[-0.00, 0.41, -0.36]
-[0.79, -0.50, 0.07]
+[-0.08, -0.83, 0.46]
+[-0.31, -0.45, -0.83]
+[-0.54, -0.07, 0.30]
+[-0.78, 0.31, 0.08]
 R matrix (Upper triangular):
-[-5.48, 0.31, 0.46]
-[0.00, -12.78, -3.27]
-[0.00, 0.00, -20.08]
+[-12.88, -14.59, -16.30]
+[0.00, -1.04, -2.08]
+[0.00, 0.00, 0.00]
 Q * R (should match original matrix G):
-[1.00, 4.61, 12.11]
-[4.00, 10.21, 10.53]
-[0.00, -5.22, 5.87]
-[-4.31, 6.60, 0.60]
-✗ QR decomposition verification failed
-Sample differences (first 5):
-  Index 1: A=2.000000, B=4.610293, diff=-2.610293
-  Index 2: A=3.000000, B=12.108011, diff=-9.108011
-  Index 4: A=5.000000, B=10.209491, diff=-5.209491
-  Index 5: A=6.000000, B=10.527334, diff=-4.527334
-  Index 6: A=7.000000, B=0.000000, diff=7.000000
+[1.00, 2.00, 3.00]
+[4.00, 5.00, 6.00]
+[7.00, 8.00, 9.00]
+[10.00, 11.00, 12.00]
+✓ QR decomposition is correct (Q * R = G)
 
 --- Cholesky Decomposition Test ---
 Matrix H (symmetric positive definite):
 [4.00, 2.00]
 [2.00, 3.00]
-GPU Cholesky Decomposition took 21.541µs
+GPU Cholesky Decomposition took 10µs
 L matrix (Lower triangular from Cholesky):
 [2.00, 0.00]
-[2.00, 1.41]
+[1.00, 1.41]
 L * L^T (should match original matrix H):
-[4.00, 4.00]
-[4.00, 6.00]
-✗ Cholesky decomposition verification failed
-Sample differences (first 4):
-  Index 1: A=2.000000, B=4.000000, diff=-2.000000
-  Index 2: A=2.000000, B=4.000000, diff=-2.000000
-  Index 3: A=3.000000, B=6.000000, diff=-3.000000
+[4.00, 2.00]
+[2.00, 3.00]
+✓ Cholesky decomposition is correct (L * L^T = H)
 
 --- Eigenvalue Decomposition Test ---
 Matrix I (symmetric for eigenvalue decomposition):
 [3.00, 1.00]
 [1.00, 3.00]
-GPU Eigenvalue Decomposition took 14.583µs
+GPU Eigenvalue Decomposition took 17.583µs
 Eigenvalues:
 [2.00]
 [4.00]
@@ -1283,29 +1273,22 @@ Matrix J (for SVD decomposition):
 [1.00, 2.00]
 [3.00, 4.00]
 [5.00, 6.00]
-GPU SVD Decomposition took 20.959µs
+GPU SVD Decomposition took 25.708µs
 U matrix (Left singular vectors):
-[-0.43, -0.57, -0.70]
-[0.81, 0.11, -0.58]
-[0.41, -0.82, 0.41]
+[-0.23, 0.88, 0.41]
+[-0.52, 0.24, -0.82]
+[-0.82, -0.40, 0.41]
 S vector (Singular values):
-[9.51]
-[0.77]
+[9.53]
+[0.51]
 VT matrix (Right singular vectors transposed):
-[-0.39, -0.92]
-[-0.92, 0.39]
+[-0.62, -0.78]
+[-0.78, 0.62]
 U * S * VT (should match original matrix J):
-[1.98, 3.59]
-[-3.04, -7.03]
-[-0.92, -3.82]
-✗ SVD decomposition verification failed
-Sample differences (first 6):
-  Index 0: A=1.000000, B=1.978249, diff=-0.978249
-  Index 1: A=2.000000, B=3.590278, diff=-1.590278
-  Index 2: A=3.000000, B=-3.040517, diff=6.040517
-  Index 3: A=4.000000, B=-7.034657, diff=11.034657
-  Index 4: A=5.000000, B=-0.917490, diff=5.917490
-  Index 5: A=6.000000, B=-3.824073, diff=9.824073
+[1.00, 2.00]
+[3.00, 4.00]
+[5.00, 6.00]
+✓ SVD decomposition is correct (U * S * VT = J)
 
 
 =====================================
@@ -1313,23 +1296,23 @@ Sample differences (first 6):
 =====================================
 Multiplying 1024x512 by 512x1024 matrices...
 Performing large CPU matrix multiplication...
-Large CPU MatMul took 424.314209ms
+Large CPU MatMul took 479.875625ms
 Performing large GPU matrix multiplication...
-Large GPU MatMul took 3.275958ms
+Large GPU MatMul took 3.122ms
 ✓ Large matrix CPU and GPU results match
 
-Performance comparison (large matrix): GPU was 129.52x the speed of CPU
-GPU acceleration achieved! Time saved: 421.038251ms
+Performance comparison (large matrix): GPU was 153.71x the speed of CPU
+GPU acceleration achieved! Time saved: 476.753625ms
 
 
 ==========================================
 === Large Element-wise Operations Test ===
 ==========================================
 Testing element-wise addition on 2048x2048 matrices...
-CPU element-wise add took 2.437166ms
-GPU element-wise add took 1.405792ms
+CPU element-wise add took 1.985375ms
+GPU element-wise add took 1.417542ms
 ✓ Large element-wise CPU and GPU results match
-Element-wise performance: GPU was 1.73x the speed of CPU
+Element-wise performance: GPU was 1.40x the speed of CPU
 
 
 ===============================================
@@ -1337,22 +1320,22 @@ Element-wise performance: GPU was 1.73x the speed of CPU
 ===============================================
 Creating 256x256 random matrix for decomposition testing...
 Testing QR decomposition on 256x256 matrix...
-Large matrix QR decomposition took 1.012875ms
+Large matrix QR decomposition took 1.610291ms
 ✓ Large matrix QR decomposition completed successfully
 Testing Cholesky decomposition on 256x256 matrix...
-Large matrix Cholesky decomposition took 71.208µs
+Large matrix Cholesky decomposition took 229.25µs
 ✓ Large matrix Cholesky decomposition completed successfully
 Testing eigenvalue decomposition on 256x256 matrix...
-Large matrix eigenvalue decomposition took 6.72325ms
+Large matrix eigenvalue decomposition took 7.286667ms
 ✓ Large matrix eigenvalue decomposition completed successfully
 Testing SVD decomposition on 256x256 matrix...
-Large matrix SVD decomposition took 32.475667ms
+Large matrix SVD decomposition took 34.52525ms
 ✓ Large matrix SVD decomposition completed successfully
 Testing matrix inverse on 256x256 matrix...
-Large matrix inverse took 339.166µs
-Large matrix determinant took 109.958µs
+Large matrix inverse took 423.583µs
+Large matrix determinant took 105.292µs
 Determinant: +Inf
-Large matrix LU decomposition took 158.666µs
+Large matrix LU decomposition took 156.833µs
 ✓ Large matrix LU decomposition completed successfully
 
 === All Phase 4 Tests Complete ===
@@ -1365,7 +1348,7 @@ Phase 4 implementation includes:
   ✓ Performance testing for all advanced operations
   ✓ Robust error handling and memory management
 
-Next phases include:
+Next phase could include:
   - Sparse matrix support
   - GPU compute shaders for better performance
   - Additional specialized decompositions
