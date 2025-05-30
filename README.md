@@ -394,7 +394,7 @@ func main() {
 	fmt.Printf("Determinant of F: %.6f\n", det)
 
 	// For the matrix F, the determinant should be 3
-	expectedDet := float32(3.0)
+	expectedDet := float32(4.0)
 	if math.Abs(float64(det-expectedDet)) < 1e-5 {
 		fmt.Println("✓ Determinant calculation is correct")
 	} else {
@@ -746,13 +746,13 @@ Output should be something like...
 ==============================================
 
 Performing CPU matrix multiplication...
-CPU MatMul took 16.667µs
+CPU MatMul took 21.584µs
 Result C (CPU):
 [58.00, 64.00]
 [139.00, 154.00]
 
 Performing GPU matrix multiplication...
-GPU MatMul took 61.748459ms
+GPU MatMul took 72.097208ms
 Result C (GPU):
 [58.00, 64.00]
 [139.00, 154.00]
@@ -766,7 +766,7 @@ Expected Result:
 ✓ GPU result matches expected values
 ✓ CPU and GPU results match
 
-Performance comparison (matrix multiplication): GPU was 3704.83x slower than CPU (overhead dominates for small matrices)
+Performance comparison (matrix multiplication): GPU was 3340.31x slower than CPU (overhead dominates for small matrices)
 
 
 ====================================
@@ -828,7 +828,7 @@ Matrix F (for inverse testing):
 [0.00, 1.00, 2.00]
 
 --- Matrix Inverse Test ---
-GPU Matrix Inverse took 73.375µs
+GPU Matrix Inverse took 73.75µs
 Inverse of F:
 [0.75, -0.50, 0.25]
 [-0.50, 1.00, -0.50]
@@ -840,12 +840,12 @@ F * F^-1 (should be identity matrix):
 ✓ Matrix inverse is correct (F * F^-1 = I)
 
 --- Matrix Determinant Test ---
-GPU Matrix Determinant took 2.542µs
+GPU Matrix Determinant took 3.958µs
 Determinant of F: 4.000000
-✗ Determinant calculation failed: got 4.000000, expected 3.000000
+✓ Determinant calculation is correct
 
 --- LU Decomposition Test ---
-GPU LU Decomposition took 24.875µs
+GPU LU Decomposition took 61.792µs
 L matrix (Lower triangular):
 [1.00, 0.00, 0.00]
 [1.00, 1.00, 0.00]
@@ -867,23 +867,23 @@ L * U (should match original matrix F, considering pivoting):
 =====================================
 Multiplying 1024x512 by 512x1024 matrices...
 Performing large CPU matrix multiplication...
-Large CPU MatMul took 430.337583ms
+Large CPU MatMul took 432.856667ms
 Performing large GPU matrix multiplication...
-Large GPU MatMul took 2.574458ms
+Large GPU MatMul took 3.154375ms
 ✓ Large matrix CPU and GPU results match
 
-Performance comparison (large matrix): GPU was 167.16x the speed of CPU
-GPU acceleration achieved! Time saved: 427.763125ms
+Performance comparison (large matrix): GPU was 137.22x the speed of CPU
+GPU acceleration achieved! Time saved: 429.702292ms
 
 
 ==========================================
 === Large Element-wise Operations Test ===
 ==========================================
 Testing element-wise addition on 2048x2048 matrices...
-CPU element-wise add took 2.130875ms
-GPU element-wise add took 1.270958ms
+CPU element-wise add took 2.086208ms
+GPU element-wise add took 1.251542ms
 ✓ Large element-wise CPU and GPU results match
-Element-wise performance: GPU was 1.68x the speed of CPU
+Element-wise performance: GPU was 1.67x the speed of CPU
 
 
 ================================================
@@ -891,10 +891,10 @@ Element-wise performance: GPU was 1.68x the speed of CPU
 ================================================
 Creating 512x512 random matrix for inverse testing...
 Testing matrix inverse on 512x512 matrix...
-Large matrix inverse took 1.554209ms
-Large matrix determinant took 456.875µs
+Large matrix inverse took 1.117667ms
+Large matrix determinant took 422µs
 Determinant: +Inf
-Large matrix LU decomposition took 713.459µs
+Large matrix LU decomposition took 696.208µs
 ✓ Large matrix advanced operations completed successfully
 
 === All Tests Complete ===
