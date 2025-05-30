@@ -273,111 +273,425 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
+	"time"
 
+	// Using your sparse matrix library
 	"github.com/tsawler/go-nngpu/gpu/matrix"
+
+	// Standard Gonum imports
 	"gonum.org/v1/gonum/mat"
 )
 
 func main() {
-	// Original dense matrices
-	denseA := mat.NewDense(4, 4, []float64{
-		0, 0, 0, 5,
-		0, 2, 0, 0,
-		0, 0, 3, 0,
-		4, 0, 0, 0,
-	})
-	fmt.Println("Original Dense Matrix A:\n", mat.Formatted(denseA))
+	fmt.Println("=======================================================")
+	fmt.Println("=== Sparse Matrix Library vs Gonum Demonstration ===")
+	fmt.Println("=======================================================")
 
-	denseB := mat.NewDense(4, 4, []float64{
-		10, 0, 0, 0,
-		0, 20, 0, 0,
-		0, 0, 30, 0,
-		0, 0, 0, 40,
-	})
-	fmt.Println("\nOriginal Dense Matrix B:\n", mat.Formatted(denseB))
+	// Demo 1: Basic matrix operations comparison
+	fmt.Println("\n--- Demo 1: Basic Matrix Operations ---")
+	demoBasicOperations()
 
-	// Convert to GPU sparse matrices
-	sparseA := matrix.GPUDenseToSparse(denseA, 1e-9)
-	defer sparseA.ReleaseGPU()
-	fmt.Println("\nConverted to GPUSparse Matrix A info:", matrix.GetSparseMatrixInfo(sparseA))
+	// Demo 2: Performance comparison on large sparse matrices
+	fmt.Println("\n--- Demo 2: Performance Comparison ---")
+	demoPerformanceComparison()
 
-	sparseB := matrix.GPUDenseToSparse(denseB, 1e-9)
-	defer sparseB.ReleaseGPU()
-	fmt.Println("\nConverted to GPUSparse Matrix B info:", matrix.GetSparseMatrixInfo(sparseB))
+	// Demo 3: Mixed operations (sparse + dense)
+	fmt.Println("\n--- Demo 3: Mixed Sparse/Dense Operations ---")
+	demoMixedOperations()
 
-	// GPU sparse * sparse
-	resultSparseMul := matrix.GPUSparseMatMul(sparseA, sparseB)
-	fmt.Println("\nGPU Sparse A * Sparse B (Resulting Dense):\n", mat.Formatted(resultSparseMul))
-
-	// ✅ CPU-side fallback: add denseA + denseB
-	sumDense := mat.NewDense(4, 4, nil)
-	sumDense.Add(denseA, denseB)
-	fmt.Println("\nWorkaround: Dense A + Dense B (on CPU):\n", mat.Formatted(sumDense))
-
-	// Sparse scalar multiplication
-	resultScalarMul := sparseA.SparseScalarMul(2.0)
-	defer resultScalarMul.ReleaseGPU()
-	fmt.Println("\nGPU Sparse A * 2.0 (Resulting Sparse):\n", resultScalarMul)
-
-	// Sparse Matrix-Vector Multiplication
-	vec := []float64{1, 1, 1, 1}
-	resultMatVec := sparseA.SparseMatVec(vec)
-	fmt.Println("\nGPU Sparse A * Vector [1,1,1,1]:\n", resultMatVec)
-
-	// Sparse matrix usefulness
-	rows, cols := 1000, 1000
-	nnz := 50000
-	nnzDense := 800000
-	fmt.Printf("\nIs sparse worthwhile for %dx%d matrix with %d non-zeros? %v\n", rows, cols, nnz, matrix.IsSparseWorthwhile(rows, cols, nnz))
-	fmt.Printf("Is sparse worthwhile for %dx%d matrix with %d non-zeros? %v\n", rows, cols, nnzDense, matrix.IsSparseWorthwhile(rows, cols, nnzDense))
+	// Demo 4: Real-world scenario - solving a sparse system
+	fmt.Println("\n--- Demo 4: Real-world Sparse System ---")
+	demoRealWorldScenario()
 }
-```
 
-### Batch Operations
+func demoBasicOperations() {
+	// Create a sparse connectivity matrix (like a graph adjacency matrix)
+	// This represents connections between 6 nodes
+	fmt.Println("Creating a 6x6 sparse connectivity matrix...")
 
-For scenarios involving many independent matrix operations, go-nngpu provides batch functions to optimize GPU utilization by reducing CPU-GPU data transfer overhead.
+	// === USING YOUR SPARSE LIBRARY ===
+	// Create sparse matrix directly with COO format
+	rowIndices := []int32{0, 0, 1, 1, 2, 3, 4, 4, 5}
+	colIndices := []int32{1, 3, 2, 4, 5, 0, 1, 5, 2}
+	values := []float32{1.5, 2.0, 3.2, 1.8, 2.5, 1.0, 2.2, 3.0, 1.7}
 
-```go
-package main
+	sparseMat := matrix.NewGPUSparse(6, 6, rowIndices, colIndices, values)
+	defer sparseMat.ReleaseGPU()
 
-import (
-	"fmt"
-	"github.com/tsawler/go-nngpu/gpu/matrix"
-	"gonum.org/v1/gonum/mat"
-)
+	sparseRows, sparseCols := sparseMat.Dims()
+	fmt.Printf("Sparse matrix: %dx%d, NNZ=%d, Density=%.3f\n",
+		sparseRows, sparseCols, sparseMat.GetNNZ(), sparseMat.GetDensity())
 
-func main() {
-	// Batch Matrix Multiplication
-	m1 := mat.NewDense(2, 2, []float64{1, 2, 3, 4})
-	m2 := mat.NewDense(2, 2, []float64{5, 6, 7, 8})
-	m3 := mat.NewDense(2, 2, []float64{9, 10, 11, 12})
+	// Convert to dense for display
+	denseMat := sparseMat.ToDense()
+	fmt.Println("Sparse matrix as dense:")
+	printMatrix(denseMat)
 
-	batchMulOps := []struct{ A, B mat.Matrix }{
-		{A: m1, B: m2},
-		{A: m2, B: m3},
+	// === USING SPARSE LIBRARY FOR OPERATIONS ===
+	// Scalar multiplication
+	fmt.Println("\nScalar multiplication (×2.0) using sparse library:")
+	start := time.Now()
+	scaledSparse := sparseMat.SparseScalarMul(2.0) // <-- YOUR SPARSE LIBRARY
+	sparseScalarTime := time.Since(start)
+	defer scaledSparse.ReleaseGPU()
+
+	scaledDense := scaledSparse.ToDense()
+	printMatrix(scaledDense)
+	fmt.Printf("Sparse scalar multiplication took: %v\n", sparseScalarTime)
+
+	// Compare with Gonum dense operation
+	fmt.Println("\nSame operation using Gonum dense:")
+	start = time.Now()
+	gonumResult := mat.NewDense(6, 6, nil)
+	gonumResult.Scale(2.0, denseMat) // <-- STANDARD GONUM
+	gonumScalarTime := time.Since(start)
+	fmt.Printf("Gonum dense scalar multiplication took: %v\n", gonumScalarTime)
+
+	// Matrix-vector multiplication
+	fmt.Println("\nMatrix-vector multiplication:")
+	vector := []float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0}
+
+	// === USING YOUR SPARSE LIBRARY ===
+	start = time.Now()
+	sparseResult := sparseMat.SparseMatVec(vector) // <-- THIS SPARSE LIBRARY
+	sparseMatVecTime := time.Since(start)
+
+	fmt.Printf("Sparse result: %v\n", sparseResult)
+	fmt.Printf("Sparse matvec took: %v\n", sparseMatVecTime)
+
+	// Compare with Gonum
+	start = time.Now()
+	gonumVec := mat.NewVecDense(6, vector)
+	gonumResult2 := mat.NewVecDense(6, nil)
+	gonumResult2.MulVec(denseMat, gonumVec) // <-- STANDARD GONUM
+	gonumMatVecTime := time.Since(start)
+
+	fmt.Printf("Gonum result: %v\n", gonumResult2.RawVector().Data)
+	fmt.Printf("Gonum matvec took: %v\n", gonumMatVecTime)
+}
+
+func demoPerformanceComparison() {
+	// Create larger sparse matrices for performance testing
+	size := 1000
+	sparsity := 0.02 // 2% non-zero elements
+
+	fmt.Printf("Creating %dx%d matrices with %.1f%% sparsity...\n", size, size, sparsity*100)
+
+	// Generate random sparse data
+	nnz := int(float64(size*size) * sparsity)
+	rowIndices, colIndices, values := generateRandomSparseData(size, size, nnz)
+
+	// === CREATE USING YOUR SPARSE LIBRARY ===
+	fmt.Println("Creating sparse matrix using your library...")
+	start := time.Now()
+	sparseMat := matrix.NewGPUSparse(size, size, rowIndices, colIndices, values) // <-- THIS SPARSE LIBRARY
+	defer sparseMat.ReleaseGPU()
+	sparseCreateTime := time.Since(start)
+
+	// Create equivalent dense matrix using Gonum
+	fmt.Println("Creating equivalent dense matrix using Gonum...")
+	start = time.Now()
+	denseData := make([]float64, size*size)
+	for i := 0; i < nnz; i++ {
+		row, col := int(rowIndices[i]), int(colIndices[i])
+		denseData[row*size+col] = float64(values[i])
+	}
+	denseMat := mat.NewDense(size, size, denseData) // <-- STANDARD GONUM
+	denseCreateTime := time.Since(start)
+
+	fmt.Printf("Sparse matrix creation: %v\n", sparseCreateTime)
+	fmt.Printf("Dense matrix creation: %v\n", denseCreateTime)
+
+	// Test matrix-vector multiplication performance
+	vector := make([]float64, size)
+	for i := range vector {
+		vector[i] = rand.Float64()
 	}
 
-	resultsMul := matrix.BatchGPUMatMul(batchMulOps)
-	fmt.Println("Batch Matrix Multiplication Results:")
-	for i, res := range resultsMul {
-		fmt.Printf("Operation %d:\n%v\n", i+1, mat.Formatted(res))
+	// === USING YOUR SPARSE LIBRARY ===
+	fmt.Println("\nTesting matrix-vector multiplication performance...")
+	start = time.Now()
+	sparseResult := sparseMat.SparseMatVec(vector) // <-- THIS SPARSE LIBRARY
+	sparseTime := time.Since(start)
+
+	// Using Gonum dense
+	start = time.Now()
+	vecGonum := mat.NewVecDense(size, vector)
+	resultGonum := mat.NewVecDense(size, nil)
+	resultGonum.MulVec(denseMat, vecGonum) // <-- STANDARD GONUM
+	denseTime := time.Since(start)
+
+	fmt.Printf("Sparse matvec time: %v\n", sparseTime)
+	fmt.Printf("Dense matvec time: %v\n", denseTime)
+
+	// Verify results match
+	gonumData := resultGonum.RawVector().Data
+	match := true
+	maxDiff := 0.0
+	tolerance := 1e-4 // More relaxed tolerance for float32 vs float64 comparison
+
+	for i := range sparseResult {
+		diff := abs(sparseResult[i] - gonumData[i])
+		if diff > maxDiff {
+			maxDiff = diff
+		}
+		if diff > tolerance {
+			match = false
+			// Don't break immediately - let's see the max difference
+		}
 	}
 
-	// Batch Sparse Matrix-Vector Multiplication
-	sparseM1 := matrix.NewGPUSparse(2, 3, []int32{0, 1}, []int32{1, 0}, []float32{10, 20})
-	sparseM2 := matrix.NewGPUSparse(3, 2, []int32{0, 2}, []int32{1, 0}, []float32{5, 15})
+	fmt.Printf("Maximum difference between results: %.2e\n", maxDiff)
 
-	vec1 := []float64{1, 2, 3}
-	vec2 := []float64{4, 5}
+	if match {
+		speedup := float64(denseTime) / float64(sparseTime)
+		fmt.Printf("✓ Results match! Sparse was %.2fx the speed of dense\n", speedup)
+	} else {
+		speedup := float64(denseTime) / float64(sparseTime)
+		fmt.Printf("⚠ Results differ by %.2e (likely float32 vs float64 precision)\n", maxDiff)
+		fmt.Printf("  Sparse was %.2fx the speed of dense\n", speedup)
 
-	batchMatVecOps := []*matrix.GPUSparse{sparseM1, sparseM2}
-	batchVectors := [][]float64{vec1, vec2}
-
-	resultsMatVec := matrix.BatchGPUSparseMatVec(batchMatVecOps, batchVectors)
-	fmt.Println("\nBatch Sparse Matrix-Vector Multiplication Results:")
-	for i, res := range resultsMatVec {
-		fmt.Printf("Operation %d: %v\n", i+1, res)
+		// Show a few sample comparisons for debugging
+		fmt.Println("  Sample comparisons:")
+		for i := 0; i < 5 && i < len(sparseResult); i++ {
+			fmt.Printf("    [%d] Sparse: %.6f, Dense: %.6f, Diff: %.2e\n",
+				i, sparseResult[i], gonumData[i], abs(sparseResult[i]-gonumData[i]))
+		}
 	}
+
+	// Memory usage comparison
+	sparseMemory := estimateMemoryUsage(sparseMat)
+	denseMemory := int64(size * size * 8) // float64 = 8 bytes
+
+	fmt.Printf("Sparse memory: ~%d bytes\n", sparseMemory)
+	fmt.Printf("Dense memory: %d bytes\n", denseMemory)
+	fmt.Printf("Memory savings: %.2fx\n", float64(denseMemory)/float64(sparseMemory))
+}
+
+func demoMixedOperations() {
+	// Demonstrate mixing sparse and dense operations
+	fmt.Println("Creating sparse matrix A and dense matrix B...")
+
+	// === CREATE SPARSE MATRIX USING THIS LIBRARY ===
+	// Sparse matrix A (4x3)
+	aRowIndices := []int32{0, 0, 1, 2, 3, 3}
+	aColIndices := []int32{0, 2, 1, 0, 1, 2}
+	aValues := []float32{2.0, 3.0, 4.0, 1.0, 5.0, 2.0}
+
+	sparseA := matrix.NewGPUSparse(4, 3, aRowIndices, aColIndices, aValues) // <-- YOUR SPARSE LIBRARY
+	defer sparseA.ReleaseGPU()
+
+	// Dense matrix B (3x2) using Gonum
+	bData := []float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0}
+	denseB := mat.NewDense(3, 2, bData) // <-- STANDARD GONUM
+
+	fmt.Println("Sparse matrix A:")
+	printMatrix(sparseA.ToDense())
+
+	fmt.Println("Dense matrix B:")
+	printMatrix(denseB)
+
+	// === MIXED MULTIPLICATION USING THIS LIBRARY ===
+	fmt.Println("Performing sparse × dense multiplication using your library...")
+	start := time.Now()
+	result := matrix.GPUSparseMatMul(sparseA, denseB) // <-- THIS SPARSE LIBRARY (mixed operation)
+	mixedTime := time.Since(start)
+
+	fmt.Println("Result (Sparse × Dense):")
+	printMatrix(result)
+	fmt.Printf("Mixed operation took: %v\n", mixedTime)
+
+	// Compare with pure Gonum dense operations
+	fmt.Println("\nCompare with pure Gonum dense operations...")
+	denseA := sparseA.ToDense()
+	start = time.Now()
+	gonumResult := mat.NewDense(4, 2, nil)
+	gonumResult.Mul(denseA, denseB) // <-- STANDARD GONUM
+	gonumTime := time.Since(start)
+
+	fmt.Println("Gonum result:")
+	printMatrix(gonumResult)
+	fmt.Printf("Gonum operation took: %v\n", gonumTime)
+}
+
+func demoRealWorldScenario() {
+	// Simulate a real-world scenario: web page ranking (simplified PageRank)
+	fmt.Println("Simulating web page ranking with sparse link matrix...")
+
+	numPages := 100
+	linksPerPage := 3 // Average links per page (sparse!)
+
+	// === CREATE SPARSE LINK MATRIX USING YOUR LIBRARY ===
+	// Generate random web link structure
+	rand.Seed(42) // For reproducible results
+	var rowIndices, colIndices []int32
+	var values []float32
+
+	for page := 0; page < numPages; page++ {
+		// Each page links to a few other pages
+		numLinks := rand.Intn(linksPerPage*2) + 1
+		for link := 0; link < numLinks; link++ {
+			targetPage := rand.Intn(numPages)
+			if targetPage != page { // No self-links
+				rowIndices = append(rowIndices, int32(page))
+				colIndices = append(colIndices, int32(targetPage))
+				values = append(values, 1.0) // Equal weight for all links
+			}
+		}
+	}
+
+	linkMatrix := matrix.NewGPUSparse(numPages, numPages, rowIndices, colIndices, values) // <-- THIS SPARSE LIBRARY
+	defer linkMatrix.ReleaseGPU()
+
+	linkRows, linkCols := linkMatrix.Dims()
+	fmt.Printf("Created link matrix: %dx%d with %d links (%.2f%% sparse)\n",
+		linkRows, linkCols, linkMatrix.GetNNZ(), linkMatrix.GetDensity()*100)
+
+	// Normalize the matrix (each row sums to 1)
+	fmt.Println("Normalizing link matrix using sparse operations...")
+
+	// === USING YOUR SPARSE LIBRARY FOR NORMALIZATION ===
+	// This would typically require custom sparse operations, but we'll simulate
+	// by working with the dense version for this demo
+	denseLinkMatrix := linkMatrix.ToDense()
+
+	// Normalize rows
+	rows, cols := denseLinkMatrix.Dims()
+	for i := 0; i < rows; i++ {
+		rowSum := 0.0
+		for j := 0; j < cols; j++ {
+			rowSum += denseLinkMatrix.At(i, j)
+		}
+		if rowSum > 0 {
+			for j := 0; j < cols; j++ {
+				if denseLinkMatrix.At(i, j) > 0 {
+					denseLinkMatrix.Set(i, j, denseLinkMatrix.At(i, j)/rowSum)
+				}
+			}
+		}
+	}
+
+	// Convert back to sparse for efficient operations
+	normalizedSparse := matrix.NewGPUSparseFromDense(denseLinkMatrix, 1e-10) // <-- THIS SPARSE LIBRARY
+	defer normalizedSparse.ReleaseGPU()
+
+	// Simulate PageRank iteration using sparse matrix-vector multiplication
+	fmt.Println("Running simplified PageRank iterations...")
+
+	// Initial page rank vector (uniform distribution)
+	pageRank := make([]float64, numPages)
+	for i := range pageRank {
+		pageRank[i] = 1.0 / float64(numPages)
+	}
+
+	// Run a few PageRank iterations
+	dampingFactor := 0.85
+	iterations := 10
+
+	start := time.Now()
+	for iter := 0; iter < iterations; iter++ {
+		// === USING YOUR SPARSE LIBRARY FOR PAGERANK ===
+		newRank := normalizedSparse.SparseMatVec(pageRank) // <-- THIS SPARSE LIBRARY
+
+		// Apply damping factor
+		for i := range newRank {
+			newRank[i] = (1.0-dampingFactor)/float64(numPages) + dampingFactor*newRank[i]
+		}
+
+		pageRank = newRank
+	}
+	pageRankTime := time.Since(start)
+
+	fmt.Printf("PageRank completed in %v (%d iterations)\n", pageRankTime, iterations)
+
+	// Find top-ranked pages
+	type pageScore struct {
+		page  int
+		score float64
+	}
+
+	var scores []pageScore
+	for i, score := range pageRank {
+		scores = append(scores, pageScore{i, score})
+	}
+
+	// Sort to find top pages (simple bubble sort for demo)
+	for i := 0; i < len(scores)-1; i++ {
+		for j := 0; j < len(scores)-i-1; j++ {
+			if scores[j].score < scores[j+1].score {
+				scores[j], scores[j+1] = scores[j+1], scores[j]
+			}
+		}
+	}
+
+	fmt.Println("Top 5 ranked pages:")
+	for i := 0; i < 5 && i < len(scores); i++ {
+		fmt.Printf("  Page %d: %.6f\n", scores[i].page, scores[i].score)
+	}
+
+	// Memory usage analysis
+	info := matrix.GetSparseMatrixInfo(normalizedSparse)
+	fmt.Printf("\nSparse matrix analysis:\n%s\n", info.String())
+
+	denseMemory := int64(numPages * numPages * 8) // float64
+	fmt.Printf("Memory savings vs dense: %.1fx\n",
+		float64(denseMemory)/float64(info.MemoryUsage))
+}
+
+// Helper functions
+
+func generateRandomSparseData(rows, cols, nnz int) ([]int32, []int32, []float32) {
+	var rowIndices, colIndices []int32
+	var values []float32
+
+	used := make(map[int]bool)
+	for len(rowIndices) < nnz {
+		pos := rand.Intn(rows * cols)
+		if !used[pos] {
+			used[pos] = true
+			row := pos / cols
+			col := pos % cols
+			val := rand.Float32()*10 - 5 // Random value between -5 and 5
+
+			rowIndices = append(rowIndices, int32(row))
+			colIndices = append(colIndices, int32(col))
+			values = append(values, val)
+		}
+	}
+
+	return rowIndices, colIndices, values
+}
+
+func estimateMemoryUsage(sparse *matrix.GPUSparse) int64 {
+	info := matrix.GetSparseMatrixInfo(sparse)
+	return info.MemoryUsage
+}
+
+func printMatrix(m mat.Matrix) {
+	rows, cols := m.Dims()
+	if rows > 8 || cols > 8 {
+		fmt.Printf("Matrix too large to display (%dx%d)\n", rows, cols)
+		return
+	}
+
+	for i := 0; i < rows; i++ {
+		fmt.Print("[")
+		for j := 0; j < cols; j++ {
+			fmt.Printf("%6.2f", m.At(i, j))
+			if j < cols-1 {
+				fmt.Print(" ")
+			}
+		}
+		fmt.Println("]")
+	}
+}
+
+func abs(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 ```
 
