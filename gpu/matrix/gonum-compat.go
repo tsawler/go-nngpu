@@ -105,6 +105,144 @@ func (g *GPUDense) Mul(a, b mat.Matrix) {
 	g.tensor = result
 }
 
+// GPU-accelerated element-wise addition
+func (g *GPUDense) Add(a, b mat.Matrix) {
+	var aTensor, bTensor *tensor.Tensor
+
+	if gpuA, ok := a.(*GPUDense); ok {
+		aTensor = gpuA.tensor
+	} else {
+		gpuA := FromGonum(a)
+		aTensor = gpuA.tensor
+		defer gpuA.ReleaseGPU()
+	}
+
+	if gpuB, ok := b.(*GPUDense); ok {
+		bTensor = gpuB.tensor
+	} else {
+		gpuB := FromGonum(b)
+		bTensor = gpuB.tensor
+		defer gpuB.ReleaseGPU()
+	}
+
+	result, err := Add(aTensor, bTensor)
+	if err != nil {
+		panic(err)
+	}
+
+	g.tensor.ReleaseGPU()
+	g.tensor = result
+}
+
+// GPU-accelerated element-wise subtraction
+func (g *GPUDense) Sub(a, b mat.Matrix) {
+	var aTensor, bTensor *tensor.Tensor
+
+	if gpuA, ok := a.(*GPUDense); ok {
+		aTensor = gpuA.tensor
+	} else {
+		gpuA := FromGonum(a)
+		aTensor = gpuA.tensor
+		defer gpuA.ReleaseGPU()
+	}
+
+	if gpuB, ok := b.(*GPUDense); ok {
+		bTensor = gpuB.tensor
+	} else {
+		gpuB := FromGonum(b)
+		bTensor = gpuB.tensor
+		defer gpuB.ReleaseGPU()
+	}
+
+	result, err := Sub(aTensor, bTensor)
+	if err != nil {
+		panic(err)
+	}
+
+	g.tensor.ReleaseGPU()
+	g.tensor = result
+}
+
+// GPU-accelerated element-wise multiplication (Hadamard product)
+func (g *GPUDense) MulElem(a, b mat.Matrix) {
+	var aTensor, bTensor *tensor.Tensor
+
+	if gpuA, ok := a.(*GPUDense); ok {
+		aTensor = gpuA.tensor
+	} else {
+		gpuA := FromGonum(a)
+		aTensor = gpuA.tensor
+		defer gpuA.ReleaseGPU()
+	}
+
+	if gpuB, ok := b.(*GPUDense); ok {
+		bTensor = gpuB.tensor
+	} else {
+		gpuB := FromGonum(b)
+		bTensor = gpuB.tensor
+		defer gpuB.ReleaseGPU()
+	}
+
+	result, err := Mul(aTensor, bTensor)
+	if err != nil {
+		panic(err)
+	}
+
+	g.tensor.ReleaseGPU()
+	g.tensor = result
+}
+
+// GPU-accelerated element-wise division
+func (g *GPUDense) DivElem(a, b mat.Matrix) {
+	var aTensor, bTensor *tensor.Tensor
+
+	if gpuA, ok := a.(*GPUDense); ok {
+		aTensor = gpuA.tensor
+	} else {
+		gpuA := FromGonum(a)
+		aTensor = gpuA.tensor
+		defer gpuA.ReleaseGPU()
+	}
+
+	if gpuB, ok := b.(*GPUDense); ok {
+		bTensor = gpuB.tensor
+	} else {
+		gpuB := FromGonum(b)
+		bTensor = gpuB.tensor
+		defer gpuB.ReleaseGPU()
+	}
+
+	result, err := Div(aTensor, bTensor)
+	if err != nil {
+		panic(err)
+	}
+
+	g.tensor.ReleaseGPU()
+	g.tensor = result
+}
+
+// GPU-accelerated scalar addition
+func (g *GPUDense) AddScalar(scalar float64) {
+	result, err := ScalarAdd(g.tensor, float32(scalar))
+	if err != nil {
+		panic(err)
+	}
+
+	g.tensor.ReleaseGPU()
+	g.tensor = result
+}
+
+// GPU-accelerated scalar multiplication
+func (g *GPUDense) Scale(scalar float64) {
+	result, err := ScalarMul(g.tensor, float32(scalar))
+	if err != nil {
+		panic(err)
+	}
+
+	g.tensor.ReleaseGPU()
+	g.tensor = result
+}
+
 // ToGonum converts back to a standard gonum Dense matrix
 func (g *GPUDense) ToGonum() *mat.Dense {
 	if err := g.tensor.RetrieveCPU(); err != nil {
@@ -153,12 +291,135 @@ func GPUMatMul(a, b mat.Matrix) *mat.Dense {
 	return mat.NewDense(rows, cols, data)
 }
 
+// GPUAdd is a drop-in replacement for gonum's matrix addition
+func GPUAdd(a, b mat.Matrix) *mat.Dense {
+	gpuA := FromGonum(a)
+	defer gpuA.ReleaseGPU()
+
+	gpuB := FromGonum(b)
+	defer gpuB.ReleaseGPU()
+
+	result, err := Add(gpuA.tensor, gpuB.tensor)
+	if err != nil {
+		panic(err)
+	}
+	defer result.ReleaseGPU()
+
+	// Convert back to gonum format
+	if err := result.RetrieveCPU(); err != nil {
+		panic(err)
+	}
+
+	rows, cols := result.Shape[0], result.Shape[1]
+	data := make([]float64, len(result.Data))
+	for i, v := range result.Data {
+		data[i] = float64(v)
+	}
+
+	return mat.NewDense(rows, cols, data)
+}
+
+// GPUSub is a drop-in replacement for gonum's matrix subtraction
+func GPUSub(a, b mat.Matrix) *mat.Dense {
+	gpuA := FromGonum(a)
+	defer gpuA.ReleaseGPU()
+
+	gpuB := FromGonum(b)
+	defer gpuB.ReleaseGPU()
+
+	result, err := Sub(gpuA.tensor, gpuB.tensor)
+	if err != nil {
+		panic(err)
+	}
+	defer result.ReleaseGPU()
+
+	// Convert back to gonum format
+	if err := result.RetrieveCPU(); err != nil {
+		panic(err)
+	}
+
+	rows, cols := result.Shape[0], result.Shape[1]
+	data := make([]float64, len(result.Data))
+	for i, v := range result.Data {
+		data[i] = float64(v)
+	}
+
+	return mat.NewDense(rows, cols, data)
+}
+
+// GPUMulElem is a drop-in replacement for gonum's element-wise multiplication
+func GPUMulElem(a, b mat.Matrix) *mat.Dense {
+	gpuA := FromGonum(a)
+	defer gpuA.ReleaseGPU()
+
+	gpuB := FromGonum(b)
+	defer gpuB.ReleaseGPU()
+
+	result, err := Mul(gpuA.tensor, gpuB.tensor)
+	if err != nil {
+		panic(err)
+	}
+	defer result.ReleaseGPU()
+
+	// Convert back to gonum format
+	if err := result.RetrieveCPU(); err != nil {
+		panic(err)
+	}
+
+	rows, cols := result.Shape[0], result.Shape[1]
+	data := make([]float64, len(result.Data))
+	for i, v := range result.Data {
+		data[i] = float64(v)
+	}
+
+	return mat.NewDense(rows, cols, data)
+}
+
+// GPUDivElem is a drop-in replacement for gonum's element-wise division
+func GPUDivElem(a, b mat.Matrix) *mat.Dense {
+	gpuA := FromGonum(a)
+	defer gpuA.ReleaseGPU()
+
+	gpuB := FromGonum(b)
+	defer gpuB.ReleaseGPU()
+
+	result, err := Div(gpuA.tensor, gpuB.tensor)
+	if err != nil {
+		panic(err)
+	}
+	defer result.ReleaseGPU()
+
+	// Convert back to gonum format
+	if err := result.RetrieveCPU(); err != nil {
+		panic(err)
+	}
+
+	rows, cols := result.Shape[0], result.Shape[1]
+	data := make([]float64, len(result.Data))
+	for i, v := range result.Data {
+		data[i] = float64(v)
+	}
+
+	return mat.NewDense(rows, cols, data)
+}
+
 // BatchGPUMatMul keeps matrices on GPU for multiple operations
 func BatchGPUMatMul(operations []struct{ A, B mat.Matrix }) []*mat.Dense {
 	results := make([]*mat.Dense, len(operations))
 
 	for i, op := range operations {
 		results[i] = GPUMatMul(op.A, op.B)
+	}
+
+	return results
+}
+
+// BatchGPUAdd performs multiple element-wise additions efficiently
+func BatchGPUAdd(operations []struct{ A, B mat.Matrix }) []*mat.Dense {
+	results := make([]*mat.Dense, len(operations))
+
+	for i, op := range operations {
+		results[i] = GPUAdd(op.A, op.B)
 	}
 
 	return results

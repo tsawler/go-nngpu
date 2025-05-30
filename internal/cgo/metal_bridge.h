@@ -23,12 +23,69 @@ int create_gpu_buffer(float *data, long length_bytes, GPUPtr *outGPUPtr, DeviceP
 int retrieve_gpu_buffer_data(GPUPtr gpuPtr, float *data, long length_bytes, CError *err);
 int release_gpu_buffer(GPUPtr gpuPtr);
 
-// Function prototype for MPS Matrix Multiplication
+// Matrix operations that are actually implemented and working
 int perform_mps_matrix_multiplication(
     GPUPtr aMatrixPtr, long aRows, long aCols,
     GPUPtr bMatrixPtr, long bRows, long bCols,
     GPUPtr resultMatrixPtr, long resultRows, long resultCols,
-    DevicePtr mtlDevicePtr, // Pass the device pointer here
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_mps_matrix_transpose(
+    GPUPtr inputMatrixPtr, long inputRows, long inputCols,
+    GPUPtr outputMatrixPtr, long outputRows, long outputCols,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Element-wise operations (Phase 2)
+int perform_mps_matrix_add(
+    GPUPtr aMatrixPtr, long aRows, long aCols,
+    GPUPtr bMatrixPtr, long bRows, long bCols,
+    GPUPtr resultMatrixPtr, long resultRows, long resultCols,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_mps_matrix_subtract(
+    GPUPtr aMatrixPtr, long aRows, long aCols,
+    GPUPtr bMatrixPtr, long bRows, long bCols,
+    GPUPtr resultMatrixPtr, long resultRows, long resultCols,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_mps_matrix_element_multiply(
+    GPUPtr aMatrixPtr, long aRows, long aCols,
+    GPUPtr bMatrixPtr, long bRows, long bCols,
+    GPUPtr resultMatrixPtr, long resultRows, long resultCols,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_mps_matrix_element_divide(
+    GPUPtr aMatrixPtr, long aRows, long aCols,
+    GPUPtr bMatrixPtr, long bRows, long bCols,
+    GPUPtr resultMatrixPtr, long resultRows, long resultCols,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Scalar operations
+int perform_mps_matrix_scalar_add(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    float scalar,
+    GPUPtr resultMatrixPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_mps_matrix_scalar_multiply(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    float scalar,
+    GPUPtr resultMatrixPtr,
+    DevicePtr mtlDevicePtr,
     CError *err
 );
 
