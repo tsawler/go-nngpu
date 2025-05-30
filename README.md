@@ -9,7 +9,7 @@ Development strategy:
 - [x] Phase 1: MatMul + Transpose (working now)
 - [x] Phase 2: Add element-wise operations (Add, Sub, Mul, Div)
 - [x] Phase 3: Add matrix inverse using Accelerate framework fallback
-- [ ] Phase 4: Add decompositions one by one as you figure out the MPS APIs
+- [ ] Phase 4: Add decompositions one by one as I figure out the MPS APIs
 - [ ] Phase 5: Add sparse matrix support
 
 
