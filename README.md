@@ -276,7 +276,6 @@ import (
 	"math/rand"
 	"time"
 
-	// Using your sparse matrix library
 	"github.com/tsawler/go-nngpu/gpu/matrix"
 
 	// Standard Gonum imports
@@ -310,7 +309,7 @@ func demoBasicOperations() {
 	// This represents connections between 6 nodes
 	fmt.Println("Creating a 6x6 sparse connectivity matrix...")
 
-	// === USING YOUR SPARSE LIBRARY ===
+	// === USING THIS SPARSE LIBRARY ===
 	// Create sparse matrix directly with COO format
 	rowIndices := []int32{0, 0, 1, 1, 2, 3, 4, 4, 5}
 	colIndices := []int32{1, 3, 2, 4, 5, 0, 1, 5, 2}
@@ -332,7 +331,7 @@ func demoBasicOperations() {
 	// Scalar multiplication
 	fmt.Println("\nScalar multiplication (×2.0) using sparse library:")
 	start := time.Now()
-	scaledSparse := sparseMat.SparseScalarMul(2.0) // <-- YOUR SPARSE LIBRARY
+	scaledSparse := sparseMat.SparseScalarMul(2.0) // <-- THIS SPARSE LIBRARY
 	sparseScalarTime := time.Since(start)
 	defer scaledSparse.ReleaseGPU()
 
@@ -352,7 +351,7 @@ func demoBasicOperations() {
 	fmt.Println("\nMatrix-vector multiplication:")
 	vector := []float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0}
 
-	// === USING YOUR SPARSE LIBRARY ===
+	// === USING THIS SPARSE LIBRARY ===
 	start = time.Now()
 	sparseResult := sparseMat.SparseMatVec(vector) // <-- THIS SPARSE LIBRARY
 	sparseMatVecTime := time.Since(start)
@@ -382,8 +381,8 @@ func demoPerformanceComparison() {
 	nnz := int(float64(size*size) * sparsity)
 	rowIndices, colIndices, values := generateRandomSparseData(size, size, nnz)
 
-	// === CREATE USING YOUR SPARSE LIBRARY ===
-	fmt.Println("Creating sparse matrix using your library...")
+	// === CREATE USING THIS SPARSE LIBRARY ===
+	fmt.Println("Creating sparse matrix using this library...")
 	start := time.Now()
 	sparseMat := matrix.NewGPUSparse(size, size, rowIndices, colIndices, values) // <-- THIS SPARSE LIBRARY
 	defer sparseMat.ReleaseGPU()
@@ -409,7 +408,7 @@ func demoPerformanceComparison() {
 		vector[i] = rand.Float64()
 	}
 
-	// === USING YOUR SPARSE LIBRARY ===
+	// === USING THIS SPARSE LIBRARY ===
 	fmt.Println("\nTesting matrix-vector multiplication performance...")
 	start = time.Now()
 	sparseResult := sparseMat.SparseMatVec(vector) // <-- THIS SPARSE LIBRARY
@@ -479,7 +478,7 @@ func demoMixedOperations() {
 	aColIndices := []int32{0, 2, 1, 0, 1, 2}
 	aValues := []float32{2.0, 3.0, 4.0, 1.0, 5.0, 2.0}
 
-	sparseA := matrix.NewGPUSparse(4, 3, aRowIndices, aColIndices, aValues) // <-- YOUR SPARSE LIBRARY
+	sparseA := matrix.NewGPUSparse(4, 3, aRowIndices, aColIndices, aValues) // <-- THIS SPARSE LIBRARY
 	defer sparseA.ReleaseGPU()
 
 	// Dense matrix B (3x2) using Gonum
@@ -493,7 +492,7 @@ func demoMixedOperations() {
 	printMatrix(denseB)
 
 	// === MIXED MULTIPLICATION USING THIS LIBRARY ===
-	fmt.Println("Performing sparse × dense multiplication using your library...")
+	fmt.Println("Performing sparse × dense multiplication using this library...")
 	start := time.Now()
 	result := matrix.GPUSparseMatMul(sparseA, denseB) // <-- THIS SPARSE LIBRARY (mixed operation)
 	mixedTime := time.Since(start)
@@ -522,7 +521,7 @@ func demoRealWorldScenario() {
 	numPages := 100
 	linksPerPage := 3 // Average links per page (sparse!)
 
-	// === CREATE SPARSE LINK MATRIX USING YOUR LIBRARY ===
+	// === CREATE SPARSE LINK MATRIX USING THIS LIBRARY ===
 	// Generate random web link structure
 	rand.Seed(42) // For reproducible results
 	var rowIndices, colIndices []int32
@@ -551,7 +550,7 @@ func demoRealWorldScenario() {
 	// Normalize the matrix (each row sums to 1)
 	fmt.Println("Normalizing link matrix using sparse operations...")
 
-	// === USING YOUR SPARSE LIBRARY FOR NORMALIZATION ===
+	// === USING THIS SPARSE LIBRARY FOR NORMALIZATION ===
 	// This would typically require custom sparse operations, but we'll simulate
 	// by working with the dense version for this demo
 	denseLinkMatrix := linkMatrix.ToDense()
@@ -591,7 +590,7 @@ func demoRealWorldScenario() {
 
 	start := time.Now()
 	for iter := 0; iter < iterations; iter++ {
-		// === USING YOUR SPARSE LIBRARY FOR PAGERANK ===
+		// === USING THIS SPARSE LIBRARY FOR PAGERANK ===
 		newRank := normalizedSparse.SparseMatVec(pageRank) // <-- THIS SPARSE LIBRARY
 
 		// Apply damping factor
