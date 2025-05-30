@@ -1,6 +1,19 @@
 # go-nngpu
 
-Very beginnings. Below app works, but compile code in module first: `go build ./...`
+This Go module (go-nngpu) provides GPU-accelerated matrix operations for Apple hardware by leveraging Metal Performance Shaders (MPS) and the Accelerate framework. It offers a tensor abstraction that can seamlessly move data between CPU and GPU memory, enabling high-performance matrix multiplication, element-wise operations (addition, subtraction, multiplication, division), scalar operations, and advanced linear algebra functions like matrix inversion, determinant calculation, and LU decomposition. The module includes a Gonum compatibility layer for drop-in replacement of CPU-based matrix operations with GPU-accelerated equivalents, making it easy to add GPU acceleration to existing Go scientific computing applications. Built using CGO with Objective-C bridges to Apple's native frameworks, it demonstrates significant performance improvements for large matrix operations while maintaining numerical accuracy and proper memory management.
+
+The module is still in development.
+
+Development strategy:
+
+- [x] Phase 1: MatMul + Transpose (working now)
+- [x] Phase 2: Add element-wise operations (Add, Sub, Mul, Div)
+- [x] Phase 3: Add matrix inverse using Accelerate framework fallback
+- [ ] Phase 4: Add decompositions one by one as you figure out the MPS APIs
+- [ ] Phase 5: Add sparse matrix support
+
+
+This module is in early stages. The below app works, but compile code in module first: `go build ./...`
 
 ```go
 package main
