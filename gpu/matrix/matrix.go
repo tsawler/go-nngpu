@@ -70,6 +70,255 @@ func MatMul(A, B *tensor.Tensor) (*tensor.Tensor, error) {
 	return resultTensor, nil
 }
 
+// Cholesky performs Cholesky decomposition using the Accelerate framework
+// Returns the lower triangular matrix L such that A = L * L^T
+func Cholesky(A *tensor.Tensor) (*tensor.Tensor, error) {
+	if len(A.Shape) != 2 {
+		return nil, fmt.Errorf("Cholesky decomposition requires 2D tensor (matrix)")
+	}
+	if A.Shape[0] != A.Shape[1] {
+		return nil, fmt.Errorf("Cholesky decomposition requires square matrix, got %dx%d", A.Shape[0], A.Shape[1])
+	}
+
+	rows := A.Shape[0]
+	cols := A.Shape[1]
+	resultSize := rows * cols
+	resultData := make([]float32, resultSize)
+	resultTensor, err := tensor.NewTensor([]int{rows, cols}, resultData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create result tensor: %w", err)
+	}
+
+	if err := A.EnsureGPU(); err != nil {
+		return nil, fmt.Errorf("failed to move tensor A to GPU: %w", err)
+	}
+	if err := resultTensor.EnsureGPU(); err != nil {
+		return nil, fmt.Errorf("failed to move result tensor to GPU: %w", err)
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cErr C.CError
+	retCode := C.perform_matrix_cholesky_decomposition(
+		C.GPUPtr(A.GPUPtr()), C.long(rows), C.long(cols),
+		C.GPUPtr(resultTensor.GPUPtr()),
+		C.DevicePtr(A.DevicePtr()),
+		&cErr,
+	)
+
+	if retCode != 0 {
+		var errMsg string
+		if cErr.message != nil {
+			errMsg = C.GoString(cErr.message)
+			C.free_c_error_message(cErr.message)
+		}
+		return nil, fmt.Errorf("Cholesky decomposition failed (code %d): %s", retCode, errMsg)
+	}
+
+	return resultTensor, nil
+}
+
+// EigenDecomposition represents the result of eigenvalue decomposition
+type EigenDecomposition struct {
+	Eigenvalues  *tensor.Tensor // Vector of eigenvalues
+	Eigenvectors *tensor.Tensor // Matrix of eigenvectors (column-wise)
+}
+
+// ReleaseGPU releases GPU resources for the eigenvalue decomposition
+func (eigen *EigenDecomposition) ReleaseGPU() {
+	if eigen.Eigenvalues != nil {
+		eigen.Eigenvalues.ReleaseGPU()
+	}
+	if eigen.Eigenvectors != nil {
+		eigen.Eigenvectors.ReleaseGPU()
+	}
+}
+
+// Eigen performs eigenvalue decomposition for symmetric matrices using the Accelerate framework
+func Eigen(A *tensor.Tensor) (*EigenDecomposition, error) {
+	if len(A.Shape) != 2 {
+		return nil, fmt.Errorf("Eigenvalue decomposition requires 2D tensor (matrix)")
+	}
+	if A.Shape[0] != A.Shape[1] {
+		return nil, fmt.Errorf("Eigenvalue decomposition requires square matrix, got %dx%d", A.Shape[0], A.Shape[1])
+	}
+
+	n := A.Shape[0]
+
+	// Create eigenvalues vector (n) and eigenvectors matrix (n x n)
+	eigenvaluesData := make([]float32, n)
+	eigenvectorsData := make([]float32, n*n)
+
+	eigenvaluesTensor, err := tensor.NewTensor([]int{n}, eigenvaluesData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create eigenvalues tensor: %w", err)
+	}
+
+	eigenvectorsTensor, err := tensor.NewTensor([]int{n, n}, eigenvectorsData)
+	if err != nil {
+		eigenvaluesTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to create eigenvectors tensor: %w", err)
+	}
+
+	if err := A.EnsureGPU(); err != nil {
+		eigenvaluesTensor.ReleaseGPU()
+		eigenvectorsTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to move tensor A to GPU: %w", err)
+	}
+	if err := eigenvaluesTensor.EnsureGPU(); err != nil {
+		eigenvaluesTensor.ReleaseGPU()
+		eigenvectorsTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to move eigenvalues tensor to GPU: %w", err)
+	}
+	if err := eigenvectorsTensor.EnsureGPU(); err != nil {
+		eigenvaluesTensor.ReleaseGPU()
+		eigenvectorsTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to move eigenvectors tensor to GPU: %w", err)
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cErr C.CError
+	retCode := C.perform_matrix_eigenvalue_decomposition(
+		C.GPUPtr(A.GPUPtr()), C.long(n), C.long(n),
+		C.GPUPtr(eigenvaluesTensor.GPUPtr()),
+		C.GPUPtr(eigenvectorsTensor.GPUPtr()),
+		C.DevicePtr(A.DevicePtr()),
+		&cErr,
+	)
+
+	if retCode != 0 {
+		var errMsg string
+		if cErr.message != nil {
+			errMsg = C.GoString(cErr.message)
+			C.free_c_error_message(cErr.message)
+		}
+		eigenvaluesTensor.ReleaseGPU()
+		eigenvectorsTensor.ReleaseGPU()
+		return nil, fmt.Errorf("eigenvalue decomposition failed (code %d): %s", retCode, errMsg)
+	}
+
+	return &EigenDecomposition{
+		Eigenvalues:  eigenvaluesTensor,
+		Eigenvectors: eigenvectorsTensor,
+	}, nil
+}
+
+// SVDDecomposition represents the result of Singular Value Decomposition
+type SVDDecomposition struct {
+	U  *tensor.Tensor // Left singular vectors (m x m)
+	S  *tensor.Tensor // Singular values (min(m,n))
+	VT *tensor.Tensor // Right singular vectors transposed (n x n)
+}
+
+// ReleaseGPU releases GPU resources for the SVD decomposition
+func (svd *SVDDecomposition) ReleaseGPU() {
+	if svd.U != nil {
+		svd.U.ReleaseGPU()
+	}
+	if svd.S != nil {
+		svd.S.ReleaseGPU()
+	}
+	if svd.VT != nil {
+		svd.VT.ReleaseGPU()
+	}
+}
+
+// SVD performs Singular Value Decomposition using the Accelerate framework
+func SVD(A *tensor.Tensor) (*SVDDecomposition, error) {
+	if len(A.Shape) != 2 {
+		return nil, fmt.Errorf("SVD requires 2D tensor (matrix)")
+	}
+
+	m := A.Shape[0] // rows
+	n := A.Shape[1] // cols
+	minDim := m
+	if n < m {
+		minDim = n
+	}
+
+	// Create U matrix (m x m), S vector (min(m,n)), and VT matrix (n x n)
+	uData := make([]float32, m*m)
+	sData := make([]float32, minDim)
+	vtData := make([]float32, n*n)
+
+	uTensor, err := tensor.NewTensor([]int{m, m}, uData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create U tensor: %w", err)
+	}
+
+	sTensor, err := tensor.NewTensor([]int{minDim}, sData)
+	if err != nil {
+		uTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to create S tensor: %w", err)
+	}
+
+	vtTensor, err := tensor.NewTensor([]int{n, n}, vtData)
+	if err != nil {
+		uTensor.ReleaseGPU()
+		sTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to create VT tensor: %w", err)
+	}
+
+	if err := A.EnsureGPU(); err != nil {
+		uTensor.ReleaseGPU()
+		sTensor.ReleaseGPU()
+		vtTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to move tensor A to GPU: %w", err)
+	}
+	if err := uTensor.EnsureGPU(); err != nil {
+		uTensor.ReleaseGPU()
+		sTensor.ReleaseGPU()
+		vtTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to move U tensor to GPU: %w", err)
+	}
+	if err := sTensor.EnsureGPU(); err != nil {
+		uTensor.ReleaseGPU()
+		sTensor.ReleaseGPU()
+		vtTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to move S tensor to GPU: %w", err)
+	}
+	if err := vtTensor.EnsureGPU(); err != nil {
+		uTensor.ReleaseGPU()
+		sTensor.ReleaseGPU()
+		vtTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to move VT tensor to GPU: %w", err)
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cErr C.CError
+	retCode := C.perform_matrix_svd_decomposition(
+		C.GPUPtr(A.GPUPtr()), C.long(m), C.long(n),
+		C.GPUPtr(uTensor.GPUPtr()),
+		C.GPUPtr(sTensor.GPUPtr()),
+		C.GPUPtr(vtTensor.GPUPtr()),
+		C.DevicePtr(A.DevicePtr()),
+		&cErr,
+	)
+
+	if retCode != 0 {
+		var errMsg string
+		if cErr.message != nil {
+			errMsg = C.GoString(cErr.message)
+			C.free_c_error_message(cErr.message)
+		}
+		uTensor.ReleaseGPU()
+		sTensor.ReleaseGPU()
+		vtTensor.ReleaseGPU()
+		return nil, fmt.Errorf("SVD failed (code %d): %s", retCode, errMsg)
+	}
+
+	return &SVDDecomposition{
+		U:  uTensor,
+		S:  sTensor,
+		VT: vtTensor,
+	}, nil
+}
+
 // Transpose performs matrix transpose on the GPU
 func Transpose(A *tensor.Tensor) (*tensor.Tensor, error) {
 	if len(A.Shape) != 2 {
@@ -593,5 +842,91 @@ func LU(A *tensor.Tensor) (*LUDecomposition, error) {
 		L:            lTensor,
 		U:            uTensor,
 		PivotIndices: pivotIndices,
+	}, nil
+}
+
+// Phase 4: Advanced Decompositions
+
+// QRDecomposition represents the result of QR decomposition
+type QRDecomposition struct {
+	Q *tensor.Tensor // Orthogonal matrix
+	R *tensor.Tensor // Upper triangular matrix
+}
+
+// ReleaseGPU releases GPU resources for the QR decomposition
+func (qr *QRDecomposition) ReleaseGPU() {
+	if qr.Q != nil {
+		qr.Q.ReleaseGPU()
+	}
+	if qr.R != nil {
+		qr.R.ReleaseGPU()
+	}
+}
+
+// QR performs QR decomposition using the Accelerate framework
+func QR(A *tensor.Tensor) (*QRDecomposition, error) {
+	if len(A.Shape) != 2 {
+		return nil, fmt.Errorf("QR decomposition requires 2D tensor (matrix)")
+	}
+
+	rows := A.Shape[0]
+	cols := A.Shape[1]
+
+	// Create Q matrix (rows x cols) and R matrix (cols x cols)
+	qData := make([]float32, rows*cols)
+	rData := make([]float32, cols*cols)
+
+	qTensor, err := tensor.NewTensor([]int{rows, cols}, qData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Q tensor: %w", err)
+	}
+
+	rTensor, err := tensor.NewTensor([]int{cols, cols}, rData)
+	if err != nil {
+		qTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to create R tensor: %w", err)
+	}
+
+	if err := A.EnsureGPU(); err != nil {
+		qTensor.ReleaseGPU()
+		rTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to move tensor A to GPU: %w", err)
+	}
+	if err := qTensor.EnsureGPU(); err != nil {
+		qTensor.ReleaseGPU()
+		rTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to move Q tensor to GPU: %w", err)
+	}
+	if err := rTensor.EnsureGPU(); err != nil {
+		qTensor.ReleaseGPU()
+		rTensor.ReleaseGPU()
+		return nil, fmt.Errorf("failed to move R tensor to GPU: %w", err)
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cErr C.CError
+	retCode := C.perform_matrix_qr_decomposition(
+		C.GPUPtr(A.GPUPtr()), C.long(rows), C.long(cols),
+		C.GPUPtr(qTensor.GPUPtr()), C.GPUPtr(rTensor.GPUPtr()),
+		C.DevicePtr(A.DevicePtr()),
+		&cErr,
+	)
+
+	if retCode != 0 {
+		var errMsg string
+		if cErr.message != nil {
+			errMsg = C.GoString(cErr.message)
+			C.free_c_error_message(cErr.message)
+		}
+		qTensor.ReleaseGPU()
+		rTensor.ReleaseGPU()
+		return nil, fmt.Errorf("QR decomposition failed (code %d): %s", retCode, errMsg)
+	}
+
+	return &QRDecomposition{
+		Q: qTensor,
+		R: rTensor,
 	}, nil
 }

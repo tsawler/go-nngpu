@@ -1,4 +1,4 @@
-// metal_bridge.m - Working version with CLAPACK (warnings suppressed)
+// metal_bridge.m - Phase 4 with Advanced Decompositions
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <MetalPerformanceShaders/MetalPerformanceShaders.h>
@@ -714,6 +714,347 @@ int perform_matrix_lu_decomposition(
         
         free(lu_copy);
         free(ipiv);
+        
+        return 0;
+    }
+}
+
+// --- Phase 4: Advanced Decompositions using CLAPACK ---
+
+int perform_matrix_qr_decomposition(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    GPUPtr qMatrixPtr, GPUPtr rMatrixPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputMatrixPtr;
+        id<MTLBuffer> q_buffer = (__bridge id<MTLBuffer>)qMatrixPtr;
+        id<MTLBuffer> r_buffer = (__bridge id<MTLBuffer>)rMatrixPtr;
+
+        if (!input_buffer || !q_buffer || !r_buffer) {
+            set_c_error_message(err, @"Invalid input or output buffer pointers.");
+            return -1;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        float *q_data = (float*)q_buffer.contents;
+        float *r_data = (float*)r_buffer.contents;
+        
+        // Create a working copy of the input matrix
+        float *work_matrix = malloc(rows * cols * sizeof(float));
+        if (!work_matrix) {
+            set_c_error_message(err, @"Failed to allocate memory for working matrix.");
+            return -2;
+        }
+        
+        memcpy(work_matrix, input_data, rows * cols * sizeof(float));
+        
+        // Allocate tau array for Householder reflectors
+        long min_dim = MIN(rows, cols);
+        float *tau = malloc(min_dim * sizeof(float));
+        if (!tau) {
+            free(work_matrix);
+            set_c_error_message(err, @"Failed to allocate memory for tau array.");
+            return -3;
+        }
+        
+        // First, compute QR factorization using sgeqrf
+        __CLPK_integer m = (__CLPK_integer)rows;
+        __CLPK_integer n = (__CLPK_integer)cols;
+        __CLPK_integer lda = m;
+        __CLPK_integer info;
+        
+        // Query optimal workspace size for sgeqrf
+        float work_query_sgeqrf;
+        __CLPK_integer lwork_sgeqrf = -1;
+        sgeqrf_(&m, &n, work_matrix, &lda, tau, &work_query_sgeqrf, &lwork_sgeqrf, &info);
+        
+        if (info != 0) {
+            free(work_matrix);
+            free(tau);
+            set_c_error_message(err, @"SGEQRF workspace query failed with error code %d.", info);
+            return -4;
+        }
+        
+        __CLPK_integer lwork_actual_sgeqrf = (__CLPK_integer)work_query_sgeqrf;
+        float *work_sgeqrf = malloc(lwork_actual_sgeqrf * sizeof(float));
+        if (!work_sgeqrf) {
+            free(work_matrix);
+            free(tau);
+            set_c_error_message(err, @"Failed to allocate workspace for SGEQRF.");
+            return -5;
+        }
+        
+        // Perform QR factorization
+        sgeqrf_(&m, &n, work_matrix, &lda, tau, work_sgeqrf, &lwork_actual_sgeqrf, &info);
+
+        if (info != 0) {
+            free(work_matrix);
+            free(tau);
+            free(work_sgeqrf);
+            set_c_error_message(err, @"SGEQRF failed with error code %d.", info);
+            return -6;
+        }
+        
+        // Extract R matrix (upper triangular part)
+        memset(r_data, 0, cols * cols * sizeof(float));
+        for (long i = 0; i < MIN(rows, cols); i++) {
+            for (long j = i; j < cols; j++) {
+                r_data[i * cols + j] = work_matrix[i * cols + j];
+            }
+        }
+        
+        // Generate Q matrix using sorgqr
+        // First, copy the lower part of work_matrix (contains Householder vectors)
+        memcpy(q_data, work_matrix, rows * cols * sizeof(float));
+        
+        // Query workspace size for Q generation using sorgqr
+        float work_query_sorgqr;
+        __CLPK_integer lwork_sorgqr_query = -1; // Use a distinct variable for query lwork
+        sorgqr_(&m, &n, &n, q_data, &lda, tau, &work_query_sorgqr, &lwork_sorgqr_query, &info);
+        
+        if (info != 0) {
+            free(work_matrix);
+            free(tau);
+            free(work_sgeqrf); // Ensure this is freed regardless of sorgqr error
+            set_c_error_message(err, @"SORGQR workspace query failed with error code %d.", info);
+            return -7;
+        }
+        
+        __CLPK_integer lwork_actual_sorgqr = (__CLPK_integer)work_query_sorgqr;
+        float *work_sorgqr = malloc(lwork_actual_sorgqr * sizeof(float));
+        if (!work_sorgqr) {
+            free(work_matrix);
+            free(tau);
+            free(work_sgeqrf);
+            set_c_error_message(err, @"Failed to allocate workspace for SORGQR.");
+            return -8; // Changed error code to differentiate
+        }
+        
+        // Generate Q matrix (second call to sorgqr_ with the actual workspace size)
+        sorgqr_(&m, &n, &n, q_data, &lda, tau, work_sorgqr, &lwork_actual_sorgqr, &info);
+        
+        free(work_matrix);
+        free(tau);
+        free(work_sgeqrf); // Free both work buffers
+        free(work_sorgqr);
+        
+        if (info != 0) {
+            set_c_error_message(err, @"SORGQR computation failed with error code %d.", info);
+            return -9;
+        }
+        
+        return 0;
+    }
+}
+
+int perform_matrix_cholesky_decomposition(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    GPUPtr lMatrixPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        // Verify it's a square matrix
+        if (rows != cols) {
+            set_c_error_message(err, @"Cholesky decomposition requires a square matrix.");
+            return -1;
+        }
+
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputMatrixPtr;
+        id<MTLBuffer> l_buffer = (__bridge id<MTLBuffer>)lMatrixPtr;
+
+        if (!input_buffer || !l_buffer) {
+            set_c_error_message(err, @"Invalid input or output buffer pointers.");
+            return -2;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        float *l_data = (float*)l_buffer.contents;
+        
+        // Copy input to output (Cholesky modifies in-place)
+        memcpy(l_data, input_data, rows * cols * sizeof(float));
+        
+        // Use LAPACK's spotrf for Cholesky decomposition
+        char uplo = 'L'; // Lower triangular
+        __CLPK_integer n = (__CLPK_integer)rows;
+        __CLPK_integer lda = n;
+        __CLPK_integer info;
+        
+        spotrf_(&uplo, &n, l_data, &lda, &info);
+        
+        if (info != 0) {
+            if (info > 0) {
+                set_c_error_message(err, @"Matrix is not positive definite. Leading minor of order %d is not positive.", info);
+                return -3;
+            } else {
+                set_c_error_message(err, @"Cholesky decomposition failed with invalid parameter at position %d.", -info);
+                return -4;
+            }
+        }
+        
+        // Zero out upper triangular part (LAPACK doesn't clear it)
+        for (long i = 0; i < rows; i++) {
+            for (long j = i + 1; j < cols; j++) {
+                l_data[i * cols + j] = 0.0f;
+            }
+        }
+        
+        return 0;
+    }
+}
+
+int perform_matrix_eigenvalue_decomposition(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    GPUPtr eigenvaluesPtr,
+    GPUPtr eigenvectorsPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        // Verify it's a square matrix
+        if (rows != cols) {
+            set_c_error_message(err, @"Eigenvalue decomposition requires a square matrix.");
+            return -1;
+        }
+
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputMatrixPtr;
+        id<MTLBuffer> eigenvalues_buffer = (__bridge id<MTLBuffer>)eigenvaluesPtr;
+        id<MTLBuffer> eigenvectors_buffer = (__bridge id<MTLBuffer>)eigenvectorsPtr;
+
+        if (!input_buffer || !eigenvalues_buffer || !eigenvectors_buffer) {
+            set_c_error_message(err, @"Invalid input or output buffer pointers.");
+            return -2;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        float *eigenvalues = (float*)eigenvalues_buffer.contents;
+        float *eigenvectors = (float*)eigenvectors_buffer.contents;
+        
+        // Copy input to eigenvectors buffer (ssyev modifies in-place)
+        memcpy(eigenvectors, input_data, rows * cols * sizeof(float));
+        
+        // Use LAPACK's ssyev for symmetric eigenvalue decomposition
+        char jobz = 'V'; // Compute eigenvalues and eigenvectors
+        char uplo = 'L'; // Lower triangular part is referenced
+        __CLPK_integer n = (__CLPK_integer)rows;
+        __CLPK_integer lda = n;
+        __CLPK_integer info;
+        
+        // Query optimal workspace size
+        float work_query;
+        __CLPK_integer lwork = -1;
+        ssyev_(&jobz, &uplo, &n, eigenvectors, &lda, eigenvalues, &work_query, &lwork, &info);
+        
+        if (info != 0) {
+            set_c_error_message(err, @"Failed to query workspace size for eigenvalue decomposition.");
+            return -3;
+        }
+        
+        lwork = (__CLPK_integer)work_query;
+        float *work = malloc(lwork * sizeof(float));
+        if (!work) {
+            set_c_error_message(err, @"Failed to allocate workspace for eigenvalue decomposition.");
+            return -4;
+        }
+        
+        // Perform eigenvalue decomposition
+        ssyev_(&jobz, &uplo, &n, eigenvectors, &lda, eigenvalues, work, &lwork, &info);
+        
+        free(work);
+        
+        if (info != 0) {
+            if (info > 0) {
+                set_c_error_message(err, @"Eigenvalue decomposition failed to converge. %d off-diagonal elements did not converge.", info);
+                return -5;
+            } else {
+                set_c_error_message(err, @"Eigenvalue decomposition failed with invalid parameter at position %d.", -info);
+                return -6;
+            }
+        }
+        
+        return 0;
+    }
+}
+
+int perform_matrix_svd_decomposition(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    GPUPtr uMatrixPtr,
+    GPUPtr sVectorPtr,
+    GPUPtr vtMatrixPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputMatrixPtr;
+        id<MTLBuffer> u_buffer = (__bridge id<MTLBuffer>)uMatrixPtr;
+        id<MTLBuffer> s_buffer = (__bridge id<MTLBuffer>)sVectorPtr;
+        id<MTLBuffer> vt_buffer = (__bridge id<MTLBuffer>)vtMatrixPtr;
+
+        if (!input_buffer || !u_buffer || !s_buffer || !vt_buffer) {
+            set_c_error_message(err, @"Invalid input or output buffer pointers.");
+            return -1;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        float *u_data = (float*)u_buffer.contents;
+        float *s_data = (float*)s_buffer.contents;
+        float *vt_data = (float*)vt_buffer.contents;
+        
+        // Create a working copy of the input matrix (sgesvd modifies input)
+        float *work_matrix = malloc(rows * cols * sizeof(float));
+        if (!work_matrix) {
+            set_c_error_message(err, @"Failed to allocate memory for working matrix.");
+            return -2;
+        }
+        
+        memcpy(work_matrix, input_data, rows * cols * sizeof(float));
+        
+        // Use LAPACK's sgesvd for SVD
+        char jobu = 'A';  // Compute all columns of U
+        char jobvt = 'A'; // Compute all rows of V^T
+        __CLPK_integer m = (__CLPK_integer)rows;
+        __CLPK_integer n = (__CLPK_integer)cols;
+        __CLPK_integer lda = m;
+        __CLPK_integer ldu = m;
+        __CLPK_integer ldvt = n;
+        __CLPK_integer info;
+        
+        // Query optimal workspace size
+        float work_query;
+        __CLPK_integer lwork = -1;
+        sgesvd_(&jobu, &jobvt, &m, &n, work_matrix, &lda, s_data, u_data, &ldu, vt_data, &ldvt, &work_query, &lwork, &info);
+        
+        if (info != 0) {
+            free(work_matrix);
+            set_c_error_message(err, @"Failed to query workspace size for SVD.");
+            return -3;
+        }
+        
+        lwork = (__CLPK_integer)work_query;
+        float *work = malloc(lwork * sizeof(float));
+        if (!work) {
+            free(work_matrix);
+            set_c_error_message(err, @"Failed to allocate workspace for SVD.");
+            return -4;
+        }
+        
+        // Perform SVD
+        sgesvd_(&jobu, &jobvt, &m, &n, work_matrix, &lda, s_data, u_data, &ldu, vt_data, &ldvt, work, &lwork, &info);
+        
+        free(work_matrix);
+        free(work);
+        
+        if (info != 0) {
+            if (info > 0) {
+                set_c_error_message(err, @"SVD failed to converge. %d superdiagonals did not converge.", info);
+                return -5;
+            } else {
+                set_c_error_message(err, @"SVD failed with invalid parameter at position %d.", -info);
+                return -6;
+            }
+        }
         
         return 0;
     }

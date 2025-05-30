@@ -277,6 +277,47 @@ func (g *GPUDense) LU() (*GPUDense, *GPUDense, []int) {
 	return &GPUDense{tensor: lu.L}, &GPUDense{tensor: lu.U}, lu.PivotIndices
 }
 
+// Phase 4: Advanced Decompositions
+
+// QR performs QR decomposition and returns Q, R matrices
+func (g *GPUDense) QR() (*GPUDense, *GPUDense) {
+	qr, err := QR(g.tensor)
+	if err != nil {
+		panic(err)
+	}
+	
+	return &GPUDense{tensor: qr.Q}, &GPUDense{tensor: qr.R}
+}
+
+// Cholesky performs Cholesky decomposition and returns the lower triangular matrix L
+func (g *GPUDense) Cholesky() *GPUDense {
+	result, err := Cholesky(g.tensor)
+	if err != nil {
+		panic(err)
+	}
+	return &GPUDense{tensor: result}
+}
+
+// Eigen performs eigenvalue decomposition for symmetric matrices
+func (g *GPUDense) Eigen() (*GPUDense, *GPUDense) {
+	eigen, err := Eigen(g.tensor)
+	if err != nil {
+		panic(err)
+	}
+	
+	return &GPUDense{tensor: eigen.Eigenvalues}, &GPUDense{tensor: eigen.Eigenvectors}
+}
+
+// SVD performs Singular Value Decomposition
+func (g *GPUDense) SVD() (*GPUDense, *GPUDense, *GPUDense) {
+	svd, err := SVD(g.tensor)
+	if err != nil {
+		panic(err)
+	}
+	
+	return &GPUDense{tensor: svd.U}, &GPUDense{tensor: svd.S}, &GPUDense{tensor: svd.VT}
+}
+
 // ToGonum converts back to a standard gonum Dense matrix
 func (g *GPUDense) ToGonum() *mat.Dense {
 	if err := g.tensor.RetrieveCPU(); err != nil {
@@ -524,6 +565,181 @@ func GPULU(a mat.Matrix) *GPULUDecomposition {
 	}
 }
 
+// Phase 4: Advanced Decompositions with Gonum compatibility
+
+// GPUQRDecomposition represents QR decomposition results in Gonum format
+type GPUQRDecomposition struct {
+	Q *mat.Dense
+	R *mat.Dense
+}
+
+// GPUQR is a drop-in replacement for gonum's QR decomposition
+func GPUQR(a mat.Matrix) *GPUQRDecomposition {
+	gpuA := FromGonum(a)
+	defer gpuA.ReleaseGPU()
+
+	qr, err := QR(gpuA.tensor)
+	if err != nil {
+		panic(err)
+	}
+	defer qr.ReleaseGPU()
+
+	// Convert Q matrix to gonum format
+	if err := qr.Q.RetrieveCPU(); err != nil {
+		panic(err)
+	}
+	qRows, qCols := qr.Q.Shape[0], qr.Q.Shape[1]
+	qData := make([]float64, len(qr.Q.Data))
+	for i, v := range qr.Q.Data {
+		qData[i] = float64(v)
+	}
+	qMatrix := mat.NewDense(qRows, qCols, qData)
+
+	// Convert R matrix to gonum format
+	if err := qr.R.RetrieveCPU(); err != nil {
+		panic(err)
+	}
+	rRows, rCols := qr.R.Shape[0], qr.R.Shape[1]
+	rData := make([]float64, len(qr.R.Data))
+	for i, v := range qr.R.Data {
+		rData[i] = float64(v)
+	}
+	rMatrix := mat.NewDense(rRows, rCols, rData)
+
+	return &GPUQRDecomposition{
+		Q: qMatrix,
+		R: rMatrix,
+	}
+}
+
+// GPUCholesky is a drop-in replacement for gonum's Cholesky decomposition
+func GPUCholesky(a mat.Matrix) *mat.Dense {
+	gpuA := FromGonum(a)
+	defer gpuA.ReleaseGPU()
+
+	result, err := Cholesky(gpuA.tensor)
+	if err != nil {
+		panic(err)
+	}
+	defer result.ReleaseGPU()
+
+	// Convert back to gonum format
+	if err := result.RetrieveCPU(); err != nil {
+		panic(err)
+	}
+
+	rows, cols := result.Shape[0], result.Shape[1]
+	data := make([]float64, len(result.Data))
+	for i, v := range result.Data {
+		data[i] = float64(v)
+	}
+
+	return mat.NewDense(rows, cols, data)
+}
+
+// GPUEigenDecomposition represents eigenvalue decomposition results in Gonum format
+type GPUEigenDecomposition struct {
+	Eigenvalues  *mat.VecDense
+	Eigenvectors *mat.Dense
+}
+
+// GPUEigen is a drop-in replacement for gonum's eigenvalue decomposition
+func GPUEigen(a mat.Matrix) *GPUEigenDecomposition {
+	gpuA := FromGonum(a)
+	defer gpuA.ReleaseGPU()
+
+	eigen, err := Eigen(gpuA.tensor)
+	if err != nil {
+		panic(err)
+	}
+	defer eigen.ReleaseGPU()
+
+	// Convert eigenvalues to gonum VecDense format
+	if err := eigen.Eigenvalues.RetrieveCPU(); err != nil {
+		panic(err)
+	}
+	eigenvaluesData := make([]float64, len(eigen.Eigenvalues.Data))
+	for i, v := range eigen.Eigenvalues.Data {
+		eigenvaluesData[i] = float64(v)
+	}
+	eigenvaluesVec := mat.NewVecDense(len(eigenvaluesData), eigenvaluesData)
+
+	// Convert eigenvectors to gonum Dense format
+	if err := eigen.Eigenvectors.RetrieveCPU(); err != nil {
+		panic(err)
+	}
+	evRows, evCols := eigen.Eigenvectors.Shape[0], eigen.Eigenvectors.Shape[1]
+	evData := make([]float64, len(eigen.Eigenvectors.Data))
+	for i, v := range eigen.Eigenvectors.Data {
+		evData[i] = float64(v)
+	}
+	eigenvectorsMatrix := mat.NewDense(evRows, evCols, evData)
+
+	return &GPUEigenDecomposition{
+		Eigenvalues:  eigenvaluesVec,
+		Eigenvectors: eigenvectorsMatrix,
+	}
+}
+
+// GPUSVDDecomposition represents SVD results in Gonum format
+type GPUSVDDecomposition struct {
+	U  *mat.Dense
+	S  *mat.VecDense
+	VT *mat.Dense
+}
+
+// GPUSVD is a drop-in replacement for gonum's SVD
+func GPUSVD(a mat.Matrix) *GPUSVDDecomposition {
+	gpuA := FromGonum(a)
+	defer gpuA.ReleaseGPU()
+
+	svd, err := SVD(gpuA.tensor)
+	if err != nil {
+		panic(err)
+	}
+	defer svd.ReleaseGPU()
+
+	// Convert U matrix to gonum format
+	if err := svd.U.RetrieveCPU(); err != nil {
+		panic(err)
+	}
+	uRows, uCols := svd.U.Shape[0], svd.U.Shape[1]
+	uData := make([]float64, len(svd.U.Data))
+	for i, v := range svd.U.Data {
+		uData[i] = float64(v)
+	}
+	uMatrix := mat.NewDense(uRows, uCols, uData)
+
+	// Convert S vector to gonum VecDense format
+	if err := svd.S.RetrieveCPU(); err != nil {
+		panic(err)
+	}
+	sData := make([]float64, len(svd.S.Data))
+	for i, v := range svd.S.Data {
+		sData[i] = float64(v)
+	}
+	sVector := mat.NewVecDense(len(sData), sData)
+
+	// Convert VT matrix to gonum format
+	if err := svd.VT.RetrieveCPU(); err != nil {
+		panic(err)
+	}
+	vtRows, vtCols := svd.VT.Shape[0], svd.VT.Shape[1]
+	vtData := make([]float64, len(svd.VT.Data))
+	for i, v := range svd.VT.Data {
+		vtData[i] = float64(v)
+	}
+	vtMatrix := mat.NewDense(vtRows, vtCols, vtData)
+
+	return &GPUSVDDecomposition{
+		U:  uMatrix,
+		S:  sVector,
+		VT: vtMatrix,
+	}
+}
+
+// Batch operations for efficiency
+
 // BatchGPUMatMul keeps matrices on GPU for multiple operations
 func BatchGPUMatMul(operations []struct{ A, B mat.Matrix }) []*mat.Dense {
 	results := make([]*mat.Dense, len(operations))
@@ -552,6 +768,50 @@ func BatchGPUInverse(matrices []mat.Matrix) []*mat.Dense {
 
 	for i, m := range matrices {
 		results[i] = GPUInverse(m)
+	}
+
+	return results
+}
+
+// BatchGPUQR performs multiple QR decompositions efficiently
+func BatchGPUQR(matrices []mat.Matrix) []*GPUQRDecomposition {
+	results := make([]*GPUQRDecomposition, len(matrices))
+
+	for i, m := range matrices {
+		results[i] = GPUQR(m)
+	}
+
+	return results
+}
+
+// BatchGPUCholesky performs multiple Cholesky decompositions efficiently
+func BatchGPUCholesky(matrices []mat.Matrix) []*mat.Dense {
+	results := make([]*mat.Dense, len(matrices))
+
+	for i, m := range matrices {
+		results[i] = GPUCholesky(m)
+	}
+
+	return results
+}
+
+// BatchGPUEigen performs multiple eigenvalue decompositions efficiently
+func BatchGPUEigen(matrices []mat.Matrix) []*GPUEigenDecomposition {
+	results := make([]*GPUEigenDecomposition, len(matrices))
+
+	for i, m := range matrices {
+		results[i] = GPUEigen(m)
+	}
+
+	return results
+}
+
+// BatchGPUSVD performs multiple SVD decompositions efficiently
+func BatchGPUSVD(matrices []mat.Matrix) []*GPUSVDDecomposition {
+	results := make([]*GPUSVDDecomposition, len(matrices))
+
+	for i, m := range matrices {
+		results[i] = GPUSVD(m)
 	}
 
 	return results

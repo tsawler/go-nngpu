@@ -114,6 +114,43 @@ int perform_matrix_lu_decomposition(
     CError *err
 );
 
+// Phase 4: Advanced Decompositions using Accelerate framework
+
+// QR decomposition using Accelerate framework
+int perform_matrix_qr_decomposition(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    GPUPtr qMatrixPtr, GPUPtr rMatrixPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Cholesky decomposition using Accelerate framework (for symmetric positive definite matrices)
+int perform_matrix_cholesky_decomposition(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    GPUPtr lMatrixPtr, // Lower triangular matrix
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Eigenvalue decomposition using Accelerate framework (for symmetric matrices)
+int perform_matrix_eigenvalue_decomposition(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    GPUPtr eigenvaluesPtr, // Vector of eigenvalues (size = rows)
+    GPUPtr eigenvectorsPtr, // Matrix of eigenvectors (rows x cols)
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Singular Value Decomposition (SVD) using Accelerate framework
+int perform_matrix_svd_decomposition(
+    GPUPtr inputMatrixPtr, long rows, long cols,
+    GPUPtr uMatrixPtr, // Left singular vectors (rows x rows)
+    GPUPtr sVectorPtr, // Singular values (min(rows, cols))
+    GPUPtr vtMatrixPtr, // Right singular vectors transposed (cols x cols)
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
 // Function to free error message allocated by Objective-C
 void free_c_error_message(char *message);
 
