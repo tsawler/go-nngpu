@@ -11,9 +11,20 @@ Development strategy:
 - [x] Phase 3: Add matrix inverse using Accelerate framework fallback
 - [x] Phase 4: Add decompositions: QR, Cholesky, Eigenvalue, SVD, and LU
 - [x] Phase 5: Add sparse matrix support
-- [ ] Phase 6: GPU compute shaders for better performance
-- [ ] Phase 7: Batch operations optimization
-
+- [ ] Phase 6A: Activation functions (ReLU, Sigmoid, Tanh, Softmax + derivatives)
+- [ ] Phase 6B: Loss functions (CrossEntropy, MSE + gradients)  
+- [ ] Phase 6C: Convolution operations (Conv2D, MaxPool, padding)
+- [ ] Phase 6D: Batch normalization (mean, variance, normalize)
+- [ ] Phase 7A: Gradient computation framework
+- [ ] Phase 7B: Optimizers (SGD, Adam, RMSprop with GPU state)
+- [ ] Phase 7C: Memory-efficient training loop
+- [ ] Phase 7D: Automatic differentiation helpers
+- [ ] Phase 8A: Fused operations (activation + gradient, conv + activation)
+- [ ] Phase 8B: Custom Metal kernels for specific operations
+- [ ] Phase 8C: Memory bandwidth optimization
+- [ ] Phase 9A: Mixed precision training (float16/float32)
+- [ ] Phase 9B: Distributed training support
+- [ ] Phase 9C: Advanced sparse training techniques
 
 This module is in early stages. The below app works, but compile code in module first: `go build ./...`
 
