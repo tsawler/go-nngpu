@@ -151,6 +151,92 @@ int perform_matrix_svd_decomposition(
     CError *err
 );
 
+// Add these function declarations to the existing metal_bridge.h file
+// Insert after the existing SVD function declaration
+
+// Phase 5: Sparse Matrix Operations
+
+// Sparse-sparse matrix multiplication (CSR * CSC -> Dense)
+int perform_sparse_sparse_matmul(
+    GPUPtr aValuesPtr, int *aRowPtr, long aRowPtrLen, int *aColIndices, long aColIndicesLen,
+    long aRows, long aCols, long aNNZ,
+    GPUPtr bValuesPtr, int *bColPtr, long bColPtrLen, int *bRowIndices, long bRowIndicesLen,
+    long bRows, long bCols, long bNNZ,
+    GPUPtr resultMatrixPtr, long resultRows, long resultCols,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Sparse-dense matrix multiplication (CSR * Dense -> Dense)
+int perform_sparse_dense_matmul(
+    GPUPtr aValuesPtr, int *aRowPtr, long aRowPtrLen, int *aColIndices, long aColIndicesLen,
+    long aRows, long aCols, long aNNZ,
+    GPUPtr bMatrixPtr, long bRows, long bCols,
+    GPUPtr resultMatrixPtr, long resultRows, long resultCols,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Dense-sparse matrix multiplication (Dense * CSC -> Dense)
+int perform_dense_sparse_matmul(
+    GPUPtr aMatrixPtr, long aRows, long aCols,
+    GPUPtr bValuesPtr, int *bColPtr, long bColPtrLen, int *bRowIndices, long bRowIndicesLen,
+    long bRows, long bCols, long bNNZ,
+    GPUPtr resultMatrixPtr, long resultRows, long resultCols,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Sparse matrix addition (CSR + CSR -> COO)
+int perform_sparse_add(
+    GPUPtr aValuesPtr, int *aRowPtr, long aRowPtrLen, int *aColIndices, long aColIndicesLen,
+    long aRows, long aCols, long aNNZ,
+    GPUPtr bValuesPtr, int *bRowPtr, long bRowPtrLen, int *bColIndices, long bColIndicesLen,
+    long bRows, long bCols, long bNNZ,
+    int *resultRowIndices, int *resultColIndices, float *resultValues,
+    long *actualNNZ, long maxResultNNZ,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Sparse matrix scalar multiplication (CSR -> CSR)
+int perform_sparse_scalar_multiply(
+    GPUPtr valuesPtr, int *rowPtr, long rowPtrLen, int *colIndices, long colIndicesLen,
+    long rows, long cols, long nnz,
+    float scalar,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Sparse matrix-vector multiplication (CSR * Vector -> Vector)
+int perform_sparse_matvec(
+    GPUPtr aValuesPtr, int *aRowPtr, long aRowPtrLen, int *aColIndices, long aColIndicesLen,
+    long aRows, long aCols, long aNNZ,
+    GPUPtr xVectorPtr, long xSize,
+    GPUPtr resultVectorPtr, long resultSize,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Sparse to dense conversion (CSR -> Dense)
+int perform_sparse_to_dense(
+    GPUPtr valuesPtr, int *rowPtr, long rowPtrLen, int *colIndices, long colIndicesLen,
+    long rows, long cols, long nnz,
+    GPUPtr denseMatrixPtr, long denseRows, long denseCols,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Dense to sparse conversion (Dense -> COO)
+int perform_dense_to_sparse(
+    GPUPtr denseMatrixPtr, long rows, long cols,
+    float threshold,
+    int *rowIndices, int *colIndices, float *values,
+    long *actualNNZ, long maxNNZ,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
 // Function to free error message allocated by Objective-C
 void free_c_error_message(char *message);
 
