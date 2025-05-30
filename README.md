@@ -412,4 +412,4 @@ Contributions are welcome! If you're interested in contributing to go-nngpu, ple
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
