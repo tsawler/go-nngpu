@@ -84,7 +84,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/tsawler/go-nngpu/matrix"
+	"github.com/tsawler/go-nngpu/gpu/matrix"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -143,7 +143,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/tsawler/go-nngpu/matrix"
+	"github.com/tsawler/go-nngpu/gpu/matrix"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -163,12 +163,13 @@ func main() {
 
 	// Perform chained GPU operations
 	// gpuC = gpuA * gpuB (in-place on gpuC's underlying tensor)
-	gpuC := matrix.NewGPUDense(2, 2, nil) // Initialize with nil data, it will be replaced
+	gpuC := matrix.NewGPUDense(2, 2, make([]float64, 4))
+
 	gpuC.Mul(gpuA, gpuB)
 	fmt.Println("GPU-backed A * B:\n", mat.Formatted(gpuC))
 
 	// gpuD = gpuC + gpuA (in-place on gpuD's underlying tensor)
-	gpuD := matrix.NewGPUDense(2, 2, nil)
+	gpuD := matrix.NewGPUDense(2, 2, make([]float64, 4))
 	gpuD.Add(gpuC, gpuA)
 	fmt.Println("\nGPU-backed (A*B) + A:\n", mat.Formatted(gpuD))
 
@@ -192,7 +193,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/tsawler/go-nngpu/matrix"
+	"github.com/tsawler/go-nngpu/gpu/matrix"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -206,8 +207,6 @@ func main() {
 	fmt.Println("Original Matrix for LU:\n", mat.Formatted(a))
 
 	luDecomp := matrix.GPULU(a)
-	defer luDecomp.L.(*mat.Dense).ReleaseGPU() // For internal tensor cleanup if needed
-	defer luDecomp.U.(*mat.Dense).ReleaseGPU() // For internal tensor cleanup if needed
 
 	fmt.Println("\nLU Decomposition - L:\n", mat.Formatted(luDecomp.L))
 	fmt.Println("LU Decomposition - U:\n", mat.Formatted(luDecomp.U))
@@ -222,8 +221,6 @@ func main() {
 	fmt.Println("\nOriginal Matrix for QR:\n", mat.Formatted(b))
 
 	qrDecomp := matrix.GPUQR(b)
-	defer qrDecomp.Q.(*mat.Dense).ReleaseGPU()
-	defer qrDecomp.R.(*mat.Dense).ReleaseGPU()
 
 	fmt.Println("\nQR Decomposition - Q:\n", mat.Formatted(qrDecomp.Q))
 	fmt.Println("QR Decomposition - R:\n", mat.Formatted(qrDecomp.R))
@@ -236,7 +233,6 @@ func main() {
 	fmt.Println("\nOriginal Matrix for Cholesky:\n", mat.Formatted(c))
 
 	choleskyL := matrix.GPUCholesky(c)
-	defer choleskyL.ReleaseGPU()
 
 	fmt.Println("\nCholesky Decomposition - L:\n", mat.Formatted(choleskyL))
 
@@ -249,8 +245,6 @@ func main() {
 	fmt.Println("\nOriginal Matrix for Eigen:\n", mat.Formatted(e))
 
 	eigenDecomp := matrix.GPUEigen(e)
-	defer eigenDecomp.Eigenvalues.ReleaseGPU()
-	defer eigenDecomp.Eigenvectors.ReleaseGPU()
 
 	fmt.Println("\nEigenvalue Decomposition - Eigenvalues:\n", mat.Formatted(eigenDecomp.Eigenvalues))
 	fmt.Println("Eigenvalue Decomposition - Eigenvectors:\n", mat.Formatted(eigenDecomp.Eigenvectors))
@@ -263,9 +257,6 @@ func main() {
 	fmt.Println("\nOriginal Matrix for SVD:\n", mat.Formatted(s))
 
 	svdDecomp := matrix.GPUSVD(s)
-	defer svdDecomp.U.ReleaseGPU()
-	defer svdDecomp.S.ReleaseGPU()
-	defer svdDecomp.VT.ReleaseGPU()
 
 	fmt.Println("\nSVD - U:\n", mat.Formatted(svdDecomp.U))
 	fmt.Println("SVD - S (Singular Values):\n", mat.Formatted(svdDecomp.S))
@@ -282,13 +273,13 @@ package main
 
 import (
 	"fmt"
-	"math"
-	"github.com/tsawler/go-nngpu/matrix"
+
+	"github.com/tsawler/go-nngpu/gpu/matrix"
 	"gonum.org/v1/gonum/mat"
 )
 
 func main() {
-	// Create a dense matrix for sparse conversion
+	// Original dense matrices
 	denseA := mat.NewDense(4, 4, []float64{
 		0, 0, 0, 5,
 		0, 2, 0, 0,
@@ -297,32 +288,33 @@ func main() {
 	})
 	fmt.Println("Original Dense Matrix A:\n", mat.Formatted(denseA))
 
-	// Convert dense matrix to GPU sparse matrix
-	// Threshold determines what values are considered non-zero (e.g., > 1e-9)
+	denseB := mat.NewDense(4, 4, []float64{
+		10, 0, 0, 0,
+		0, 20, 0, 0,
+		0, 0, 30, 0,
+		0, 0, 0, 40,
+	})
+	fmt.Println("\nOriginal Dense Matrix B:\n", mat.Formatted(denseB))
+
+	// Convert to GPU sparse matrices
 	sparseA := matrix.GPUDenseToSparse(denseA, 1e-9)
 	defer sparseA.ReleaseGPU()
 	fmt.Println("\nConverted to GPUSparse Matrix A info:", matrix.GetSparseMatrixInfo(sparseA))
 
-	// Create another sparse matrix directly (COO format)
-	sparseB := matrix.NewGPUSparse(4, 4,
-		[]int32{0, 1, 2, 3},       // row indices
-		[]int32{0, 1, 2, 3},       // col indices
-		[]float32{10, 20, 30, 40}, // values
-	)
+	sparseB := matrix.GPUDenseToSparse(denseB, 1e-9)
 	defer sparseB.ReleaseGPU()
-	fmt.Println("\nCreated GPUSparse Matrix B info:", matrix.GetSparseMatrixInfo(sparseB))
+	fmt.Println("\nConverted to GPUSparse Matrix B info:", matrix.GetSparseMatrixInfo(sparseB))
 
-	// Perform sparse-sparse matrix multiplication (returns a dense matrix)
-	// GPUSparseMatMul intelligently handles different input types (sparse/dense)
+	// GPU sparse * sparse
 	resultSparseMul := matrix.GPUSparseMatMul(sparseA, sparseB)
 	fmt.Println("\nGPU Sparse A * Sparse B (Resulting Dense):\n", mat.Formatted(resultSparseMul))
 
-	// Perform sparse matrix addition
-	resultSparseAdd := sparseA.SparseAdd(sparseB)
-	defer resultSparseAdd.ReleaseGPU()
-	fmt.Println("\nGPU Sparse A + Sparse B (Resulting Sparse):\n", resultSparseAdd)
+	// ✅ CPU-side fallback: add denseA + denseB
+	sumDense := mat.NewDense(4, 4, nil)
+	sumDense.Add(denseA, denseB)
+	fmt.Println("\nWorkaround: Dense A + Dense B (on CPU):\n", mat.Formatted(sumDense))
 
-	// Perform sparse scalar multiplication
+	// Sparse scalar multiplication
 	resultScalarMul := sparseA.SparseScalarMul(2.0)
 	defer resultScalarMul.ReleaseGPU()
 	fmt.Println("\nGPU Sparse A * 2.0 (Resulting Sparse):\n", resultScalarMul)
@@ -332,16 +324,11 @@ func main() {
 	resultMatVec := sparseA.SparseMatVec(vec)
 	fmt.Println("\nGPU Sparse A * Vector [1,1,1,1]:\n", resultMatVec)
 
-	// Convert sparse matrix back to dense gonum matrix
-	convertedDense := sparseA.ToDense()
-	fmt.Println("\nConverted GPUSparse A back to gonum.Dense:\n", mat.Formatted(convertedDense))
-
-	// Check if sparse is worthwhile
+	// Sparse matrix usefulness
 	rows, cols := 1000, 1000
-	nnz := 50000 // 5% density
+	nnz := 50000
+	nnzDense := 800000
 	fmt.Printf("\nIs sparse worthwhile for %dx%d matrix with %d non-zeros? %v\n", rows, cols, nnz, matrix.IsSparseWorthwhile(rows, cols, nnz))
-	
-	nnzDense := 800000 // 80% density
 	fmt.Printf("Is sparse worthwhile for %dx%d matrix with %d non-zeros? %v\n", rows, cols, nnzDense, matrix.IsSparseWorthwhile(rows, cols, nnzDense))
 }
 ```
@@ -355,7 +342,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/tsawler/go-nngpu/matrix"
+	"github.com/tsawler/go-nngpu/gpu/matrix"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -391,9 +378,6 @@ func main() {
 	for i, res := range resultsMatVec {
 		fmt.Printf("Operation %d: %v\n", i+1, res)
 	}
-
-	sparseM1.ReleaseGPU() // Clean up resources
-	sparseM2.ReleaseGPU()
 }
 ```
 
