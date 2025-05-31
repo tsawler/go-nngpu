@@ -235,7 +235,7 @@ int perform_mps_matrix_transpose(
             return -3;
         }
 
-        // Simple CPU-based transpose for now (can be optimized with Metal compute shader later)
+        // TODO: Simple CPU-based transpose for now (can be optimized with Metal compute shader later)
         float *input_data = (float*)input_buffer.contents;
         float *output_data = (float*)output_buffer.contents;
 

@@ -92,7 +92,7 @@ func (layer *GPUConvLayer) Forward(input *tensor.Tensor) (*tensor.Tensor, error)
 	
 	// Add bias if provided
 	if layer.Bias != nil {
-		// For now, we'll skip bias addition in this simplified implementation
+		// TODO: For now, we'll skip bias addition in this simplified implementation
 		// In a full implementation, you'd add bias broadcasting
 	}
 	
@@ -356,7 +356,7 @@ func Reshape2DTo4D(t *tensor.Tensor, targetShape []int) (*tensor.Tensor, error) 
 
 // GPUConv2DSimple performs a simple 2D convolution with square kernels
 func GPUConv2DSimple(input *mat.Dense, kernelSize, stride, padding int, numFilters int) (*mat.Dense, error) {
-	// This is a simplified interface - in practice you'd need more sophisticated tensor handling
+	// TODO: This is a simplified interface - in practice you'd need more sophisticated tensor handling
 	// Convert Gonum matrix to tensor format, perform convolution, and convert back
 	
 	// For now, this is a placeholder that demonstrates the interface

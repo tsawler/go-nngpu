@@ -842,7 +842,7 @@ func (gf *GradientFunction) handleBroadcastBackward(grad *tensor.Tensor, targetS
 		}
 	}
 
-	// For now, implement a simple case: sum over extra dimensions
+	// TODO: For now, implement a simple case: sum over extra dimensions
 	// This handles the most common broadcasting cases
 
 	// If target has fewer dimensions, sum over leading dimensions
