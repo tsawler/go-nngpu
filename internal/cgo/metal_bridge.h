@@ -494,4 +494,116 @@ int perform_loss_hinge_backward(
     CError *err
 );
 
+// Add these function declarations to metal_bridge.h after the existing loss functions
+// Insert before the final #endif
+
+// Phase 6C: Convolution Operations
+
+// 2D Convolution forward pass
+int perform_conv2d_forward(
+    GPUPtr inputPtr, long inputBatch, long inputHeight, long inputWidth, long inputChannels,
+    GPUPtr kernelPtr, long kernelHeight, long kernelWidth, long kernelInputChannels, long kernelOutputChannels,
+    GPUPtr outputPtr, long outputBatch, long outputHeight, long outputWidth, long outputChannels,
+    long strideH, long strideW, long padH, long padW,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// 2D Convolution backward pass - input gradients
+int perform_conv2d_backward_input(
+    GPUPtr gradOutputPtr, long gradOutputBatch, long gradOutputHeight, long gradOutputWidth, long gradOutputChannels,
+    GPUPtr kernelPtr, long kernelHeight, long kernelWidth, long kernelInputChannels, long kernelOutputChannels,
+    GPUPtr gradInputPtr, long gradInputBatch, long gradInputHeight, long gradInputWidth, long gradInputChannels,
+    long strideH, long strideW, long padH, long padW,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// 2D Convolution backward pass - kernel gradients
+int perform_conv2d_backward_kernel(
+    GPUPtr inputPtr, long inputBatch, long inputHeight, long inputWidth, long inputChannels,
+    GPUPtr gradOutputPtr, long gradOutputBatch, long gradOutputHeight, long gradOutputWidth, long gradOutputChannels,
+    GPUPtr gradKernelPtr, long kernelHeight, long kernelWidth, long kernelInputChannels, long kernelOutputChannels,
+    long strideH, long strideW, long padH, long padW,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// 2D Max Pooling forward pass
+int perform_maxpool2d_forward(
+    GPUPtr inputPtr, long inputBatch, long inputHeight, long inputWidth, long inputChannels,
+    GPUPtr outputPtr, long outputBatch, long outputHeight, long outputWidth, long outputChannels,
+    GPUPtr indicesPtr, // For backward pass - stores indices of max elements
+    long poolHeight, long poolWidth, long strideH, long strideW, long padH, long padW,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// 2D Max Pooling backward pass
+int perform_maxpool2d_backward(
+    GPUPtr gradOutputPtr, long gradOutputBatch, long gradOutputHeight, long gradOutputWidth, long gradOutputChannels,
+    GPUPtr indicesPtr, // Indices from forward pass
+    GPUPtr gradInputPtr, long gradInputBatch, long gradInputHeight, long gradInputWidth, long gradInputChannels,
+    long poolHeight, long poolWidth, long strideH, long strideW, long padH, long padW,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// 2D Average Pooling forward pass
+int perform_avgpool2d_forward(
+    GPUPtr inputPtr, long inputBatch, long inputHeight, long inputWidth, long inputChannels,
+    GPUPtr outputPtr, long outputBatch, long outputHeight, long outputWidth, long outputChannels,
+    long poolHeight, long poolWidth, long strideH, long strideW, long padH, long padW,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// 2D Average Pooling backward pass
+int perform_avgpool2d_backward(
+    GPUPtr gradOutputPtr, long gradOutputBatch, long gradOutputHeight, long gradOutputWidth, long gradOutputChannels,
+    GPUPtr gradInputPtr, long gradInputBatch, long gradInputHeight, long gradInputWidth, long gradInputChannels,
+    long poolHeight, long poolWidth, long strideH, long strideW, long padH, long padW,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Padding operations
+int perform_pad2d(
+    GPUPtr inputPtr, long inputBatch, long inputHeight, long inputWidth, long inputChannels,
+    GPUPtr outputPtr, long outputBatch, long outputHeight, long outputWidth, long outputChannels,
+    long padTop, long padBottom, long padLeft, long padRight,
+    float padValue, // Value to fill padding with
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Remove padding (crop)
+int perform_unpad2d(
+    GPUPtr inputPtr, long inputBatch, long inputHeight, long inputWidth, long inputChannels,
+    GPUPtr outputPtr, long outputBatch, long outputHeight, long outputWidth, long outputChannels,
+    long padTop, long padBottom, long padLeft, long padRight,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Im2Col operation for efficient convolution implementation
+int perform_im2col(
+    GPUPtr inputPtr, long inputBatch, long inputHeight, long inputWidth, long inputChannels,
+    GPUPtr outputPtr, // Output is (batch * output_h * output_w) x (kernel_h * kernel_w * input_channels)
+    long kernelHeight, long kernelWidth, long strideH, long strideW, long padH, long padW,
+    long outputHeight, long outputWidth,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Col2Im operation (inverse of Im2Col)
+int perform_col2im(
+    GPUPtr inputPtr, // Input is (batch * output_h * output_w) x (kernel_h * kernel_w * input_channels)
+    GPUPtr outputPtr, long outputBatch, long outputHeight, long outputWidth, long outputChannels,
+    long kernelHeight, long kernelWidth, long strideH, long strideW, long padH, long padW,
+    long inputHeight, long inputWidth, // Original input dimensions before im2col
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
 #endif // METAL_BRIDGE_H
