@@ -44,7 +44,7 @@ The development of go-nngpu follows an incremental strategy. The current status 
 - [x] Phase 6A: Activation functions (ReLU, Sigmoid, Tanh, Softmax, Leaky ReLU, ELU, Swish, GELU)
 - [x] Phase 6B: Loss functions (CrossEntropy, MSE + gradients)
 - [x] Phase 6C: Convolution operations (Conv2D, MaxPool, padding)
-- [ ] Phase 6D: Batch normalization (mean, variance, normalize)
+- [x] Phase 6D: Batch normalization (mean, variance, normalize)
 - [ ] Phase 7A: Gradient computation framework
 - [ ] Phase 7B: Optimizers (SGD, Adam, RMSprop with GPU state)
 - [ ] Phase 7C: Memory-efficient training loop
