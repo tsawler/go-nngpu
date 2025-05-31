@@ -606,4 +606,121 @@ int perform_col2im(
     CError *err
 );
 
+// Batch Normalization Operations
+
+// Batch mean computation (across batch dimension)
+int perform_batch_mean(
+    GPUPtr inputPtr, long batchSize, long features,
+    GPUPtr meanPtr, // Output: mean for each feature (size = features)
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Batch variance computation (across batch dimension)
+int perform_batch_variance(
+    GPUPtr inputPtr, GPUPtr meanPtr, long batchSize, long features,
+    GPUPtr variancePtr, // Output: variance for each feature (size = features)
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Batch normalization forward pass
+int perform_batch_norm_forward(
+    GPUPtr inputPtr, long batchSize, long features,
+    GPUPtr meanPtr, GPUPtr variancePtr, // Running statistics (size = features)
+    GPUPtr gammaPtr, GPUPtr betaPtr, // Learnable parameters (size = features)
+    float epsilon, // Small constant for numerical stability
+    GPUPtr outputPtr, // Normalized output (size = batchSize * features)
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Batch normalization backward pass - input gradients
+int perform_batch_norm_backward_input(
+    GPUPtr gradOutputPtr, long batchSize, long features,
+    GPUPtr inputPtr, GPUPtr meanPtr, GPUPtr variancePtr,
+    GPUPtr gammaPtr, float epsilon,
+    GPUPtr gradInputPtr, // Output: gradients w.r.t. input (size = batchSize * features)
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Batch normalization backward pass - parameter gradients
+int perform_batch_norm_backward_params(
+    GPUPtr gradOutputPtr, long batchSize, long features,
+    GPUPtr inputPtr, GPUPtr meanPtr, GPUPtr variancePtr,
+    float epsilon,
+    GPUPtr gradGammaPtr, GPUPtr gradBetaPtr, // Output: gradients w.r.t. gamma and beta (size = features)
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Layer normalization forward pass (normalize across features for each sample)
+int perform_layer_norm_forward(
+    GPUPtr inputPtr, long batchSize, long features,
+    GPUPtr gammaPtr, GPUPtr betaPtr, // Learnable parameters (size = features)
+    float epsilon,
+    GPUPtr outputPtr, GPUPtr meanPtr, GPUPtr variancePtr, // meanPtr and variancePtr are per-sample (size = batchSize)
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Layer normalization backward pass
+int perform_layer_norm_backward(
+    GPUPtr gradOutputPtr, long batchSize, long features,
+    GPUPtr inputPtr, GPUPtr meanPtr, GPUPtr variancePtr, // Per-sample statistics
+    GPUPtr gammaPtr, float epsilon,
+    GPUPtr gradInputPtr, GPUPtr gradGammaPtr, GPUPtr gradBetaPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Running statistics update (for inference)
+int perform_update_running_stats(
+    GPUPtr runningMeanPtr, GPUPtr runningVarPtr, // Running statistics to update (size = features)
+    GPUPtr batchMeanPtr, GPUPtr batchVarPtr, // Current batch statistics (size = features)
+    float momentum, long features,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Instance normalization forward pass (normalize across spatial dimensions for each channel)
+int perform_instance_norm_forward(
+    GPUPtr inputPtr, long batchSize, long channels, long height, long width,
+    GPUPtr gammaPtr, GPUPtr betaPtr, // Learnable parameters (size = channels)
+    float epsilon,
+    GPUPtr outputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Instance normalization backward pass
+int perform_instance_norm_backward(
+    GPUPtr gradOutputPtr, long batchSize, long channels, long height, long width,
+    GPUPtr inputPtr, GPUPtr gammaPtr, float epsilon,
+    GPUPtr gradInputPtr, GPUPtr gradGammaPtr, GPUPtr gradBetaPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Group normalization forward pass (normalize within groups of channels)
+int perform_group_norm_forward(
+    GPUPtr inputPtr, long batchSize, long channels, long height, long width,
+    long numGroups, // Number of groups to divide channels into
+    GPUPtr gammaPtr, GPUPtr betaPtr, // Learnable parameters (size = channels)
+    float epsilon,
+    GPUPtr outputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Group normalization backward pass
+int perform_group_norm_backward(
+    GPUPtr gradOutputPtr, long batchSize, long channels, long height, long width,
+    long numGroups, GPUPtr inputPtr, GPUPtr gammaPtr, float epsilon,
+    GPUPtr gradInputPtr, GPUPtr gradGammaPtr, GPUPtr gradBetaPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
 #endif // METAL_BRIDGE_H
