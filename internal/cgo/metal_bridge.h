@@ -723,4 +723,243 @@ int perform_group_norm_backward(
     CError *err
 );
 
+// Gradient Computation Operations
+
+// Gradient accumulation (for variables used multiple times in computation graph)
+int perform_gradient_accumulate(
+    GPUPtr existingGradPtr, // Existing accumulated gradient
+    GPUPtr newGradPtr,      // New gradient to add
+    long size,              // Number of elements
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Sum of squares computation (for gradient norm calculation)
+int perform_tensor_sum_squares(
+    GPUPtr inputPtr,        // Input tensor
+    long size,              // Number of elements
+    float *sumSquares,      // Output: sum of squares
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Sum along specific axis (for gradient broadcasting)
+int perform_sum_along_axis(
+    GPUPtr inputPtr,        // Input tensor
+    int axis,               // Axis to sum along
+    long inputNDim,         // Number of input dimensions
+    long *inputShape,       // Input tensor shape
+    GPUPtr outputPtr,       // Output tensor (reduced along axis)
+    long outputNDim,        // Number of output dimensions
+    long *outputShape,      // Output tensor shape
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Broadcast gradient from reduced shape back to original shape
+int perform_broadcast_gradient(
+    GPUPtr gradPtr,         // Gradient tensor (reduced shape)
+    long gradNDim,          // Number of gradient dimensions
+    long *gradShape,        // Gradient tensor shape
+    GPUPtr outputPtr,       // Output tensor (original shape)
+    long outputNDim,        // Number of output dimensions
+    long *outputShape,      // Output tensor shape
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Element-wise gradient scaling (for gradient clipping)
+int perform_gradient_scale(
+    GPUPtr gradPtr,         // Gradient tensor to scale
+    long size,              // Number of elements
+    float scale,            // Scale factor
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Set tensor elements to a specific value (for gradient zeroing)
+int perform_tensor_fill(
+    GPUPtr tensorPtr,       // Tensor to fill
+    long size,              // Number of elements
+    float value,            // Value to fill with
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Element-wise maximum (for gradient clipping operations)
+int perform_tensor_clamp_max(
+    GPUPtr inputPtr,        // Input tensor
+    long size,              // Number of elements
+    float maxValue,         // Maximum value to clamp to
+    GPUPtr outputPtr,       // Output tensor
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Element-wise minimum (for gradient clipping operations)
+int perform_tensor_clamp_min(
+    GPUPtr inputPtr,        // Input tensor
+    long size,              // Number of elements
+    float minValue,         // Minimum value to clamp to
+    GPUPtr outputPtr,       // Output tensor
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Combined clamp operation (clamp between min and max)
+int perform_tensor_clamp(
+    GPUPtr inputPtr,        // Input tensor
+    long size,              // Number of elements
+    float minValue,         // Minimum value
+    float maxValue,         // Maximum value
+    GPUPtr outputPtr,       // Output tensor
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Compute L2 norm of a tensor
+int perform_tensor_l2_norm(
+    GPUPtr inputPtr,        // Input tensor
+    long size,              // Number of elements
+    float *norm,            // Output: L2 norm
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Apply dropout mask during training (for gradient computation)
+int perform_dropout_forward(
+    GPUPtr inputPtr,        // Input tensor
+    long size,              // Number of elements
+    float probability,      // Dropout probability
+    unsigned int seed,      // Random seed
+    GPUPtr outputPtr,       // Output tensor
+    GPUPtr maskPtr,         // Dropout mask (for backward pass)
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Apply saved dropout mask during backward pass
+int perform_dropout_backward(
+    GPUPtr gradOutputPtr,   // Gradient from next layer
+    GPUPtr maskPtr,         // Saved dropout mask from forward pass
+    long size,              // Number of elements
+    float probability,      // Dropout probability (for scaling)
+    GPUPtr gradInputPtr,    // Output: gradient for input
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Copy tensor data (for gradient checkpointing and tensor cloning)
+int perform_tensor_copy(
+    GPUPtr srcPtr,          // Source tensor
+    GPUPtr dstPtr,          // Destination tensor
+    long size,              // Number of elements
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Tensor reduction operations for gradient computation
+
+// Reduce sum across all elements
+int perform_tensor_sum_all(
+    GPUPtr inputPtr,        // Input tensor
+    long size,              // Number of elements
+    float *sum,             // Output: sum of all elements
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Reduce mean across all elements
+int perform_tensor_mean_all(
+    GPUPtr inputPtr,        // Input tensor
+    long size,              // Number of elements
+    float *mean,            // Output: mean of all elements
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Reduce max across all elements
+int perform_tensor_max_all(
+    GPUPtr inputPtr,        // Input tensor
+    long size,              // Number of elements
+    float *maxValue,        // Output: maximum element
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Reduce min across all elements
+int perform_tensor_min_all(
+    GPUPtr inputPtr,        // Input tensor
+    long size,              // Number of elements
+    float *minValue,        // Output: minimum element
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Advanced gradient operations
+
+// Compute gradient of matrix determinant
+int perform_det_backward(
+    GPUPtr inputPtr,        // Original input matrix
+    long rows, long cols,   // Matrix dimensions
+    float detValue,         // Determinant value from forward pass
+    GPUPtr gradOutputPtr,   // Gradient of loss w.r.t. determinant (scalar)
+    GPUPtr gradInputPtr,    // Output: gradient w.r.t. input matrix
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Compute gradient of matrix inverse
+int perform_inverse_backward(
+    GPUPtr inversePtr,      // Matrix inverse from forward pass
+    long rows, long cols,   // Matrix dimensions
+    GPUPtr gradOutputPtr,   // Gradient of loss w.r.t. inverse
+    GPUPtr gradInputPtr,    // Output: gradient w.r.t. original matrix
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Compute gradient of eigenvalue decomposition
+int perform_eigen_backward(
+    GPUPtr eigenvaluesPtr,  // Eigenvalues from forward pass
+    GPUPtr eigenvectorsPtr, // Eigenvectors from forward pass
+    long size,              // Matrix size (square matrix)
+    GPUPtr gradEigenvaluesPtr,  // Gradient w.r.t. eigenvalues
+    GPUPtr gradEigenvectorsPtr, // Gradient w.r.t. eigenvectors
+    GPUPtr gradInputPtr,    // Output: gradient w.r.t. original matrix
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Memory management for gradient computation
+
+// Allocate GPU memory for gradient computation workspace
+int allocate_gradient_workspace(
+    long workspaceSize,     // Size in bytes
+    GPUPtr *workspacePtr,   // Output: pointer to allocated workspace
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Free gradient computation workspace
+int free_gradient_workspace(
+    GPUPtr workspacePtr,    // Workspace to free
+    CError *err
+);
+
+// Synchronization operations for gradient computation
+
+// Synchronize GPU computation (wait for completion)
+int synchronize_gpu(
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Check if GPU computation is complete
+int is_gpu_computation_complete(
+    DevicePtr mtlDevicePtr,
+    int *isComplete,        // Output: 1 if complete, 0 if still running
+    CError *err
+);
+
 #endif // METAL_BRIDGE_H

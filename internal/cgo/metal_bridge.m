@@ -3998,4 +3998,765 @@ int perform_group_norm_backward(
     }
 }
 
+// Gradient Computation Operations ---
+
+// Gradient accumulation (existing += new)
+int perform_gradient_accumulate(
+    GPUPtr existingGradPtr,
+    GPUPtr newGradPtr,
+    long size,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> existing_buffer = (__bridge id<MTLBuffer>)existingGradPtr;
+        id<MTLBuffer> new_buffer = (__bridge id<MTLBuffer>)newGradPtr;
+
+        if (!existing_buffer || !new_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for gradient accumulation.");
+            return -1;
+        }
+
+        float *existing_data = (float*)existing_buffer.contents;
+        float *new_data = (float*)new_buffer.contents;
+        
+        // Simple CPU implementation: existing[i] += new[i]
+        for (long i = 0; i < size; i++) {
+            existing_data[i] += new_data[i];
+        }
+        
+        return 0;
+    }
+}
+
+// Sum of squares computation
+int perform_tensor_sum_squares(
+    GPUPtr inputPtr,
+    long size,
+    float *sumSquares,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputPtr;
+
+        if (!input_buffer || !sumSquares) {
+            set_c_error_message(err, @"Invalid buffer pointer or output pointer for sum squares.");
+            return -1;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        
+        float sum = 0.0f;
+        for (long i = 0; i < size; i++) {
+            float val = input_data[i];
+            sum += val * val;
+        }
+        
+        *sumSquares = sum;
+        return 0;
+    }
+}
+
+// Sum along specific axis
+int perform_sum_along_axis(
+    GPUPtr inputPtr,
+    int axis,
+    long inputNDim,
+    long *inputShape,
+    GPUPtr outputPtr,
+    long outputNDim,
+    long *outputShape,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputPtr;
+        id<MTLBuffer> output_buffer = (__bridge id<MTLBuffer>)outputPtr;
+
+        if (!input_buffer || !output_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for sum along axis.");
+            return -1;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        float *output_data = (float*)output_buffer.contents;
+        
+        // Calculate input and output sizes
+        long input_size = 1;
+        for (long i = 0; i < inputNDim; i++) {
+            input_size *= inputShape[i];
+        }
+        
+        long output_size = 1;
+        for (long i = 0; i < outputNDim; i++) {
+            output_size *= outputShape[i];
+        }
+        
+        // Initialize output to zero
+        memset(output_data, 0, output_size * sizeof(float));
+        
+        // For simplicity, implement only for 2D case (most common)
+        if (inputNDim == 2) {
+            long rows = inputShape[0];
+            long cols = inputShape[1];
+            
+            if (axis == 0) {
+                // Sum along rows (result has shape [cols])
+                for (long j = 0; j < cols; j++) {
+                    float sum = 0.0f;
+                    for (long i = 0; i < rows; i++) {
+                        sum += input_data[i * cols + j];
+                    }
+                    output_data[j] = sum;
+                }
+            } else if (axis == 1) {
+                // Sum along columns (result has shape [rows])
+                for (long i = 0; i < rows; i++) {
+                    float sum = 0.0f;
+                    for (long j = 0; j < cols; j++) {
+                        sum += input_data[i * cols + j];
+                    }
+                    output_data[i] = sum;
+                }
+            }
+        } else if (inputNDim == 1) {
+            // Sum all elements for 1D tensor
+            float sum = 0.0f;
+            for (long i = 0; i < input_size; i++) {
+                sum += input_data[i];
+            }
+            output_data[0] = sum;
+        } else {
+            set_c_error_message(err, @"Sum along axis only supports 1D and 2D tensors currently.");
+            return -1;
+        }
+        
+        return 0;
+    }
+}
+
+// Broadcast gradient from reduced shape back to original shape
+int perform_broadcast_gradient(
+    GPUPtr gradPtr,
+    long gradNDim,
+    long *gradShape,
+    GPUPtr outputPtr,
+    long outputNDim,
+    long *outputShape,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> grad_buffer = (__bridge id<MTLBuffer>)gradPtr;
+        id<MTLBuffer> output_buffer = (__bridge id<MTLBuffer>)outputPtr;
+
+        if (!grad_buffer || !output_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for broadcast gradient.");
+            return -1;
+        }
+
+        float *grad_data = (float*)grad_buffer.contents;
+        float *output_data = (float*)output_buffer.contents;
+        
+        // Calculate sizes
+        long grad_size = 1;
+        for (long i = 0; i < gradNDim; i++) {
+            grad_size *= gradShape[i];
+        }
+        
+        long output_size = 1;
+        for (long i = 0; i < outputNDim; i++) {
+            output_size *= outputShape[i];
+        }
+        
+        // Simple case: broadcast scalar to any shape
+        if (grad_size == 1) {
+            float grad_val = grad_data[0];
+            for (long i = 0; i < output_size; i++) {
+                output_data[i] = grad_val;
+            }
+            return 0;
+        }
+        
+        // For 2D case: broadcast along appropriate dimensions
+        if (gradNDim == 1 && outputNDim == 2) {
+            long grad_len = gradShape[0];
+            long out_rows = outputShape[0];
+            long out_cols = outputShape[1];
+            
+            if (grad_len == out_cols) {
+                // Broadcast along rows
+                for (long i = 0; i < out_rows; i++) {
+                    for (long j = 0; j < out_cols; j++) {
+                        output_data[i * out_cols + j] = grad_data[j];
+                    }
+                }
+            } else if (grad_len == out_rows) {
+                // Broadcast along columns
+                for (long i = 0; i < out_rows; i++) {
+                    for (long j = 0; j < out_cols; j++) {
+                        output_data[i * out_cols + j] = grad_data[i];
+                    }
+                }
+            } else {
+                set_c_error_message(err, @"Unsupported broadcast pattern for gradient.");
+                return -1;
+            }
+        } else {
+            // If shapes match, just copy
+            if (grad_size == output_size) {
+                memcpy(output_data, grad_data, output_size * sizeof(float));
+            } else {
+                set_c_error_message(err, @"Unsupported gradient broadcasting case.");
+                return -1;
+            }
+        }
+        
+        return 0;
+    }
+}
+
+// Element-wise gradient scaling
+int perform_gradient_scale(
+    GPUPtr gradPtr,
+    long size,
+    float scale,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> grad_buffer = (__bridge id<MTLBuffer>)gradPtr;
+
+        if (!grad_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointer for gradient scaling.");
+            return -1;
+        }
+
+        float *grad_data = (float*)grad_buffer.contents;
+        
+        // Scale all elements: grad[i] *= scale
+        for (long i = 0; i < size; i++) {
+            grad_data[i] *= scale;
+        }
+        
+        return 0;
+    }
+}
+
+// Set tensor elements to a specific value
+int perform_tensor_fill(
+    GPUPtr tensorPtr,
+    long size,
+    float value,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> tensor_buffer = (__bridge id<MTLBuffer>)tensorPtr;
+
+        if (!tensor_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointer for tensor fill.");
+            return -1;
+        }
+
+        float *tensor_data = (float*)tensor_buffer.contents;
+        
+        // Fill all elements with the specified value
+        for (long i = 0; i < size; i++) {
+            tensor_data[i] = value;
+        }
+        
+        return 0;
+    }
+}
+
+// Element-wise maximum clamping
+int perform_tensor_clamp_max(
+    GPUPtr inputPtr,
+    long size,
+    float maxValue,
+    GPUPtr outputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputPtr;
+        id<MTLBuffer> output_buffer = (__bridge id<MTLBuffer>)outputPtr;
+
+        if (!input_buffer || !output_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for tensor clamp max.");
+            return -1;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        float *output_data = (float*)output_buffer.contents;
+        
+        // Clamp each element: output[i] = min(input[i], maxValue)
+        for (long i = 0; i < size; i++) {
+            output_data[i] = fminf(input_data[i], maxValue);
+        }
+        
+        return 0;
+    }
+}
+
+// Element-wise minimum clamping
+int perform_tensor_clamp_min(
+    GPUPtr inputPtr,
+    long size,
+    float minValue,
+    GPUPtr outputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputPtr;
+        id<MTLBuffer> output_buffer = (__bridge id<MTLBuffer>)outputPtr;
+
+        if (!input_buffer || !output_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for tensor clamp min.");
+            return -1;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        float *output_data = (float*)output_buffer.contents;
+        
+        // Clamp each element: output[i] = max(input[i], minValue)
+        for (long i = 0; i < size; i++) {
+            output_data[i] = fmaxf(input_data[i], minValue);
+        }
+        
+        return 0;
+    }
+}
+
+// Combined clamp operation
+int perform_tensor_clamp(
+    GPUPtr inputPtr,
+    long size,
+    float minValue,
+    float maxValue,
+    GPUPtr outputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputPtr;
+        id<MTLBuffer> output_buffer = (__bridge id<MTLBuffer>)outputPtr;
+
+        if (!input_buffer || !output_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for tensor clamp.");
+            return -1;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        float *output_data = (float*)output_buffer.contents;
+        
+        // Clamp each element: output[i] = clamp(input[i], minValue, maxValue)
+        for (long i = 0; i < size; i++) {
+            output_data[i] = fmaxf(minValue, fminf(input_data[i], maxValue));
+        }
+        
+        return 0;
+    }
+}
+
+// Compute L2 norm of a tensor
+int perform_tensor_l2_norm(
+    GPUPtr inputPtr,
+    long size,
+    float *norm,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputPtr;
+
+        if (!input_buffer || !norm) {
+            set_c_error_message(err, @"Invalid buffer pointer or output pointer for L2 norm.");
+            return -1;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        
+        float sum_squares = 0.0f;
+        for (long i = 0; i < size; i++) {
+            float val = input_data[i];
+            sum_squares += val * val;
+        }
+        
+        *norm = sqrtf(sum_squares);
+        return 0;
+    }
+}
+
+// Simple dropout implementation for training
+int perform_dropout_forward(
+    GPUPtr inputPtr,
+    long size,
+    float probability,
+    unsigned int seed,
+    GPUPtr outputPtr,
+    GPUPtr maskPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputPtr;
+        id<MTLBuffer> output_buffer = (__bridge id<MTLBuffer>)outputPtr;
+        id<MTLBuffer> mask_buffer = (__bridge id<MTLBuffer>)maskPtr;
+
+        if (!input_buffer || !output_buffer || !mask_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for dropout forward.");
+            return -1;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        float *output_data = (float*)output_buffer.contents;
+        float *mask_data = (float*)mask_buffer.contents;
+        
+        // Simple random number generation for dropout
+        srand(seed);
+        float scale = 1.0f / (1.0f - probability);
+        
+        for (long i = 0; i < size; i++) {
+            float random_val = (float)rand() / RAND_MAX;
+            if (random_val < probability) {
+                // Drop this element
+                mask_data[i] = 0.0f;
+                output_data[i] = 0.0f;
+            } else {
+                // Keep this element and scale
+                mask_data[i] = scale;
+                output_data[i] = input_data[i] * scale;
+            }
+        }
+        
+        return 0;
+    }
+}
+
+// Apply saved dropout mask during backward pass
+int perform_dropout_backward(
+    GPUPtr gradOutputPtr,
+    GPUPtr maskPtr,
+    long size,
+    float probability,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> grad_output_buffer = (__bridge id<MTLBuffer>)gradOutputPtr;
+        id<MTLBuffer> mask_buffer = (__bridge id<MTLBuffer>)maskPtr;
+        id<MTLBuffer> grad_input_buffer = (__bridge id<MTLBuffer>)gradInputPtr;
+
+        if (!grad_output_buffer || !mask_buffer || !grad_input_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for dropout backward.");
+            return -1;
+        }
+
+        float *grad_output_data = (float*)grad_output_buffer.contents;
+        float *mask_data = (float*)mask_buffer.contents;
+        float *grad_input_data = (float*)grad_input_buffer.contents;
+        
+        // Apply the same mask to gradients
+        for (long i = 0; i < size; i++) {
+            grad_input_data[i] = grad_output_data[i] * mask_data[i];
+        }
+        
+        return 0;
+    }
+}
+
+// Copy tensor data
+int perform_tensor_copy(
+    GPUPtr srcPtr,
+    GPUPtr dstPtr,
+    long size,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> src_buffer = (__bridge id<MTLBuffer>)srcPtr;
+        id<MTLBuffer> dst_buffer = (__bridge id<MTLBuffer>)dstPtr;
+
+        if (!src_buffer || !dst_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for tensor copy.");
+            return -1;
+        }
+
+        float *src_data = (float*)src_buffer.contents;
+        float *dst_data = (float*)dst_buffer.contents;
+        
+        memcpy(dst_data, src_data, size * sizeof(float));
+        return 0;
+    }
+}
+
+// Reduce sum across all elements
+int perform_tensor_sum_all(
+    GPUPtr inputPtr,
+    long size,
+    float *sum,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputPtr;
+
+        if (!input_buffer || !sum) {
+            set_c_error_message(err, @"Invalid buffer pointer or output pointer for tensor sum all.");
+            return -1;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        
+        float total = 0.0f;
+        for (long i = 0; i < size; i++) {
+            total += input_data[i];
+        }
+        
+        *sum = total;
+        return 0;
+    }
+}
+
+// Reduce mean across all elements
+int perform_tensor_mean_all(
+    GPUPtr inputPtr,
+    long size,
+    float *mean,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputPtr;
+
+        if (!input_buffer || !mean) {
+            set_c_error_message(err, @"Invalid buffer pointer or output pointer for tensor mean all.");
+            return -1;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        
+        float total = 0.0f;
+        for (long i = 0; i < size; i++) {
+            total += input_data[i];
+        }
+        
+        *mean = total / (float)size;
+        return 0;
+    }
+}
+
+// Reduce max across all elements
+int perform_tensor_max_all(
+    GPUPtr inputPtr,
+    long size,
+    float *maxValue,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputPtr;
+
+        if (!input_buffer || !maxValue) {
+            set_c_error_message(err, @"Invalid buffer pointer or output pointer for tensor max all.");
+            return -1;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        
+        if (size == 0) {
+            set_c_error_message(err, @"Cannot compute max of empty tensor.");
+            return -1;
+        }
+        
+        float max_val = input_data[0];
+        for (long i = 1; i < size; i++) {
+            max_val = fmaxf(max_val, input_data[i]);
+        }
+        
+        *maxValue = max_val;
+        return 0;
+    }
+}
+
+// Reduce min across all elements
+int perform_tensor_min_all(
+    GPUPtr inputPtr,
+    long size,
+    float *minValue,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> input_buffer = (__bridge id<MTLBuffer>)inputPtr;
+
+        if (!input_buffer || !minValue) {
+            set_c_error_message(err, @"Invalid buffer pointer or output pointer for tensor min all.");
+            return -1;
+        }
+
+        float *input_data = (float*)input_buffer.contents;
+        
+        if (size == 0) {
+            set_c_error_message(err, @"Cannot compute min of empty tensor.");
+            return -1;
+        }
+        
+        float min_val = input_data[0];
+        for (long i = 1; i < size; i++) {
+            min_val = fminf(min_val, input_data[i]);
+        }
+        
+        *minValue = min_val;
+        return 0;
+    }
+}
+
+// Placeholder implementations for advanced gradient operations
+// (These would require more complex implementations in a production system)
+
+int perform_det_backward(
+    GPUPtr inputPtr,
+    long rows, long cols,
+    float detValue,
+    GPUPtr gradOutputPtr,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        // Gradient of determinant: d(det(A))/dA = det(A) * A^(-T)
+        // This is a simplified placeholder implementation
+        set_c_error_message(err, @"Determinant backward pass not fully implemented yet.");
+        return -1;
+    }
+}
+
+int perform_inverse_backward(
+    GPUPtr inversePtr,
+    long rows, long cols,
+    GPUPtr gradOutputPtr,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        // Gradient of matrix inverse: d(A^(-1))/dA = -A^(-1) * dL/d(A^(-1)) * A^(-1)
+        // This is a simplified placeholder implementation
+        set_c_error_message(err, @"Matrix inverse backward pass not fully implemented yet.");
+        return -1;
+    }
+}
+
+int perform_eigen_backward(
+    GPUPtr eigenvaluesPtr,
+    GPUPtr eigenvectorsPtr,
+    long size,
+    GPUPtr gradEigenvaluesPtr,
+    GPUPtr gradEigenvectorsPtr,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        // Gradient of eigenvalue decomposition is complex
+        // This is a simplified placeholder implementation
+        set_c_error_message(err, @"Eigenvalue decomposition backward pass not fully implemented yet.");
+        return -1;
+    }
+}
+
+// Memory management for gradient computation
+
+int allocate_gradient_workspace(
+    long workspaceSize,
+    GPUPtr *workspacePtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLDevice> device = (__bridge id<MTLDevice>)mtlDevicePtr;
+        
+        if (!device) {
+            set_c_error_message(err, @"Invalid Metal device for workspace allocation.");
+            return -1;
+        }
+        
+        id<MTLBuffer> workspace = [device newBufferWithLength:workspaceSize 
+                                                      options:MTLResourceStorageModeShared];
+        
+        if (!workspace) {
+            set_c_error_message(err, @"Failed to allocate gradient workspace buffer.");
+            return -1;
+        }
+        
+        *workspacePtr = (__bridge_retained void*)workspace;
+        return 0;
+    }
+}
+
+int free_gradient_workspace(
+    GPUPtr workspacePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        if (workspacePtr) {
+            CFRelease(workspacePtr);
+        }
+        return 0;
+    }
+}
+
+// Synchronization operations
+
+int synchronize_gpu(
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLDevice> device = (__bridge id<MTLDevice>)mtlDevicePtr;
+        id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)_global_mtl_command_queue_ptr;
+        
+        if (!device || !commandQueue) {
+            set_c_error_message(err, @"Invalid Metal device or command queue for synchronization.");
+            return -1;
+        }
+        
+        // Create a command buffer and commit it to ensure all previous operations complete
+        id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+        if (!commandBuffer) {
+            set_c_error_message(err, @"Failed to create command buffer for synchronization.");
+            return -1;
+        }
+        
+        [commandBuffer commit];
+        [commandBuffer waitUntilCompleted];
+        
+        if (commandBuffer.error) {
+            set_c_error_message(err, @"GPU synchronization failed: %@", commandBuffer.error.localizedDescription);
+            return -1;
+        }
+        
+        return 0;
+    }
+}
+
+int is_gpu_computation_complete(
+    DevicePtr mtlDevicePtr,
+    int *isComplete,
+    CError *err
+) {
+    @autoreleasepool {
+        // For simplicity, we'll always return complete since we're using synchronous operations
+        // In a real implementation, you might track asynchronous command buffers
+        *isComplete = 1;
+        return 0;
+    }
+}
+
 #pragma clang diagnostic pop
