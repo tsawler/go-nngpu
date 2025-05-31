@@ -11,8 +11,8 @@ import (
 	"runtime"
 	"unsafe"
 
-	"github.com/tsawler/go-nngpu/tensor"
 	_ "github.com/tsawler/go-nngpu/internal/cgo"
+	"github.com/tsawler/go-nngpu/tensor"
 )
 
 // Optimizer represents a generic optimizer interface
@@ -39,9 +39,9 @@ type SGDConfig struct {
 
 // SGDOptimizer implements Stochastic Gradient Descent with momentum
 type SGDOptimizer struct {
-	config         SGDConfig
+	config          SGDConfig
 	momentumBuffers []*tensor.Tensor
-	stepCount      int64
+	stepCount       int64
 }
 
 // NewSGD creates a new SGD optimizer
@@ -79,7 +79,7 @@ func (opt *SGDOptimizer) Step(params []*tensor.Tensor, grads []*tensor.Tensor) e
 
 	for i, param := range params {
 		grad := grads[i]
-		
+
 		if err := param.EnsureGPU(); err != nil {
 			return fmt.Errorf("failed to move param %d to GPU: %w", i, err)
 		}
@@ -213,7 +213,7 @@ func (opt *AdamOptimizer) Step(params []*tensor.Tensor, grads []*tensor.Tensor) 
 	if opt.mBuffers == nil {
 		opt.mBuffers = make([]*tensor.Tensor, len(params))
 		opt.vBuffers = make([]*tensor.Tensor, len(params))
-		
+
 		for i, param := range params {
 			// Create first moment buffer
 			mData := make([]float32, len(param.Data))
@@ -243,7 +243,7 @@ func (opt *AdamOptimizer) Step(params []*tensor.Tensor, grads []*tensor.Tensor) 
 
 	for i, param := range params {
 		grad := grads[i]
-		
+
 		if err := param.EnsureGPU(); err != nil {
 			return fmt.Errorf("failed to move param %d to GPU: %w", i, err)
 		}
@@ -276,7 +276,7 @@ func (opt *AdamOptimizer) Step(params []*tensor.Tensor, grads []*tensor.Tensor) 
 				errMsg = C.GoString(cErr.message)
 				C.free_c_error_message(cErr.message)
 			}
-			return fmt.Errorf("Adam step failed for param %d (code %d): %s", i, retCode, errMsg)
+			return fmt.Errorf("the Adam step failed for param %d (code %d): %s", i, retCode, errMsg)
 		}
 	}
 
@@ -386,7 +386,7 @@ func (opt *RMSpropOptimizer) Step(params []*tensor.Tensor, grads []*tensor.Tenso
 		if opt.config.Momentum != 0.0 {
 			opt.momentumBuffers = make([]*tensor.Tensor, len(params))
 		}
-		
+
 		for i, param := range params {
 			// Create squared gradient buffer
 			sqGradData := make([]float32, len(param.Data))
@@ -418,7 +418,7 @@ func (opt *RMSpropOptimizer) Step(params []*tensor.Tensor, grads []*tensor.Tenso
 
 	for i, param := range params {
 		grad := grads[i]
-		
+
 		if err := param.EnsureGPU(); err != nil {
 			return fmt.Errorf("failed to move param %d to GPU: %w", i, err)
 		}
@@ -563,7 +563,7 @@ func (opt *AdamWOptimizer) Step(params []*tensor.Tensor, grads []*tensor.Tensor)
 	if opt.mBuffers == nil {
 		opt.mBuffers = make([]*tensor.Tensor, len(params))
 		opt.vBuffers = make([]*tensor.Tensor, len(params))
-		
+
 		for i, param := range params {
 			// Create first moment buffer
 			mData := make([]float32, len(param.Data))
@@ -593,7 +593,7 @@ func (opt *AdamWOptimizer) Step(params []*tensor.Tensor, grads []*tensor.Tensor)
 
 	for i, param := range params {
 		grad := grads[i]
-		
+
 		if err := param.EnsureGPU(); err != nil {
 			return fmt.Errorf("failed to move param %d to GPU: %w", i, err)
 		}
@@ -716,7 +716,7 @@ func ClipGradsByNorm(grads []*tensor.Tensor, maxNorm float32) (float32, error) {
 	// Create C arrays for GPU pointers and sizes
 	gradPtrs := make([]C.GPUPtr, len(grads))
 	sizes := make([]C.long, len(grads))
-	
+
 	for i, grad := range grads {
 		gradPtrs[i] = C.GPUPtr(grad.GPUPtr())
 		sizes[i] = C.long(len(grad.Data))
@@ -796,7 +796,7 @@ func ComputeGradNorm(grads []*tensor.Tensor) (float32, error) {
 	// Create C arrays for GPU pointers and sizes
 	gradPtrs := make([]C.GPUPtr, len(grads))
 	sizes := make([]C.long, len(grads))
-	
+
 	for i, grad := range grads {
 		gradPtrs[i] = C.GPUPtr(grad.GPUPtr())
 		sizes[i] = C.long(len(grad.Data))

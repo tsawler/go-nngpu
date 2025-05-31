@@ -99,7 +99,6 @@ func TestAdamOptimizer(t *testing.T) {
 
 	// Create gradients with some noise
 	rand.Seed(42)
-	grads := []*tensor.Tensor{}
 	
 	// Create Adam optimizer
 	adamConfig := optimizer.AdamConfig{
@@ -118,7 +117,7 @@ func TestAdamOptimizer(t *testing.T) {
 	fmt.Printf("Initial weights: %v\n", weights)
 
 	// Simulate training with varying gradients
-	for step := 0; step < 10; step++ {
+	for step := range 10 {
 		// Create noisy gradients to simulate real training
 		noisyGrads := make([]float32, 4)
 		for i := range noisyGrads {
@@ -130,7 +129,7 @@ func TestAdamOptimizer(t *testing.T) {
 			t.Fatalf("Failed to create gradient tensor: %v", err)
 		}
 		
-		grads = []*tensor.Tensor{gradTensor}
+		grads := []*tensor.Tensor{gradTensor}
 
 		err = adamOpt.Step(params, grads)
 		if err != nil {
