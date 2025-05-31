@@ -385,4 +385,113 @@ int perform_activation_gelu_backward(
     CError *err
 );
 
+// Loss Functions
+
+// Mean Squared Error (MSE) loss
+int perform_loss_mse_forward(
+    GPUPtr predictionsPtr, GPUPtr targetsPtr, long size,
+    float *loss,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_loss_mse_backward(
+    GPUPtr predictionsPtr, GPUPtr targetsPtr, long size,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Binary Cross-Entropy loss
+int perform_loss_binary_crossentropy_forward(
+    GPUPtr predictionsPtr, GPUPtr targetsPtr, long size,
+    float *loss,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_loss_binary_crossentropy_backward(
+    GPUPtr predictionsPtr, GPUPtr targetsPtr, long size,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Categorical Cross-Entropy loss (for softmax outputs)
+int perform_loss_categorical_crossentropy_forward(
+    GPUPtr predictionsPtr, GPUPtr targetsPtr, long batchSize, long numClasses,
+    float *loss,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_loss_categorical_crossentropy_backward(
+    GPUPtr predictionsPtr, GPUPtr targetsPtr, long batchSize, long numClasses,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Sparse Categorical Cross-Entropy loss (targets are class indices)
+int perform_loss_sparse_categorical_crossentropy_forward(
+    GPUPtr predictionsPtr, int *targetIndices, long batchSize, long numClasses,
+    float *loss,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_loss_sparse_categorical_crossentropy_backward(
+    GPUPtr predictionsPtr, int *targetIndices, long batchSize, long numClasses,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Huber loss (robust regression loss)
+int perform_loss_huber_forward(
+    GPUPtr predictionsPtr, GPUPtr targetsPtr, long size,
+    float delta,
+    float *loss,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_loss_huber_backward(
+    GPUPtr predictionsPtr, GPUPtr targetsPtr, long size,
+    float delta,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Mean Absolute Error (MAE) loss
+int perform_loss_mae_forward(
+    GPUPtr predictionsPtr, GPUPtr targetsPtr, long size,
+    float *loss,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_loss_mae_backward(
+    GPUPtr predictionsPtr, GPUPtr targetsPtr, long size,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Hinge loss (for SVM-style classification)
+int perform_loss_hinge_forward(
+    GPUPtr predictionsPtr, GPUPtr targetsPtr, long size,
+    float *loss,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_loss_hinge_backward(
+    GPUPtr predictionsPtr, GPUPtr targetsPtr, long size,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
 #endif // METAL_BRIDGE_H
