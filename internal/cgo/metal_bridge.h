@@ -240,4 +240,149 @@ int perform_dense_to_sparse(
 // Function to free error message allocated by Objective-C
 void free_c_error_message(char *message);
 
+
+// Add these function declarations after the existing SVD and sparse matrix functions
+// Insert before the final #endif
+
+// Phase 6A: Activation Functions
+
+// ReLU activation function and its derivative
+int perform_activation_relu_forward(
+    GPUPtr inputPtr, long size,
+    GPUPtr outputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_activation_relu_backward(
+    GPUPtr gradOutputPtr, GPUPtr activationOutputPtr, long size,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Sigmoid activation function and its derivative
+int perform_activation_sigmoid_forward(
+    GPUPtr inputPtr, long size,
+    GPUPtr outputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_activation_sigmoid_backward(
+    GPUPtr gradOutputPtr, GPUPtr activationOutputPtr, long size,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Tanh activation function and its derivative
+int perform_activation_tanh_forward(
+    GPUPtr inputPtr, long size,
+    GPUPtr outputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_activation_tanh_backward(
+    GPUPtr gradOutputPtr, GPUPtr activationOutputPtr, long size,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Softmax activation function and its derivative (1D)
+int perform_activation_softmax_1d_forward(
+    GPUPtr inputPtr, long size,
+    GPUPtr outputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_activation_softmax_1d_backward(
+    GPUPtr gradOutputPtr, GPUPtr activationOutputPtr, long size,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Softmax activation function and its derivative (2D - batch processing)
+int perform_activation_softmax_2d_forward(
+    GPUPtr inputPtr, long batchSize, long features,
+    GPUPtr outputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_activation_softmax_2d_backward(
+    GPUPtr gradOutputPtr, GPUPtr activationOutputPtr, long batchSize, long features,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Leaky ReLU activation function and its derivative
+int perform_activation_leaky_relu_forward(
+    GPUPtr inputPtr, long size,
+    float alpha,
+    GPUPtr outputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_activation_leaky_relu_backward(
+    GPUPtr gradOutputPtr, GPUPtr activationOutputPtr, long size,
+    float alpha,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// ELU (Exponential Linear Unit) activation function and its derivative
+int perform_activation_elu_forward(
+    GPUPtr inputPtr, long size,
+    float alpha,
+    GPUPtr outputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_activation_elu_backward(
+    GPUPtr gradOutputPtr, GPUPtr activationOutputPtr, long size,
+    float alpha,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Swish activation function and its derivative
+int perform_activation_swish_forward(
+    GPUPtr inputPtr, long size,
+    GPUPtr outputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_activation_swish_backward(
+    GPUPtr gradOutputPtr, GPUPtr activationOutputPtr, long size,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// GELU (Gaussian Error Linear Unit) activation function and its derivative
+int perform_activation_gelu_forward(
+    GPUPtr inputPtr, long size,
+    GPUPtr outputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int perform_activation_gelu_backward(
+    GPUPtr gradOutputPtr, GPUPtr activationOutputPtr, long size,
+    GPUPtr gradInputPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
 #endif // METAL_BRIDGE_H

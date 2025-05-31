@@ -41,7 +41,7 @@ The development of go-nngpu follows an incremental strategy. The current status 
 - [x] Phase 3: Add matrix inverse using Accelerate framework fallback
 - [x] Phase 4: Add decompositions: QR, Cholesky, Eigenvalue, SVD, and LU
 - [x] Phase 5: Add sparse matrix support
-- [ ] Phase 6A: Activation functions (ReLU, Sigmoid, Tanh, Softmax + derivatives)
+- [x] Phase 6A: Activation functions (ReLU, Sigmoid, Tanh, Softmax, Leaky ReLU, ELU, Swish, GELU)
 - [ ] Phase 6B: Loss functions (CrossEntropy, MSE + gradients)
 - [ ] Phase 6C: Convolution operations (Conv2D, MaxPool, padding)
 - [ ] Phase 6D: Batch normalization (mean, variance, normalize)
@@ -691,6 +691,41 @@ func abs(x float64) float64 {
 		return -x
 	}
 	return x
+}
+```
+
+### Activation functions
+
+The program below demonstrates how ReLU activation function transforms the input by setting all negative values to zero while keeping positive values unchanged. It's a minimal example showing the GPU-accelerated activation function in action.
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/tsawler/go-nngpu/matrix"
+	"github.com/tsawler/go-nngpu/tensor"
+)
+
+func main() {
+	// Create input data
+	data := []float32{-2.0, -1.0, 0.0, 1.0, 2.0}
+	input, _ := tensor.NewTensor([]int{1, 5}, data)
+	defer input.ReleaseGPU()
+
+	// Apply ReLU activation
+	output, err := matrix.ActivationForward(input, matrix.ReLU, 0.0)
+	if err != nil {
+		panic(err)
+	}
+	defer output.ReleaseGPU()
+
+	// Get results
+	output.RetrieveCPU()
+
+	// Print results
+	fmt.Printf("Input:  %v\n", data)
+	fmt.Printf("ReLU:   %v\n", output.Data)
 }
 ```
 
