@@ -75,7 +75,7 @@ func TestReLUBackward(t *testing.T) {
 
 func TestSigmoidForward(t *testing.T) {
 	input := createTestTensor([]int{1, 4}, []float32{-2.0, -1.0, 0.0, 1.0})
-	
+
 	result, err := ActivationForward(input, Sigmoid, 0.0)
 	if err != nil {
 		t.Fatalf("Sigmoid forward failed: %v", err)
@@ -103,7 +103,7 @@ func TestSigmoidForward(t *testing.T) {
 
 func TestTanhForward(t *testing.T) {
 	input := createTestTensor([]int{1, 4}, []float32{-2.0, -1.0, 0.0, 1.0})
-	
+
 	result, err := ActivationForward(input, Tanh, 0.0)
 	if err != nil {
 		t.Fatalf("Tanh forward failed: %v", err)
@@ -131,7 +131,7 @@ func TestTanhForward(t *testing.T) {
 
 func TestSoftmaxForward(t *testing.T) {
 	input := createTestTensor([]int{1, 4}, []float32{1.0, 2.0, 3.0, 4.0})
-	
+
 	result, err := ActivationForward(input, Softmax, 0.0)
 	if err != nil {
 		t.Fatalf("Softmax forward failed: %v", err)
@@ -146,7 +146,7 @@ func TestSoftmaxForward(t *testing.T) {
 	for _, val := range result.Data {
 		sum += val
 	}
-	
+
 	if math.Abs(float64(sum)-1.0) > 1e-6 {
 		t.Errorf("Softmax values should sum to 1, got %f", sum)
 	}
@@ -168,7 +168,7 @@ func TestSoftmax2D(t *testing.T) {
 		1.0, 2.0, 3.0, // First batch
 		4.0, 5.0, 6.0, // Second batch
 	})
-	
+
 	result, err := ActivationForward(input, Softmax, 0.0)
 	if err != nil {
 		t.Fatalf("Softmax 2D forward failed: %v", err)
@@ -181,13 +181,13 @@ func TestSoftmax2D(t *testing.T) {
 	// Check that each row sums to 1
 	rows := input.Shape[0]
 	cols := input.Shape[1]
-	
+
 	for row := 0; row < rows; row++ {
 		sum := float32(0.0)
 		for col := 0; col < cols; col++ {
 			sum += result.Data[row*cols+col]
 		}
-		
+
 		if math.Abs(float64(sum)-1.0) > 1e-6 {
 			t.Errorf("Softmax row %d should sum to 1, got %f", row, sum)
 		}
@@ -200,7 +200,7 @@ func TestSoftmax2D(t *testing.T) {
 func TestLeakyReLUForward(t *testing.T) {
 	input := createTestTensor([]int{1, 4}, []float32{-2.0, -1.0, 0.0, 1.0})
 	alpha := float32(0.1)
-	
+
 	result, err := ActivationForward(input, LeakyReLU, alpha)
 	if err != nil {
 		t.Fatalf("Leaky ReLU forward failed: %v", err)
@@ -222,7 +222,7 @@ func TestLeakyReLUForward(t *testing.T) {
 func TestELUForward(t *testing.T) {
 	input := createTestTensor([]int{1, 4}, []float32{-2.0, -1.0, 0.0, 1.0})
 	alpha := float32(1.0)
-	
+
 	result, err := ActivationForward(input, ELU, alpha)
 	if err != nil {
 		t.Fatalf("ELU forward failed: %v", err)
@@ -248,7 +248,7 @@ func TestELUForward(t *testing.T) {
 
 func TestSwishForward(t *testing.T) {
 	input := createTestTensor([]int{1, 4}, []float32{-2.0, -1.0, 0.0, 1.0})
-	
+
 	result, err := ActivationForward(input, Swish, 0.0)
 	if err != nil {
 		t.Fatalf("Swish forward failed: %v", err)
@@ -269,7 +269,7 @@ func TestSwishForward(t *testing.T) {
 
 func TestGELUForward(t *testing.T) {
 	input := createTestTensor([]int{1, 4}, []float32{-2.0, -1.0, 0.0, 1.0})
-	
+
 	result, err := ActivationForward(input, GELU, 0.0)
 	if err != nil {
 		t.Fatalf("GELU forward failed: %v", err)
@@ -292,7 +292,7 @@ func TestBatchActivationForward(t *testing.T) {
 	input1 := createTestTensor([]int{2, 2}, []float32{-1.0, 0.0, 1.0, 2.0})
 	input2 := createTestTensor([]int{2, 2}, []float32{-2.0, -1.0, 0.0, 1.0})
 	inputs := []*tensor.Tensor{input1, input2}
-	
+
 	results, err := BatchActivationForward(inputs, ReLU, 0.0)
 	if err != nil {
 		t.Fatalf("Batch activation forward failed: %v", err)
@@ -315,10 +315,10 @@ func TestBatchActivationBackward(t *testing.T) {
 	gradOutput2 := createTestTensor([]int{2, 2}, []float32{1.0, 1.0, 1.0, 1.0})
 	activationOutput1 := createTestTensor([]int{2, 2}, []float32{0.0, 0.0, 1.0, 2.0})
 	activationOutput2 := createTestTensor([]int{2, 2}, []float32{0.0, 0.0, 0.0, 1.0})
-	
+
 	gradOutputs := []*tensor.Tensor{gradOutput1, gradOutput2}
 	activationOutputs := []*tensor.Tensor{activationOutput1, activationOutput2}
-	
+
 	results, err := BatchActivationBackward(gradOutputs, activationOutputs, ReLU, 0.0)
 	if err != nil {
 		t.Fatalf("Batch activation backward failed: %v", err)

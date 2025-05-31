@@ -74,12 +74,12 @@ func (gs *GPUSparse) Dims() (r, c int) {
 func (gs *GPUSparse) At(i, j int) float64 {
 	// This is inefficient for sparse matrices, but required for interface compliance
 	// In practice, users should access sparse data through specialized methods
-	
+
 	rows, cols := gs.Dims()
 	if i < 0 || i >= rows || j < 0 || j >= cols {
 		panic("matrix index out of range")
 	}
-	
+
 	switch gs.sparse.Format {
 	case tensor.COO:
 		for k := 0; k < gs.sparse.NNZ; k++ {
@@ -102,7 +102,7 @@ func (gs *GPUSparse) At(i, j int) float64 {
 			}
 		}
 	}
-	
+
 	return 0.0 // Element not found, return zero
 }
 
@@ -190,7 +190,7 @@ func (gs *GPUSparse) SparseMatVec(x []float64) []float64 {
 	for i, v := range x {
 		xData[i] = float32(v)
 	}
-	
+
 	xTensor, err := tensor.NewTensor([]int{len(x)}, xData)
 	if err != nil {
 		panic(err)
@@ -253,7 +253,7 @@ func (gs *GPUSparse) GetSparseTensor() *tensor.SparseTensor {
 func GPUSparseMatMul(a, b interface{}) *mat.Dense {
 	// Handle different input types
 	var aInterface, bInterface interface{}
-	
+
 	switch at := a.(type) {
 	case *GPUSparse:
 		aInterface = at.sparse
@@ -284,7 +284,7 @@ func GPUSparseMatMul(a, b interface{}) *mat.Dense {
 	default:
 		panic("unsupported matrix type for first operand")
 	}
-	
+
 	switch bt := b.(type) {
 	case *GPUSparse:
 		bInterface = bt.sparse
@@ -410,12 +410,12 @@ func BatchGPUSparseScalarMul(matrices []*GPUSparse, scalars []float64) []*GPUSpa
 
 // SparseMatrixInfo provides information about a sparse matrix
 type SparseMatrixInfo struct {
-	Rows         int
-	Cols         int
-	NNZ          int
-	Density      float64
-	Format       tensor.SparseFormat
-	MemoryUsage  int64 // Estimated memory usage in bytes
+	Rows        int
+	Cols        int
+	NNZ         int
+	Density     float64
+	Format      tensor.SparseFormat
+	MemoryUsage int64 // Estimated memory usage in bytes
 }
 
 // GetSparseMatrixInfo returns detailed information about a sparse matrix
@@ -424,7 +424,7 @@ func GetSparseMatrixInfo(gs *GPUSparse) SparseMatrixInfo {
 	nnz := gs.GetNNZ()
 	density := gs.GetDensity()
 	format := gs.GetFormat()
-	
+
 	// Estimate memory usage
 	var memoryUsage int64
 	switch format {
@@ -435,7 +435,7 @@ func GetSparseMatrixInfo(gs *GPUSparse) SparseMatrixInfo {
 	case tensor.CSC:
 		memoryUsage = int64(cols+1)*4 + int64(nnz)*4 + int64(nnz)*4 // colPtr + indices + data
 	}
-	
+
 	return SparseMatrixInfo{
 		Rows:        rows,
 		Cols:        cols,
@@ -450,14 +450,14 @@ func GetSparseMatrixInfo(gs *GPUSparse) SparseMatrixInfo {
 func IsSparseWorthwhile(rows, cols, nnz int) bool {
 	totalElements := int64(rows) * int64(cols)
 	denseMemory := totalElements * 4 // float32
-	
+
 	// Estimate sparse memory (using CSR as baseline)
 	sparseMemory := int64(rows+1)*4 + int64(nnz)*8 // rowPtr + (indices + data)
-	
+
 	// Consider sparse worthwhile if it uses less than 70% of dense memory
 	// and density is less than 30%
 	density := float64(nnz) / float64(totalElements)
-	
+
 	return sparseMemory < (denseMemory*7/10) && density < 0.3
 }
 

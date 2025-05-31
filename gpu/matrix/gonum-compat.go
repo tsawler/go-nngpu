@@ -273,7 +273,7 @@ func (g *GPUDense) LU() (*GPUDense, *GPUDense, []int) {
 	if err != nil {
 		panic(err)
 	}
-	
+
 	return &GPUDense{tensor: lu.L}, &GPUDense{tensor: lu.U}, lu.PivotIndices
 }
 
@@ -285,7 +285,7 @@ func (g *GPUDense) QR() (*GPUDense, *GPUDense) {
 	if err != nil {
 		panic(err)
 	}
-	
+
 	return &GPUDense{tensor: qr.Q}, &GPUDense{tensor: qr.R}
 }
 
@@ -304,7 +304,7 @@ func (g *GPUDense) Eigen() (*GPUDense, *GPUDense) {
 	if err != nil {
 		panic(err)
 	}
-	
+
 	return &GPUDense{tensor: eigen.Eigenvalues}, &GPUDense{tensor: eigen.Eigenvectors}
 }
 
@@ -314,7 +314,7 @@ func (g *GPUDense) SVD() (*GPUDense, *GPUDense, *GPUDense) {
 	if err != nil {
 		panic(err)
 	}
-	
+
 	return &GPUDense{tensor: svd.U}, &GPUDense{tensor: svd.S}, &GPUDense{tensor: svd.VT}
 }
 

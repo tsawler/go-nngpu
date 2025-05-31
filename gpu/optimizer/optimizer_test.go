@@ -56,7 +56,7 @@ func TestSGDOptimizer(t *testing.T) {
 		},
 		Momentum: 0.9,
 	}
-	
+
 	sgdOpt := optimizer.NewSGD(sgdConfig)
 	defer sgdOpt.ReleaseGPU()
 
@@ -80,7 +80,7 @@ func TestSGDOptimizer(t *testing.T) {
 			t.Fatalf("Failed to retrieve bias: %v", err)
 		}
 
-		fmt.Printf("Step %d - Weights: %v, Bias: %v, LR: %f\n", 
+		fmt.Printf("Step %d - Weights: %v, Bias: %v, LR: %f\n",
 			step+1, weightTensor.Data, biasTensor.Data, sgdOpt.GetLearningRate())
 	}
 }
@@ -99,7 +99,7 @@ func TestAdamOptimizer(t *testing.T) {
 
 	// Create gradients with some noise
 	rand.Seed(42)
-	
+
 	// Create Adam optimizer
 	adamConfig := optimizer.AdamConfig{
 		OptimizerConfig: optimizer.OptimizerConfig{
@@ -110,7 +110,7 @@ func TestAdamOptimizer(t *testing.T) {
 		Beta2:   0.999,
 		Epsilon: 1e-8,
 	}
-	
+
 	adamOpt := optimizer.NewAdam(adamConfig)
 	defer adamOpt.ReleaseGPU()
 
@@ -128,7 +128,7 @@ func TestAdamOptimizer(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create gradient tensor: %v", err)
 		}
-		
+
 		grads := []*tensor.Tensor{gradTensor}
 
 		err = adamOpt.Step(params, grads)
@@ -142,7 +142,7 @@ func TestAdamOptimizer(t *testing.T) {
 			t.Fatalf("Failed to retrieve weights: %v", err)
 		}
 
-		fmt.Printf("Step %d - Weights: %v, LR: %f\n", 
+		fmt.Printf("Step %d - Weights: %v, LR: %f\n",
 			step+1, weightTensor.Data, adamOpt.GetLearningRate())
 
 		gradTensor.ReleaseGPU()
@@ -175,23 +175,23 @@ func TestLearningRateSchedulers(t *testing.T) {
 		scheduler optimizer.LRScheduler
 	}{
 		{
-			name: "Exponential Decay",
+			name:      "Exponential Decay",
 			scheduler: optimizer.NewExponentialDecayScheduler(0.1, 0.9, 10),
 		},
 		{
-			name: "Step Decay",
+			name:      "Step Decay",
 			scheduler: optimizer.NewStepDecayScheduler(0.1, 0.5, 5),
 		},
 		{
-			name: "Cosine Annealing",
+			name:      "Cosine Annealing",
 			scheduler: optimizer.NewCosineAnnealingScheduler(0.1, 0.001, 20),
 		},
 		{
-			name: "Polynomial Decay",
+			name:      "Polynomial Decay",
 			scheduler: optimizer.NewPolynomialDecayScheduler(0.1, 0.001, 20, 2.0),
 		},
 		{
-			name: "One Cycle",
+			name:      "One Cycle",
 			scheduler: optimizer.NewOneCycleLRScheduler(0.1, 20, 0.3, "cos"),
 		},
 	}
@@ -208,7 +208,7 @@ func TestLearningRateSchedulers(t *testing.T) {
 				Beta2:   0.999,
 				Epsilon: 1e-8,
 			}
-			
+
 			adamOpt := optimizer.NewAdam(adamConfig)
 			defer adamOpt.ReleaseGPU()
 
@@ -216,7 +216,7 @@ func TestLearningRateSchedulers(t *testing.T) {
 			tc.scheduler.SetOptimizer(adamOpt)
 
 			fmt.Printf("\n=== %s ===\n", tc.name)
-			
+
 			for step := int64(0); step < 20; step++ {
 				err := tc.scheduler.Step(step)
 				if err != nil {
@@ -249,14 +249,14 @@ func TestWarmupScheduler(t *testing.T) {
 		},
 		Momentum: 0.0,
 	}
-	
+
 	sgdOpt := optimizer.NewSGD(sgdConfig)
 	defer sgdOpt.ReleaseGPU()
 
 	warmupScheduler.SetOptimizer(sgdOpt)
 
 	fmt.Printf("\n=== Warmup + Cosine Annealing ===\n")
-	
+
 	for step := int64(0); step < 25; step++ {
 		err := warmupScheduler.Step(step)
 		if err != nil {
@@ -329,10 +329,10 @@ func TestOptimizerIntegration(t *testing.T) {
 
 	// Create a simple 2x2 matrix multiplication as our "model"
 	// W * X = Y, where we want to learn W
-	
+
 	// Target weights (what we want to learn)
 	targetWeights := []float32{2.0, 3.0, 1.0, 4.0}
-	
+
 	// Initialize random weights
 	rand.Seed(42)
 	initWeights := make([]float32, 4)
@@ -372,7 +372,7 @@ func TestOptimizerIntegration(t *testing.T) {
 		Beta2:   0.999,
 		Epsilon: 1e-8,
 	}
-	
+
 	adamOpt := optimizer.NewAdamW(adamConfig)
 	defer adamOpt.ReleaseGPU()
 
@@ -452,12 +452,12 @@ func TestOptimizerIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to retrieve weights: %v", err)
 			}
-			
+
 			err = squared.RetrieveCPU()
 			if err != nil {
 				t.Fatalf("Failed to retrieve loss: %v", err)
 			}
-			
+
 			// Compute mean loss
 			var meanLoss float32
 			for _, val := range squared.Data {
@@ -465,7 +465,7 @@ func TestOptimizerIntegration(t *testing.T) {
 			}
 			meanLoss /= float32(len(squared.Data))
 
-			fmt.Printf("Epoch %d: Loss = %.6f, LR = %.6f, Weights = %v\n", 
+			fmt.Printf("Epoch %d: Loss = %.6f, LR = %.6f, Weights = %v\n",
 				epoch, meanLoss, scheduler.GetLR(), weightTensor.Data)
 		}
 	}
@@ -478,7 +478,7 @@ func TestOptimizerIntegration(t *testing.T) {
 
 	fmt.Printf("\nFinal weights: %v\n", weightTensor.Data)
 	fmt.Printf("Target weights: %v\n", targetWeights)
-	
+
 	// Check if we're close to the target
 	for i, learned := range weightTensor.Data {
 		target := targetWeights[i]
@@ -513,7 +513,7 @@ func BenchmarkOptimizers(b *testing.B) {
 	b.Run("SGD", func(b *testing.B) {
 		sgdOpt := optimizer.NewSGD(optimizer.SGDConfig{
 			OptimizerConfig: optimizer.OptimizerConfig{LearningRate: 0.01},
-			Momentum: 0.9,
+			Momentum:        0.9,
 		})
 		defer sgdOpt.ReleaseGPU()
 
@@ -526,9 +526,9 @@ func BenchmarkOptimizers(b *testing.B) {
 	b.Run("Adam", func(b *testing.B) {
 		adamOpt := optimizer.NewAdam(optimizer.AdamConfig{
 			OptimizerConfig: optimizer.OptimizerConfig{LearningRate: 0.001},
-			Beta1: 0.9,
-			Beta2: 0.999,
-			Epsilon: 1e-8,
+			Beta1:           0.9,
+			Beta2:           0.999,
+			Epsilon:         1e-8,
 		})
 		defer adamOpt.ReleaseGPU()
 
@@ -541,9 +541,9 @@ func BenchmarkOptimizers(b *testing.B) {
 	b.Run("AdamW", func(b *testing.B) {
 		adamwOpt := optimizer.NewAdamW(optimizer.AdamWConfig{
 			OptimizerConfig: optimizer.OptimizerConfig{LearningRate: 0.001, WeightDecay: 0.01},
-			Beta1: 0.9,
-			Beta2: 0.999,
-			Epsilon: 1e-8,
+			Beta1:           0.9,
+			Beta2:           0.999,
+			Epsilon:         1e-8,
 		})
 		defer adamwOpt.ReleaseGPU()
 
