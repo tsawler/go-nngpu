@@ -962,4 +962,321 @@ int is_gpu_computation_complete(
     CError *err
 );
 
+// Optimizers (SGD, Adam, RMSprop with GPU state)
+
+// SGD (Stochastic Gradient Descent) optimizer
+int perform_sgd_step(
+    GPUPtr paramsPtr,       // Model parameters to update
+    GPUPtr gradPtr,         // Gradients for parameters
+    long size,              // Number of parameters
+    float learningRate,     // Learning rate
+    float momentum,         // Momentum coefficient (0.0 for no momentum)
+    GPUPtr momentumBufferPtr, // Momentum buffer (can be NULL if momentum=0)
+    float weightDecay,      // Weight decay coefficient (0.0 for no weight decay)
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Adam optimizer step
+int perform_adam_step(
+    GPUPtr paramsPtr,       // Model parameters to update
+    GPUPtr gradPtr,         // Gradients for parameters
+    long size,              // Number of parameters
+    float learningRate,     // Learning rate
+    float beta1,            // First moment decay rate (typically 0.9)
+    float beta2,            // Second moment decay rate (typically 0.999)
+    float epsilon,          // Small constant for numerical stability (typically 1e-8)
+    float weightDecay,      // Weight decay coefficient (0.0 for no weight decay)
+    GPUPtr m_bufferPtr,     // First moment buffer (mean of gradients)
+    GPUPtr v_bufferPtr,     // Second moment buffer (uncentered variance of gradients)
+    long stepNumber,        // Current step number (for bias correction)
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// RMSprop optimizer step
+int perform_rmsprop_step(
+    GPUPtr paramsPtr,       // Model parameters to update
+    GPUPtr gradPtr,         // Gradients for parameters
+    long size,              // Number of parameters
+    float learningRate,     // Learning rate
+    float alpha,            // Smoothing constant (typically 0.99)
+    float epsilon,          // Small constant for numerical stability (typically 1e-8)
+    float momentum,         // Momentum factor (0.0 for no momentum)
+    float weightDecay,      // Weight decay coefficient (0.0 for no weight decay)
+    GPUPtr squaredGradBufferPtr, // Running average of squared gradients
+    GPUPtr momentumBufferPtr,    // Momentum buffer (can be NULL if momentum=0)
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// AdaGrad optimizer step
+int perform_adagrad_step(
+    GPUPtr paramsPtr,       // Model parameters to update
+    GPUPtr gradPtr,         // Gradients for parameters
+    long size,              // Number of parameters
+    float learningRate,     // Learning rate
+    float epsilon,          // Small constant for numerical stability (typically 1e-8)
+    float weightDecay,      // Weight decay coefficient (0.0 for no weight decay)
+    GPUPtr accumulatedSquaredGradPtr, // Accumulated squared gradients
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Adadelta optimizer step
+int perform_adadelta_step(
+    GPUPtr paramsPtr,       // Model parameters to update
+    GPUPtr gradPtr,         // Gradients for parameters
+    long size,              // Number of parameters
+    float rho,              // Decay rate for running averages (typically 0.9)
+    float epsilon,          // Small constant for numerical stability (typically 1e-6)
+    float weightDecay,      // Weight decay coefficient (0.0 for no weight decay)
+    GPUPtr accumulatedGradPtr,    // Running average of squared gradients
+    GPUPtr accumulatedDeltaPtr,   // Running average of squared parameter updates
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// AdamW optimizer step (Adam with decoupled weight decay)
+int perform_adamw_step(
+    GPUPtr paramsPtr,       // Model parameters to update
+    GPUPtr gradPtr,         // Gradients for parameters
+    long size,              // Number of parameters
+    float learningRate,     // Learning rate
+    float beta1,            // First moment decay rate (typically 0.9)
+    float beta2,            // Second moment decay rate (typically 0.999)
+    float epsilon,          // Small constant for numerical stability (typically 1e-8)
+    float weightDecay,      // Weight decay coefficient (0.0 for no weight decay)
+    GPUPtr m_bufferPtr,     // First moment buffer
+    GPUPtr v_bufferPtr,     // Second moment buffer
+    long stepNumber,        // Current step number (for bias correction)
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Learning rate schedulers
+
+// Exponential decay scheduler
+int perform_lr_exponential_decay(
+    float *currentLR,       // Current learning rate (input/output)
+    float initialLR,        // Initial learning rate
+    float decayRate,        // Decay rate per step
+    long stepNumber,        // Current step number
+    long decaySteps,        // Number of steps between decay
+    CError *err
+);
+
+// Step decay scheduler
+int perform_lr_step_decay(
+    float *currentLR,       // Current learning rate (input/output)
+    float initialLR,        // Initial learning rate
+    float gamma,            // Multiplicative factor of learning rate decay
+    long stepNumber,        // Current step number
+    long stepSize,          // Period of learning rate decay
+    CError *err
+);
+
+// Cosine annealing scheduler
+int perform_lr_cosine_annealing(
+    float *currentLR,       // Current learning rate (input/output)
+    float initialLR,        // Initial learning rate
+    float minLR,            // Minimum learning rate
+    long stepNumber,        // Current step number
+    long totalSteps,        // Total number of steps
+    CError *err
+);
+
+// Polynomial decay scheduler
+int perform_lr_polynomial_decay(
+    float *currentLR,       // Current learning rate (input/output)
+    float initialLR,        // Initial learning rate
+    float finalLR,          // Final learning rate
+    long stepNumber,        // Current step number
+    long totalSteps,        // Total number of steps
+    float power,            // Power of polynomial (typically 1.0 for linear)
+    CError *err
+);
+
+// Gradient clipping operations
+
+// Gradient clipping by global norm
+int perform_gradient_clip_by_norm(
+    GPUPtr gradPtr,         // Gradient tensor to clip
+    long size,              // Number of elements
+    float maxNorm,          // Maximum norm allowed
+    float *actualNorm,      // Output: actual norm before clipping
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Gradient clipping by value
+int perform_gradient_clip_by_value(
+    GPUPtr gradPtr,         // Gradient tensor to clip
+    long size,              // Number of elements
+    float minValue,         // Minimum value
+    float maxValue,         // Maximum value
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Global gradient norm computation (for gradient clipping across multiple tensors)
+int perform_global_gradient_norm(
+    GPUPtr *gradPtrs,       // Array of gradient tensor pointers
+    long *sizes,            // Array of sizes for each tensor
+    long numTensors,        // Number of tensors
+    float *globalNorm,      // Output: global gradient norm
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Apply gradient clipping to multiple tensors simultaneously
+int perform_global_gradient_clip(
+    GPUPtr *gradPtrs,       // Array of gradient tensor pointers
+    long *sizes,            // Array of sizes for each tensor
+    long numTensors,        // Number of tensors
+    float maxNorm,          // Maximum norm allowed
+    float *actualNorm,      // Output: actual norm before clipping
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Optimizer state management
+
+// Initialize optimizer state buffers (zeros for most optimizers)
+int initialize_optimizer_state(
+    GPUPtr statePtr,        // State buffer to initialize
+    long size,              // Number of elements
+    float initValue,        // Initial value (typically 0.0)
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Copy optimizer state between buffers
+int copy_optimizer_state(
+    GPUPtr srcStatePtr,     // Source state buffer
+    GPUPtr dstStatePtr,     // Destination state buffer
+    long size,              // Number of elements
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Scale optimizer state (useful for momentum scheduling)
+int scale_optimizer_state(
+    GPUPtr statePtr,        // State buffer to scale
+    long size,              // Number of elements
+    float scale,            // Scale factor
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Zero out optimizer state
+int zero_optimizer_state(
+    GPUPtr statePtr,        // State buffer to zero
+    long size,              // Number of elements
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Advanced optimizer features
+
+// Compute effective learning rate after all adjustments
+int compute_effective_learning_rate(
+    float baseLR,           // Base learning rate
+    float warmupFactor,     // Warmup factor (1.0 for no warmup)
+    float schedulerFactor,  // Scheduler factor
+    float *effectiveLR,     // Output: effective learning rate
+    CError *err
+);
+
+// Learning rate warmup
+int perform_lr_warmup(
+    float *currentLR,       // Current learning rate (input/output)
+    float targetLR,         // Target learning rate after warmup
+    long stepNumber,        // Current step number
+    long warmupSteps,       // Number of warmup steps
+    int warmupType,         // 0: linear, 1: exponential
+    CError *err
+);
+
+// Parameter statistics for monitoring
+int compute_parameter_statistics(
+    GPUPtr paramsPtr,       // Parameter tensor
+    long size,              // Number of parameters
+    float *mean,            // Output: mean of parameters
+    float *variance,        // Output: variance of parameters
+    float *minVal,          // Output: minimum parameter value
+    float *maxVal,          // Output: maximum parameter value
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Gradient statistics for monitoring
+int compute_gradient_statistics(
+    GPUPtr gradPtr,         // Gradient tensor
+    long size,              // Number of gradients
+    float *mean,            // Output: mean of gradients
+    float *variance,        // Output: variance of gradients
+    float *minVal,          // Output: minimum gradient value
+    float *maxVal,          // Output: maximum gradient value
+    float *norm,            // Output: L2 norm of gradients
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Memory-efficient operations for large models
+
+// Fused Adam step with gradient accumulation
+int perform_fused_adam_step_with_accumulation(
+    GPUPtr paramsPtr,       // Model parameters to update
+    GPUPtr gradPtr,         // New gradients
+    GPUPtr accumulatedGradPtr, // Accumulated gradients buffer
+    long size,              // Number of parameters
+    float learningRate,     // Learning rate
+    float beta1, float beta2, float epsilon, float weightDecay,
+    GPUPtr m_bufferPtr, GPUPtr v_bufferPtr,
+    long stepNumber,
+    float accumulationSteps, // Number of gradient accumulation steps
+    int isAccumulationStep, // 1 if this is an accumulation step, 0 if optimizer step
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Mixed precision optimizer support
+int perform_mixed_precision_sgd_step(
+    GPUPtr params_fp32_Ptr,    // FP32 master parameters
+    GPUPtr params_fp16_Ptr,    // FP16 working parameters
+    GPUPtr grad_fp16_Ptr,      // FP16 gradients
+    long size,                 // Number of parameters
+    float learningRate,        // Learning rate
+    float momentum,            // Momentum coefficient
+    GPUPtr momentumBufferPtr,  // Momentum buffer (FP32)
+    float weightDecay,         // Weight decay coefficient
+    float gradScale,           // Gradient scale factor for mixed precision
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Optimizer checkpoint operations
+int save_optimizer_checkpoint(
+    GPUPtr *stateBuffers,      // Array of optimizer state buffers
+    long *bufferSizes,         // Array of buffer sizes
+    long numBuffers,           // Number of state buffers
+    float *hyperparameters,    // Array of hyperparameters to save
+    long numHyperparameters,   // Number of hyperparameters
+    char *checkpointPath,      // Path to save checkpoint
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int load_optimizer_checkpoint(
+    GPUPtr *stateBuffers,      // Array of optimizer state buffers to load into
+    long *bufferSizes,         // Array of buffer sizes
+    long numBuffers,           // Number of state buffers
+    float *hyperparameters,    // Array to load hyperparameters into
+    long numHyperparameters,   // Number of hyperparameters
+    char *checkpointPath,      // Path to load checkpoint from
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
 #endif // METAL_BRIDGE_H

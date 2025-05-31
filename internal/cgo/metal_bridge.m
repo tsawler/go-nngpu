@@ -4753,8 +4753,1143 @@ int is_gpu_computation_complete(
 ) {
     @autoreleasepool {
         // For simplicity, we'll always return complete since we're using synchronous operations
-        // In a real implementation, you might track asynchronous command buffers
+        // In a different implementation, we might track asynchronous command buffers
         *isComplete = 1;
+        return 0;
+    }
+}
+
+// Optimizers (SGD, Adam, RMSprop with GPU state) ---
+
+// SGD (Stochastic Gradient Descent) optimizer
+int perform_sgd_step(
+    GPUPtr paramsPtr,
+    GPUPtr gradPtr,
+    long size,
+    float learningRate,
+    float momentum,
+    GPUPtr momentumBufferPtr,
+    float weightDecay,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> params_buffer = (__bridge id<MTLBuffer>)paramsPtr;
+        id<MTLBuffer> grad_buffer = (__bridge id<MTLBuffer>)gradPtr;
+        id<MTLBuffer> momentum_buffer = (__bridge id<MTLBuffer>)momentumBufferPtr;
+
+        if (!params_buffer || !grad_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for SGD step.");
+            return -1;
+        }
+
+        float *params_data = (float*)params_buffer.contents;
+        float *grad_data = (float*)grad_buffer.contents;
+        float *momentum_data = momentum_buffer ? (float*)momentum_buffer.contents : NULL;
+        
+        // SGD with momentum: v = momentum * v + grad, params = params - lr * v
+        // SGD without momentum: params = params - lr * grad
+        
+        for (long i = 0; i < size; i++) {
+            float grad_val = grad_data[i];
+            
+            // Apply weight decay if specified
+            if (weightDecay != 0.0f) {
+                grad_val += weightDecay * params_data[i];
+            }
+            
+            if (momentum != 0.0f && momentum_data != NULL) {
+                // Update momentum buffer
+                momentum_data[i] = momentum * momentum_data[i] + grad_val;
+                // Update parameters using momentum
+                params_data[i] -= learningRate * momentum_data[i];
+            } else {
+                // Simple SGD without momentum
+                params_data[i] -= learningRate * grad_val;
+            }
+        }
+        
+        return 0;
+    }
+}
+
+// Adam optimizer step
+int perform_adam_step(
+    GPUPtr paramsPtr,
+    GPUPtr gradPtr,
+    long size,
+    float learningRate,
+    float beta1,
+    float beta2,
+    float epsilon,
+    float weightDecay,
+    GPUPtr m_bufferPtr,
+    GPUPtr v_bufferPtr,
+    long stepNumber,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> params_buffer = (__bridge id<MTLBuffer>)paramsPtr;
+        id<MTLBuffer> grad_buffer = (__bridge id<MTLBuffer>)gradPtr;
+        id<MTLBuffer> m_buffer = (__bridge id<MTLBuffer>)m_bufferPtr;
+        id<MTLBuffer> v_buffer = (__bridge id<MTLBuffer>)v_bufferPtr;
+
+        if (!params_buffer || !grad_buffer || !m_buffer || !v_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for Adam step.");
+            return -1;
+        }
+
+        float *params_data = (float*)params_buffer.contents;
+        float *grad_data = (float*)grad_buffer.contents;
+        float *m_data = (float*)m_buffer.contents;
+        float *v_data = (float*)v_buffer.contents;
+        
+        // Bias correction factors
+        float bias_correction1 = 1.0f - powf(beta1, (float)stepNumber);
+        float bias_correction2 = 1.0f - powf(beta2, (float)stepNumber);
+        
+        for (long i = 0; i < size; i++) {
+            float grad_val = grad_data[i];
+            
+            // Apply weight decay if specified
+            if (weightDecay != 0.0f) {
+                grad_val += weightDecay * params_data[i];
+            }
+            
+            // Update biased first moment estimate
+            m_data[i] = beta1 * m_data[i] + (1.0f - beta1) * grad_val;
+            
+            // Update biased second raw moment estimate
+            v_data[i] = beta2 * v_data[i] + (1.0f - beta2) * grad_val * grad_val;
+            
+            // Compute bias-corrected first moment estimate
+            float m_hat = m_data[i] / bias_correction1;
+            
+            // Compute bias-corrected second raw moment estimate
+            float v_hat = v_data[i] / bias_correction2;
+            
+            // Update parameters
+            params_data[i] -= learningRate * m_hat / (sqrtf(v_hat) + epsilon);
+        }
+        
+        return 0;
+    }
+}
+
+// RMSprop optimizer step
+int perform_rmsprop_step(
+    GPUPtr paramsPtr,
+    GPUPtr gradPtr,
+    long size,
+    float learningRate,
+    float alpha,
+    float epsilon,
+    float momentum,
+    float weightDecay,
+    GPUPtr squaredGradBufferPtr,
+    GPUPtr momentumBufferPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> params_buffer = (__bridge id<MTLBuffer>)paramsPtr;
+        id<MTLBuffer> grad_buffer = (__bridge id<MTLBuffer>)gradPtr;
+        id<MTLBuffer> squared_grad_buffer = (__bridge id<MTLBuffer>)squaredGradBufferPtr;
+        id<MTLBuffer> momentum_buffer = (__bridge id<MTLBuffer>)momentumBufferPtr;
+
+        if (!params_buffer || !grad_buffer || !squared_grad_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for RMSprop step.");
+            return -1;
+        }
+
+        float *params_data = (float*)params_buffer.contents;
+        float *grad_data = (float*)grad_buffer.contents;
+        float *squared_grad_data = (float*)squared_grad_buffer.contents;
+        float *momentum_data = momentum_buffer ? (float*)momentum_buffer.contents : NULL;
+        
+        for (long i = 0; i < size; i++) {
+            float grad_val = grad_data[i];
+            
+            // Apply weight decay if specified
+            if (weightDecay != 0.0f) {
+                grad_val += weightDecay * params_data[i];
+            }
+            
+            // Update running average of squared gradients
+            squared_grad_data[i] = alpha * squared_grad_data[i] + (1.0f - alpha) * grad_val * grad_val;
+            
+            // Compute update step
+            float update = grad_val / (sqrtf(squared_grad_data[i]) + epsilon);
+            
+            if (momentum != 0.0f && momentum_data != NULL) {
+                // Apply momentum
+                momentum_data[i] = momentum * momentum_data[i] + update;
+                params_data[i] -= learningRate * momentum_data[i];
+            } else {
+                // Direct update without momentum
+                params_data[i] -= learningRate * update;
+            }
+        }
+        
+        return 0;
+    }
+}
+
+// AdaGrad optimizer step
+int perform_adagrad_step(
+    GPUPtr paramsPtr,
+    GPUPtr gradPtr,
+    long size,
+    float learningRate,
+    float epsilon,
+    float weightDecay,
+    GPUPtr accumulatedSquaredGradPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> params_buffer = (__bridge id<MTLBuffer>)paramsPtr;
+        id<MTLBuffer> grad_buffer = (__bridge id<MTLBuffer>)gradPtr;
+        id<MTLBuffer> accumulated_buffer = (__bridge id<MTLBuffer>)accumulatedSquaredGradPtr;
+
+        if (!params_buffer || !grad_buffer || !accumulated_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for AdaGrad step.");
+            return -1;
+        }
+
+        float *params_data = (float*)params_buffer.contents;
+        float *grad_data = (float*)grad_buffer.contents;
+        float *accumulated_data = (float*)accumulated_buffer.contents;
+        
+        for (long i = 0; i < size; i++) {
+            float grad_val = grad_data[i];
+            
+            // Apply weight decay if specified
+            if (weightDecay != 0.0f) {
+                grad_val += weightDecay * params_data[i];
+            }
+            
+            // Accumulate squared gradients
+            accumulated_data[i] += grad_val * grad_val;
+            
+            // Update parameters
+            params_data[i] -= learningRate * grad_val / (sqrtf(accumulated_data[i]) + epsilon);
+        }
+        
+        return 0;
+    }
+}
+
+// Adadelta optimizer step
+int perform_adadelta_step(
+    GPUPtr paramsPtr,
+    GPUPtr gradPtr,
+    long size,
+    float rho,
+    float epsilon,
+    float weightDecay,
+    GPUPtr accumulatedGradPtr,
+    GPUPtr accumulatedDeltaPtr,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> params_buffer = (__bridge id<MTLBuffer>)paramsPtr;
+        id<MTLBuffer> grad_buffer = (__bridge id<MTLBuffer>)gradPtr;
+        id<MTLBuffer> accumulated_grad_buffer = (__bridge id<MTLBuffer>)accumulatedGradPtr;
+        id<MTLBuffer> accumulated_delta_buffer = (__bridge id<MTLBuffer>)accumulatedDeltaPtr;
+
+        if (!params_buffer || !grad_buffer || !accumulated_grad_buffer || !accumulated_delta_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for Adadelta step.");
+            return -1;
+        }
+
+        float *params_data = (float*)params_buffer.contents;
+        float *grad_data = (float*)grad_buffer.contents;
+        float *accumulated_grad_data = (float*)accumulated_grad_buffer.contents;
+        float *accumulated_delta_data = (float*)accumulated_delta_buffer.contents;
+        
+        for (long i = 0; i < size; i++) {
+            float grad_val = grad_data[i];
+            
+            // Apply weight decay if specified
+            if (weightDecay != 0.0f) {
+                grad_val += weightDecay * params_data[i];
+            }
+            
+            // Update running average of squared gradients
+            accumulated_grad_data[i] = rho * accumulated_grad_data[i] + (1.0f - rho) * grad_val * grad_val;
+            
+            // Compute parameter update
+            float rms_delta = sqrtf(accumulated_delta_data[i] + epsilon);
+            float rms_grad = sqrtf(accumulated_grad_data[i] + epsilon);
+            float delta = -(rms_delta / rms_grad) * grad_val;
+            
+            // Update running average of squared parameter updates
+            accumulated_delta_data[i] = rho * accumulated_delta_data[i] + (1.0f - rho) * delta * delta;
+            
+            // Update parameters
+            params_data[i] += delta;
+        }
+        
+        return 0;
+    }
+}
+
+// AdamW optimizer step (Adam with decoupled weight decay)
+int perform_adamw_step(
+    GPUPtr paramsPtr,
+    GPUPtr gradPtr,
+    long size,
+    float learningRate,
+    float beta1,
+    float beta2,
+    float epsilon,
+    float weightDecay,
+    GPUPtr m_bufferPtr,
+    GPUPtr v_bufferPtr,
+    long stepNumber,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> params_buffer = (__bridge id<MTLBuffer>)paramsPtr;
+        id<MTLBuffer> grad_buffer = (__bridge id<MTLBuffer>)gradPtr;
+        id<MTLBuffer> m_buffer = (__bridge id<MTLBuffer>)m_bufferPtr;
+        id<MTLBuffer> v_buffer = (__bridge id<MTLBuffer>)v_bufferPtr;
+
+        if (!params_buffer || !grad_buffer || !m_buffer || !v_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for AdamW step.");
+            return -1;
+        }
+
+        float *params_data = (float*)params_buffer.contents;
+        float *grad_data = (float*)grad_buffer.contents;
+        float *m_data = (float*)m_buffer.contents;
+        float *v_data = (float*)v_buffer.contents;
+        
+        // Bias correction factors
+        float bias_correction1 = 1.0f - powf(beta1, (float)stepNumber);
+        float bias_correction2 = 1.0f - powf(beta2, (float)stepNumber);
+        
+        for (long i = 0; i < size; i++) {
+            float grad_val = grad_data[i];
+            
+            // Update biased first moment estimate
+            m_data[i] = beta1 * m_data[i] + (1.0f - beta1) * grad_val;
+            
+            // Update biased second raw moment estimate
+            v_data[i] = beta2 * v_data[i] + (1.0f - beta2) * grad_val * grad_val;
+            
+            // Compute bias-corrected first moment estimate
+            float m_hat = m_data[i] / bias_correction1;
+            
+            // Compute bias-corrected second raw moment estimate
+            float v_hat = v_data[i] / bias_correction2;
+            
+            // Update parameters with Adam update
+            params_data[i] -= learningRate * m_hat / (sqrtf(v_hat) + epsilon);
+            
+            // Apply decoupled weight decay (AdamW)
+            if (weightDecay != 0.0f) {
+                params_data[i] -= learningRate * weightDecay * params_data[i];
+            }
+        }
+        
+        return 0;
+    }
+}
+
+// Learning rate schedulers
+
+// Exponential decay scheduler
+int perform_lr_exponential_decay(
+    float *currentLR,
+    float initialLR,
+    float decayRate,
+    long stepNumber,
+    long decaySteps,
+    CError *err
+) {
+    @autoreleasepool {
+        if (!currentLR) {
+            set_c_error_message(err, @"Invalid currentLR pointer for exponential decay.");
+            return -1;
+        }
+        
+        long decay_count = stepNumber / decaySteps;
+        *currentLR = initialLR * powf(decayRate, (float)decay_count);
+        
+        return 0;
+    }
+}
+
+// Step decay scheduler
+int perform_lr_step_decay(
+    float *currentLR,
+    float initialLR,
+    float gamma,
+    long stepNumber,
+    long stepSize,
+    CError *err
+) {
+    @autoreleasepool {
+        if (!currentLR) {
+            set_c_error_message(err, @"Invalid currentLR pointer for step decay.");
+            return -1;
+        }
+        
+        long decay_count = stepNumber / stepSize;
+        *currentLR = initialLR * powf(gamma, (float)decay_count);
+        
+        return 0;
+    }
+}
+
+// Cosine annealing scheduler
+int perform_lr_cosine_annealing(
+    float *currentLR,
+    float initialLR,
+    float minLR,
+    long stepNumber,
+    long totalSteps,
+    CError *err
+) {
+    @autoreleasepool {
+        if (!currentLR) {
+            set_c_error_message(err, @"Invalid currentLR pointer for cosine annealing.");
+            return -1;
+        }
+        
+        if (totalSteps <= 0) {
+            set_c_error_message(err, @"Total steps must be positive for cosine annealing.");
+            return -1;
+        }
+        
+        float progress = fminf((float)stepNumber / (float)totalSteps, 1.0f);
+        *currentLR = minLR + (initialLR - minLR) * 0.5f * (1.0f + cosf(M_PI * progress));
+        
+        return 0;
+    }
+}
+
+// Polynomial decay scheduler
+int perform_lr_polynomial_decay(
+    float *currentLR,
+    float initialLR,
+    float finalLR,
+    long stepNumber,
+    long totalSteps,
+    float power,
+    CError *err
+) {
+    @autoreleasepool {
+        if (!currentLR) {
+            set_c_error_message(err, @"Invalid currentLR pointer for polynomial decay.");
+            return -1;
+        }
+        
+        if (totalSteps <= 0) {
+            set_c_error_message(err, @"Total steps must be positive for polynomial decay.");
+            return -1;
+        }
+        
+        float progress = fminf((float)stepNumber / (float)totalSteps, 1.0f);
+        *currentLR = finalLR + (initialLR - finalLR) * powf(1.0f - progress, power);
+        
+        return 0;
+    }
+}
+
+// Gradient clipping operations
+
+// Gradient clipping by global norm
+int perform_gradient_clip_by_norm(
+    GPUPtr gradPtr,
+    long size,
+    float maxNorm,
+    float *actualNorm,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> grad_buffer = (__bridge id<MTLBuffer>)gradPtr;
+
+        if (!grad_buffer || !actualNorm) {
+            set_c_error_message(err, @"Invalid buffer pointer or actualNorm pointer for gradient clipping.");
+            return -1;
+        }
+
+        float *grad_data = (float*)grad_buffer.contents;
+        
+        // Compute L2 norm
+        float norm_squared = 0.0f;
+        for (long i = 0; i < size; i++) {
+            norm_squared += grad_data[i] * grad_data[i];
+        }
+        
+        float norm = sqrtf(norm_squared);
+        *actualNorm = norm;
+        
+        // Apply clipping if necessary
+        if (norm > maxNorm) {
+            float scale = maxNorm / norm;
+            for (long i = 0; i < size; i++) {
+                grad_data[i] *= scale;
+            }
+        }
+        
+        return 0;
+    }
+}
+
+// Gradient clipping by value
+int perform_gradient_clip_by_value(
+    GPUPtr gradPtr,
+    long size,
+    float minValue,
+    float maxValue,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> grad_buffer = (__bridge id<MTLBuffer>)gradPtr;
+
+        if (!grad_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointer for gradient value clipping.");
+            return -1;
+        }
+
+        float *grad_data = (float*)grad_buffer.contents;
+        
+        for (long i = 0; i < size; i++) {
+            grad_data[i] = fmaxf(minValue, fminf(grad_data[i], maxValue));
+        }
+        
+        return 0;
+    }
+}
+
+// Global gradient norm computation
+int perform_global_gradient_norm(
+    GPUPtr *gradPtrs,
+    long *sizes,
+    long numTensors,
+    float *globalNorm,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        if (!gradPtrs || !sizes || !globalNorm) {
+            set_c_error_message(err, @"Invalid pointers for global gradient norm computation.");
+            return -1;
+        }
+        
+        float global_norm_squared = 0.0f;
+        
+        for (long t = 0; t < numTensors; t++) {
+            id<MTLBuffer> grad_buffer = (__bridge id<MTLBuffer>)gradPtrs[t];
+            if (!grad_buffer) {
+                set_c_error_message(err, @"Invalid gradient buffer at index %ld.", t);
+                return -1;
+            }
+            
+            float *grad_data = (float*)grad_buffer.contents;
+            long size = sizes[t];
+            
+            for (long i = 0; i < size; i++) {
+                global_norm_squared += grad_data[i] * grad_data[i];
+            }
+        }
+        
+        *globalNorm = sqrtf(global_norm_squared);
+        return 0;
+    }
+}
+
+// Apply gradient clipping to multiple tensors simultaneously
+int perform_global_gradient_clip(
+    GPUPtr *gradPtrs,
+    long *sizes,
+    long numTensors,
+    float maxNorm,
+    float *actualNorm,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        // First compute global norm
+        int result = perform_global_gradient_norm(gradPtrs, sizes, numTensors, actualNorm, mtlDevicePtr, err);
+        if (result != 0) {
+            return result;
+        }
+        
+        // Apply clipping if necessary
+        if (*actualNorm > maxNorm) {
+            float scale = maxNorm / (*actualNorm);
+            
+            for (long t = 0; t < numTensors; t++) {
+                id<MTLBuffer> grad_buffer = (__bridge id<MTLBuffer>)gradPtrs[t];
+                float *grad_data = (float*)grad_buffer.contents;
+                long size = sizes[t];
+                
+                for (long i = 0; i < size; i++) {
+                    grad_data[i] *= scale;
+                }
+            }
+        }
+        
+        return 0;
+    }
+}
+
+// Optimizer state management
+
+// Initialize optimizer state buffers
+int initialize_optimizer_state(
+    GPUPtr statePtr,
+    long size,
+    float initValue,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> state_buffer = (__bridge id<MTLBuffer>)statePtr;
+
+        if (!state_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointer for optimizer state initialization.");
+            return -1;
+        }
+
+        float *state_data = (float*)state_buffer.contents;
+        
+        for (long i = 0; i < size; i++) {
+            state_data[i] = initValue;
+        }
+        
+        return 0;
+    }
+}
+
+// Copy optimizer state between buffers
+int copy_optimizer_state(
+    GPUPtr srcStatePtr,
+    GPUPtr dstStatePtr,
+    long size,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> src_buffer = (__bridge id<MTLBuffer>)srcStatePtr;
+        id<MTLBuffer> dst_buffer = (__bridge id<MTLBuffer>)dstStatePtr;
+
+        if (!src_buffer || !dst_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for optimizer state copy.");
+            return -1;
+        }
+
+        float *src_data = (float*)src_buffer.contents;
+        float *dst_data = (float*)dst_buffer.contents;
+        
+        memcpy(dst_data, src_data, size * sizeof(float));
+        
+        return 0;
+    }
+}
+
+// Scale optimizer state
+int scale_optimizer_state(
+    GPUPtr statePtr,
+    long size,
+    float scale,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> state_buffer = (__bridge id<MTLBuffer>)statePtr;
+
+        if (!state_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointer for optimizer state scaling.");
+            return -1;
+        }
+
+        float *state_data = (float*)state_buffer.contents;
+        
+        for (long i = 0; i < size; i++) {
+            state_data[i] *= scale;
+        }
+        
+        return 0;
+    }
+}
+
+// Zero out optimizer state
+int zero_optimizer_state(
+    GPUPtr statePtr,
+    long size,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        return initialize_optimizer_state(statePtr, size, 0.0f, mtlDevicePtr, err);
+    }
+}
+
+// Advanced optimizer features
+
+// Compute effective learning rate
+int compute_effective_learning_rate(
+    float baseLR,
+    float warmupFactor,
+    float schedulerFactor,
+    float *effectiveLR,
+    CError *err
+) {
+    @autoreleasepool {
+        if (!effectiveLR) {
+            set_c_error_message(err, @"Invalid effectiveLR pointer.");
+            return -1;
+        }
+        
+        *effectiveLR = baseLR * warmupFactor * schedulerFactor;
+        return 0;
+    }
+}
+
+// Learning rate warmup
+int perform_lr_warmup(
+    float *currentLR,
+    float targetLR,
+    long stepNumber,
+    long warmupSteps,
+    int warmupType,
+    CError *err
+) {
+    @autoreleasepool {
+        if (!currentLR) {
+            set_c_error_message(err, @"Invalid currentLR pointer for warmup.");
+            return -1;
+        }
+        
+        if (stepNumber >= warmupSteps) {
+            *currentLR = targetLR;
+            return 0;
+        }
+        
+        float progress = (float)stepNumber / (float)warmupSteps;
+        
+        if (warmupType == 0) {
+            // Linear warmup
+            *currentLR = targetLR * progress;
+        } else {
+            // Exponential warmup
+            *currentLR = targetLR * powf(progress, 2.0f);
+        }
+        
+        return 0;
+    }
+}
+
+// Parameter statistics for monitoring
+int compute_parameter_statistics(
+    GPUPtr paramsPtr,
+    long size,
+    float *mean,
+    float *variance,
+    float *minVal,
+    float *maxVal,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> params_buffer = (__bridge id<MTLBuffer>)paramsPtr;
+
+        if (!params_buffer || !mean || !variance || !minVal || !maxVal) {
+            set_c_error_message(err, @"Invalid pointers for parameter statistics computation.");
+            return -1;
+        }
+
+        float *params_data = (float*)params_buffer.contents;
+        
+        if (size == 0) {
+            *mean = 0.0f;
+            *variance = 0.0f;
+            *minVal = 0.0f;
+            *maxVal = 0.0f;
+            return 0;
+        }
+        
+        // Compute mean, min, and max
+        float sum = 0.0f;
+        float min_val = params_data[0];
+        float max_val = params_data[0];
+        
+        for (long i = 0; i < size; i++) {
+            float val = params_data[i];
+            sum += val;
+            min_val = fminf(min_val, val);
+            max_val = fmaxf(max_val, val);
+        }
+        
+        *mean = sum / (float)size;
+        *minVal = min_val;
+        *maxVal = max_val;
+        
+        // Compute variance
+        float variance_sum = 0.0f;
+        for (long i = 0; i < size; i++) {
+            float diff = params_data[i] - (*mean);
+            variance_sum += diff * diff;
+        }
+        
+        *variance = variance_sum / (float)size;
+        
+        return 0;
+    }
+}
+
+// Gradient statistics for monitoring
+int compute_gradient_statistics(
+    GPUPtr gradPtr,
+    long size,
+    float *mean,
+    float *variance,
+    float *minVal,
+    float *maxVal,
+    float *norm,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> grad_buffer = (__bridge id<MTLBuffer>)gradPtr;
+
+        if (!grad_buffer || !mean || !variance || !minVal || !maxVal || !norm) {
+            set_c_error_message(err, @"Invalid pointers for gradient statistics computation.");
+            return -1;
+        }
+
+        float *grad_data = (float*)grad_buffer.contents;
+        
+        if (size == 0) {
+            *mean = 0.0f;
+            *variance = 0.0f;
+            *minVal = 0.0f;
+            *maxVal = 0.0f;
+            *norm = 0.0f;
+            return 0;
+        }
+        
+        // Compute mean, min, max, and norm
+        float sum = 0.0f;
+        float norm_squared = 0.0f;
+        float min_val = grad_data[0];
+        float max_val = grad_data[0];
+        
+        for (long i = 0; i < size; i++) {
+            float val = grad_data[i];
+            sum += val;
+            norm_squared += val * val;
+            min_val = fminf(min_val, val);
+            max_val = fmaxf(max_val, val);
+        }
+        
+        *mean = sum / (float)size;
+        *minVal = min_val;
+        *maxVal = max_val;
+        *norm = sqrtf(norm_squared);
+        
+        // Compute variance
+        float variance_sum = 0.0f;
+        for (long i = 0; i < size; i++) {
+            float diff = grad_data[i] - (*mean);
+            variance_sum += diff * diff;
+        }
+        
+        *variance = variance_sum / (float)size;
+        
+        return 0;
+    }
+}
+
+// Memory-efficient operations for large models
+
+// Fused Adam step with gradient accumulation
+int perform_fused_adam_step_with_accumulation(
+    GPUPtr paramsPtr,
+    GPUPtr gradPtr,
+    GPUPtr accumulatedGradPtr,
+    long size,
+    float learningRate,
+    float beta1, float beta2, float epsilon, float weightDecay,
+    GPUPtr m_bufferPtr, GPUPtr v_bufferPtr,
+    long stepNumber,
+    float accumulationSteps,
+    int isAccumulationStep,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> params_buffer = (__bridge id<MTLBuffer>)paramsPtr;
+        id<MTLBuffer> grad_buffer = (__bridge id<MTLBuffer>)gradPtr;
+        id<MTLBuffer> accumulated_grad_buffer = (__bridge id<MTLBuffer>)accumulatedGradPtr;
+        id<MTLBuffer> m_buffer = (__bridge id<MTLBuffer>)m_bufferPtr;
+        id<MTLBuffer> v_buffer = (__bridge id<MTLBuffer>)v_bufferPtr;
+
+        if (!params_buffer || !grad_buffer || !accumulated_grad_buffer || !m_buffer || !v_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for fused Adam step with accumulation.");
+            return -1;
+        }
+
+        float *params_data = (float*)params_buffer.contents;
+        float *grad_data = (float*)grad_buffer.contents;
+        float *accumulated_grad_data = (float*)accumulated_grad_buffer.contents;
+        float *m_data = (float*)m_buffer.contents;
+        float *v_data = (float*)v_buffer.contents;
+        
+        if (isAccumulationStep) {
+            // Just accumulate gradients
+            for (long i = 0; i < size; i++) {
+                accumulated_grad_data[i] += grad_data[i];
+            }
+        } else {
+            // Perform optimizer step using accumulated gradients
+            float scale = 1.0f / accumulationSteps;
+            
+            // Bias correction factors
+            float bias_correction1 = 1.0f - powf(beta1, (float)stepNumber);
+            float bias_correction2 = 1.0f - powf(beta2, (float)stepNumber);
+            
+            for (long i = 0; i < size; i++) {
+                // Scale accumulated gradients
+                float grad_val = accumulated_grad_data[i] * scale;
+                
+                // Apply weight decay if specified
+                if (weightDecay != 0.0f) {
+                    grad_val += weightDecay * params_data[i];
+                }
+                
+                // Update biased first moment estimate
+                m_data[i] = beta1 * m_data[i] + (1.0f - beta1) * grad_val;
+                
+                // Update biased second raw moment estimate
+                v_data[i] = beta2 * v_data[i] + (1.0f - beta2) * grad_val * grad_val;
+                
+                // Compute bias-corrected estimates
+                float m_hat = m_data[i] / bias_correction1;
+                float v_hat = v_data[i] / bias_correction2;
+                
+                // Update parameters
+                params_data[i] -= learningRate * m_hat / (sqrtf(v_hat) + epsilon);
+                
+                // Reset accumulated gradients
+                accumulated_grad_data[i] = 0.0f;
+            }
+        }
+        
+        return 0;
+    }
+}
+
+// Mixed precision optimizer support
+int perform_mixed_precision_sgd_step(
+    GPUPtr params_fp32_Ptr,
+    GPUPtr params_fp16_Ptr,
+    GPUPtr grad_fp16_Ptr,
+    long size,
+    float learningRate,
+    float momentum,
+    GPUPtr momentumBufferPtr,
+    float weightDecay,
+    float gradScale,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> params_fp32_buffer = (__bridge id<MTLBuffer>)params_fp32_Ptr;
+        id<MTLBuffer> params_fp16_buffer = (__bridge id<MTLBuffer>)params_fp16_Ptr;
+        id<MTLBuffer> grad_fp16_buffer = (__bridge id<MTLBuffer>)grad_fp16_Ptr;
+        id<MTLBuffer> momentum_buffer = (__bridge id<MTLBuffer>)momentumBufferPtr;
+
+        if (!params_fp32_buffer || !params_fp16_buffer || !grad_fp16_buffer) {
+            set_c_error_message(err, @"Invalid buffer pointers for mixed precision SGD step.");
+            return -1;
+        }
+
+        // For simplicity, we'll work with float32 data and simulate the mixed precision workflow
+        // In a real implementation, you'd work with actual float16 data types
+        float *params_fp32_data = (float*)params_fp32_buffer.contents;
+        float *params_fp16_data = (float*)params_fp16_buffer.contents;
+        float *grad_fp16_data = (float*)grad_fp16_buffer.contents;
+        float *momentum_data = momentum_buffer ? (float*)momentum_buffer.contents : NULL;
+        
+        for (long i = 0; i < size; i++) {
+            // Scale gradients back from FP16 representation
+            float grad_val = grad_fp16_data[i] / gradScale;
+            
+            // Apply weight decay to FP32 master weights
+            if (weightDecay != 0.0f) {
+                grad_val += weightDecay * params_fp32_data[i];
+            }
+            
+            if (momentum != 0.0f && momentum_data != NULL) {
+                // Update momentum buffer (FP32)
+                momentum_data[i] = momentum * momentum_data[i] + grad_val;
+                // Update FP32 master parameters
+                params_fp32_data[i] -= learningRate * momentum_data[i];
+            } else {
+                // Simple SGD update on FP32 master parameters
+                params_fp32_data[i] -= learningRate * grad_val;
+            }
+            
+            // Copy updated FP32 parameters back to FP16 working parameters
+            params_fp16_data[i] = params_fp32_data[i];
+        }
+        
+        return 0;
+    }
+}
+
+// Optimizer checkpoint operations
+int save_optimizer_checkpoint(
+    GPUPtr *stateBuffers,
+    long *bufferSizes,
+    long numBuffers,
+    float *hyperparameters,
+    long numHyperparameters,
+    char *checkpointPath,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        if (!stateBuffers || !bufferSizes || !hyperparameters || !checkpointPath) {
+            set_c_error_message(err, @"Invalid pointers for optimizer checkpoint save.");
+            return -1;
+        }
+        
+        NSString *path = [NSString stringWithUTF8String:checkpointPath];
+        NSMutableDictionary *checkpoint = [NSMutableDictionary dictionary];
+        
+        // Save hyperparameters
+        NSMutableArray *hyperparamArray = [NSMutableArray array];
+        for (long i = 0; i < numHyperparameters; i++) {
+            [hyperparamArray addObject:@(hyperparameters[i])];
+        }
+        checkpoint[@"hyperparameters"] = hyperparamArray;
+        
+        // Save state buffers
+        NSMutableArray *stateArrays = [NSMutableArray array];
+        for (long b = 0; b < numBuffers; b++) {
+            id<MTLBuffer> buffer = (__bridge id<MTLBuffer>)stateBuffers[b];
+            if (!buffer) {
+                set_c_error_message(err, @"Invalid state buffer at index %ld.", b);
+                return -1;
+            }
+            
+            float *data = (float*)buffer.contents;
+            long size = bufferSizes[b];
+            
+            NSMutableArray *bufferArray = [NSMutableArray arrayWithCapacity:size];
+            for (long i = 0; i < size; i++) {
+                [bufferArray addObject:@(data[i])];
+            }
+            [stateArrays addObject:bufferArray];
+        }
+        checkpoint[@"state_buffers"] = stateArrays;
+        
+        // Write to file
+        NSError *writeError;
+        NSData *jsonData = [NSJSONSerialization dataWithJSONObject:checkpoint 
+                                                           options:NSJSONWritingPrettyPrinted 
+                                                             error:&writeError];
+        if (!jsonData || writeError) {
+            set_c_error_message(err, @"Failed to serialize checkpoint: %@", writeError.localizedDescription);
+            return -1;
+        }
+        
+        BOOL success = [jsonData writeToFile:path atomically:YES];
+        if (!success) {
+            set_c_error_message(err, @"Failed to write checkpoint to file: %@", path);
+            return -1;
+        }
+        
+        return 0;
+    }
+}
+
+int load_optimizer_checkpoint(
+    GPUPtr *stateBuffers,
+    long *bufferSizes,
+    long numBuffers,
+    float *hyperparameters,
+    long numHyperparameters,
+    char *checkpointPath,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        if (!stateBuffers || !bufferSizes || !hyperparameters || !checkpointPath) {
+            set_c_error_message(err, @"Invalid pointers for optimizer checkpoint load.");
+            return -1;
+        }
+        
+        NSString *path = [NSString stringWithUTF8String:checkpointPath];
+        
+        // Read from file
+        NSData *jsonData = [NSData dataWithContentsOfFile:path];
+        if (!jsonData) {
+            set_c_error_message(err, @"Failed to read checkpoint file: %@", path);
+            return -1;
+        }
+        
+        NSError *parseError;
+        NSDictionary *checkpoint = [NSJSONSerialization JSONObjectWithData:jsonData 
+                                                                   options:0 
+                                                                     error:&parseError];
+        if (!checkpoint || parseError) {
+            set_c_error_message(err, @"Failed to parse checkpoint: %@", parseError.localizedDescription);
+            return -1;
+        }
+        
+        // Load hyperparameters
+        NSArray *hyperparamArray = checkpoint[@"hyperparameters"];
+        if (hyperparamArray.count != numHyperparameters) {
+            set_c_error_message(err, @"Hyperparameter count mismatch in checkpoint.");
+            return -1;
+        }
+        
+        for (long i = 0; i < numHyperparameters; i++) {
+            hyperparameters[i] = [hyperparamArray[i] floatValue];
+        }
+        
+        // Load state buffers
+        NSArray *stateArrays = checkpoint[@"state_buffers"];
+        if (stateArrays.count != numBuffers) {
+            set_c_error_message(err, @"State buffer count mismatch in checkpoint.");
+            return -1;
+        }
+        
+        for (long b = 0; b < numBuffers; b++) {
+            id<MTLBuffer> buffer = (__bridge id<MTLBuffer>)stateBuffers[b];
+            if (!buffer) {
+                set_c_error_message(err, @"Invalid state buffer at index %ld.", b);
+                return -1;
+            }
+            
+            NSArray *bufferArray = stateArrays[b];
+            long size = bufferSizes[b];
+            
+            if (bufferArray.count != size) {
+                set_c_error_message(err, @"Buffer size mismatch at index %ld.", b);
+                return -1;
+            }
+            
+            float *data = (float*)buffer.contents;
+            for (long i = 0; i < size; i++) {
+                data[i] = [bufferArray[i] floatValue];
+            }
+        }
+        
         return 0;
     }
 }
