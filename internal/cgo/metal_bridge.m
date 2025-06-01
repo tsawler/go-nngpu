@@ -4245,31 +4245,31 @@ int perform_gradient_scale(
 }
 
 // Set tensor elements to a specific value
-int perform_tensor_fill(
-    GPUPtr tensorPtr,
-    long size,
-    float value,
-    DevicePtr mtlDevicePtr,
-    CError *err
-) {
-    @autoreleasepool {
-        id<MTLBuffer> tensor_buffer = (__bridge id<MTLBuffer>)tensorPtr;
+// int perform_tensor_fill(
+//     GPUPtr tensorPtr,
+//     long size,
+//     float value,
+//     DevicePtr mtlDevicePtr,
+//     CError *err
+// ) {
+//     @autoreleasepool {
+//         id<MTLBuffer> tensor_buffer = (__bridge id<MTLBuffer>)tensorPtr;
 
-        if (!tensor_buffer) {
-            set_c_error_message(err, @"Invalid buffer pointer for tensor fill.");
-            return -1;
-        }
+//         if (!tensor_buffer) {
+//             set_c_error_message(err, @"Invalid buffer pointer for tensor fill.");
+//             return -1;
+//         }
 
-        float *tensor_data = (float*)tensor_buffer.contents;
+//         float *tensor_data = (float*)tensor_buffer.contents;
         
-        // Fill all elements with the specified value
-        for (long i = 0; i < size; i++) {
-            tensor_data[i] = value;
-        }
+//         // Fill all elements with the specified value
+//         for (long i = 0; i < size; i++) {
+//             tensor_data[i] = value;
+//         }
         
-        return 0;
-    }
-}
+//         return 0;
+//     }
+// }
 
 // Element-wise maximum clamping
 int perform_tensor_clamp_max(
@@ -5893,5 +5893,272 @@ int load_optimizer_checkpoint(
         return 0;
     }
 }
+
+// Add these static variables for memory pool management
+static NSMutableDictionary<NSValue*, NSNumber*> *memoryPool = nil;
+static NSMutableSet<NSValue*> *freeBlocks = nil;
+static size_t currentMemoryUsage = 0;
+static size_t peakMemoryUsage = 0;
+static size_t maxMemorySize = 0;
+static dispatch_queue_t memoryQueue = nil;
+
+// Initialize memory pool
+int initialize_memory_pool(long maxSize, CError *err) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        memoryPool = [[NSMutableDictionary alloc] init];
+        freeBlocks = [[NSMutableSet alloc] init];
+        memoryQueue = dispatch_queue_create("com.nngpu.memory", DISPATCH_QUEUE_SERIAL);
+    });
+    
+    __block int result = 0;
+    dispatch_sync(memoryQueue, ^{
+        maxMemorySize = (size_t)maxSize;
+        currentMemoryUsage = 0;
+        peakMemoryUsage = 0;
+        [memoryPool removeAllObjects];
+        [freeBlocks removeAllObjects];
+    });
+    
+    return result;
+}
+
+// Allocate GPU memory
+int allocate_gpu_memory(long size, GPUPtr *outPtr, CError *err) {
+    if (!_global_mtl_device_ptr) {
+        if (err) {
+            err->message = strdup("Metal device not initialized");
+        }
+        return -1;
+    }
+    
+    id<MTLDevice> device = (__bridge id<MTLDevice>)_global_mtl_device_ptr;
+    
+    __block int result = 0;
+    __block id<MTLBuffer> buffer = nil;
+    
+    dispatch_sync(memoryQueue, ^{
+        // Check memory limit
+        if (maxMemorySize > 0 && currentMemoryUsage + size > maxMemorySize) {
+            if (err) {
+                err->message = strdup("GPU memory limit exceeded");
+            }
+            result = -2;
+            return;
+        }
+        
+        // Allocate buffer
+        buffer = [device newBufferWithLength:size options:MTLResourceStorageModeShared];
+        if (!buffer) {
+            if (err) {
+                err->message = strdup("Failed to allocate Metal buffer");
+            }
+            result = -3;
+            return;
+        }
+        
+        // Track allocation
+        NSValue *key = [NSValue valueWithPointer:(__bridge void*)buffer];
+        [memoryPool setObject:@(size) forKey:key];
+        
+        currentMemoryUsage += size;
+        if (currentMemoryUsage > peakMemoryUsage) {
+            peakMemoryUsage = currentMemoryUsage;
+        }
+    });
+    
+    if (result == 0 && buffer) {
+        *outPtr = (__bridge_retained GPUPtr)buffer;
+    }
+    
+    return result;
+}
+
+// Free GPU memory
+int free_gpu_memory(GPUPtr ptr, CError *err) {
+    if (!ptr) {
+        if (err) {
+            err->message = strdup("Null pointer provided");
+        }
+        return -1;
+    }
+    
+    __block int result = 0;
+    
+    dispatch_sync(memoryQueue, ^{
+        id<MTLBuffer> buffer = (__bridge_transfer id<MTLBuffer>)ptr;
+        NSValue *key = [NSValue valueWithPointer:(__bridge void*)buffer];
+        
+        NSNumber *sizeNumber = [memoryPool objectForKey:key];
+        if (sizeNumber) {
+            size_t size = [sizeNumber unsignedLongValue];
+            currentMemoryUsage -= size;
+            [memoryPool removeObjectForKey:key];
+            [freeBlocks removeObject:key];
+        } else {
+            if (err) {
+                err->message = strdup("Buffer not found in memory pool");
+            }
+            result = -2;
+        }
+    });
+    
+    return result;
+}
+
+// Get GPU memory usage
+int get_gpu_memory_usage(long *currentUsage, long *peakUsage, CError *err) {
+    __block int result = 0;
+    
+    dispatch_sync(memoryQueue, ^{
+        if (currentUsage) {
+            *currentUsage = (long)currentMemoryUsage;
+        }
+        if (peakUsage) {
+            *peakUsage = (long)peakMemoryUsage;
+        }
+    });
+    
+    return result;
+}
+
+// Clean up memory pool
+int cleanup_memory_pool(CError *err) {
+    __block int result = 0;
+    
+    dispatch_sync(memoryQueue, ^{
+        // Release all remaining buffers
+        for (NSValue *key in [memoryPool allKeys]) {
+            id<MTLBuffer> buffer = (__bridge id<MTLBuffer>)[key pointerValue];
+            // Buffer will be automatically released when removed from dictionary
+        }
+        
+        [memoryPool removeAllObjects];
+        [freeBlocks removeAllObjects];
+        currentMemoryUsage = 0;
+        peakMemoryUsage = 0;
+    });
+    
+    return result;
+}
+
+// Compact GPU memory (placeholder implementation)
+int compact_gpu_memory(CError *err) {
+    // Metal handles memory compaction automatically
+    // This is a no-op for Metal, but could trigger garbage collection
+    return 0;
+}
+
+// Set memory allocation strategy (placeholder implementation)
+int set_memory_allocation_strategy(int strategy, CError *err) {
+    // Metal handles allocation strategy internally
+    // This is a no-op for Metal
+    return 0;
+}
+
+// Implementation for perform_tensor_fill
+int perform_tensor_fill(
+    GPUPtr tensorPtr,
+    long size,
+    float value,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLDevice> device = (__bridge id<MTLDevice>)mtlDevicePtr;
+        id<MTLBuffer> buffer = (__bridge id<MTLBuffer>)tensorPtr;
+        
+        if (!device) {
+            set_c_error_message(err, @"Metal device is NULL.");
+            return 1;
+        }
+        if (!buffer) {
+            set_c_error_message(err, @"Metal buffer is NULL.");
+            return 1;
+        }
+        
+        // Validate buffer size
+        if (buffer.length < size * sizeof(float)) {
+            set_c_error_message(err, @"Buffer size is smaller than requested fill size.");
+            return 1;
+        }
+        
+        // Get command queue
+        id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)_global_mtl_command_queue_ptr;
+        if (!commandQueue) {
+            commandQueue = [device newCommandQueue];
+            if (!commandQueue) {
+                set_c_error_message(err, @"Failed to create Metal command queue.");
+                return 1;
+            }
+        }
+        
+        // Create a simple compute shader for filling
+        NSString *shaderSource = @R"(
+            #include <metal_stdlib>
+            using namespace metal;
+            
+            kernel void fill_buffer(device float* buffer [[buffer(0)]],
+                                  constant float& value [[buffer(1)]],
+                                  uint index [[thread_position_in_grid]]) {
+                buffer[index] = value;
+            }
+        )";
+        
+        NSError *compileError = nil;
+        id<MTLLibrary> library = [device newLibraryWithSource:shaderSource 
+                                                      options:nil 
+                                                        error:&compileError];
+        if (!library) {
+            set_c_error_message(err, [NSString stringWithFormat:@"Failed to compile shader: %@", compileError.localizedDescription]);
+            return 1;
+        }
+        
+        id<MTLFunction> fillFunction = [library newFunctionWithName:@"fill_buffer"];
+        if (!fillFunction) {
+            set_c_error_message(err, @"Failed to find fill_buffer function in shader.");
+            return 1;
+        }
+        
+        NSError *pipelineError = nil;
+        id<MTLComputePipelineState> pipelineState = [device newComputePipelineStateWithFunction:fillFunction 
+                                                                                          error:&pipelineError];
+        if (!pipelineState) {
+            set_c_error_message(err, [NSString stringWithFormat:@"Failed to create compute pipeline: %@", pipelineError.localizedDescription]);
+            return 1;
+        }
+        
+        // Create buffer for the fill value
+        id<MTLBuffer> valueBuffer = [device newBufferWithBytes:&value 
+                                                        length:sizeof(float) 
+                                                       options:MTLResourceStorageModeShared];
+        
+        id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+        id<MTLComputeCommandEncoder> computeEncoder = [commandBuffer computeCommandEncoder];
+        
+        [computeEncoder setComputePipelineState:pipelineState];
+        [computeEncoder setBuffer:buffer offset:0 atIndex:0];
+        [computeEncoder setBuffer:valueBuffer offset:0 atIndex:1];
+        
+        // Calculate threadgroup size
+        NSUInteger threadsPerThreadgroup = pipelineState.maxTotalThreadsPerThreadgroup;
+        NSUInteger threadgroupsPerGrid = (size + threadsPerThreadgroup - 1) / threadsPerThreadgroup;
+        
+        [computeEncoder dispatchThreadgroups:MTLSizeMake(threadgroupsPerGrid, 1, 1)
+                       threadsPerThreadgroup:MTLSizeMake(threadsPerThreadgroup, 1, 1)];
+        
+        [computeEncoder endEncoding];
+        [commandBuffer commit];
+        [commandBuffer waitUntilCompleted];
+        
+        if (commandBuffer.error) {
+            set_c_error_message(err, [NSString stringWithFormat:@"Metal compute command failed: %@", commandBuffer.error.localizedDescription]);
+            return 1;
+        }
+        
+        return 0;
+    }
+}
+
 
 #pragma clang diagnostic pop

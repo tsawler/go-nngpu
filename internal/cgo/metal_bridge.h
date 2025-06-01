@@ -1279,4 +1279,48 @@ int load_optimizer_checkpoint(
     CError *err
 );
 
+// Memory Pool Management Functions
+
+// Initialize memory pool with maximum size
+int initialize_memory_pool(
+    long maxSize,           // Maximum memory pool size in bytes
+    CError *err
+);
+
+// Allocate GPU memory from pool
+int allocate_gpu_memory(
+    long size,              // Size in bytes to allocate
+    GPUPtr *outPtr,         // Output: pointer to allocated memory
+    CError *err
+);
+
+// Free GPU memory back to pool
+int free_gpu_memory(
+    GPUPtr ptr,             // Pointer to free
+    CError *err
+);
+
+// Clean up memory pool
+int cleanup_memory_pool(
+    CError *err
+);
+
+// Memory profiling and monitoring
+int get_gpu_memory_usage(
+    long *currentUsage,     // Output: current memory usage
+    long *peakUsage,        // Output: peak memory usage
+    CError *err
+);
+
+// Memory compaction and defragmentation
+int compact_gpu_memory(
+    CError *err
+);
+
+// Set memory allocation strategy
+int set_memory_allocation_strategy(
+    int strategy,           // 0: first fit, 1: best fit, 2: worst fit
+    CError *err
+);
+
 #endif // METAL_BRIDGE_H

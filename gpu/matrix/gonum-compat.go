@@ -816,3 +816,12 @@ func BatchGPUSVD(matrices []mat.Matrix) []*GPUSVDDecomposition {
 
 	return results
 }
+
+// GetTensor returns the underlying tensor.Tensor
+func (g *GPUDense) GetTensor() *tensor.Tensor {
+	return g.tensor
+}
+
+func NewGPUDenseFromTensor(t *tensor.Tensor) *GPUDense {
+	return &GPUDense{tensor: t}
+}
