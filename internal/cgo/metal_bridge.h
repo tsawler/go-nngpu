@@ -3,6 +3,7 @@
 #define METAL_BRIDGE_H
 
 #include <stddef.h> // For size_t
+#include <stdbool.h> // Include this header to use 'bool' as a macro for '_Bool'
 
 // Opaque pointer types for Go-C communication
 typedef void* GPUPtr;   // Represents an MTLBuffer*
@@ -1321,6 +1322,91 @@ int compact_gpu_memory(
 int set_memory_allocation_strategy(
     int strategy,           // 0: first fit, 1: best fit, 2: worst fit
     CError *err
+);
+
+// New function declarations for Phase 7D - Automatic differentiation helpers
+
+// Fused operations
+int perform_fused_conv_bn_relu(
+    GPUPtr input, long batch_size, long input_h, long input_w, long input_channels,
+    GPUPtr kernel, long kernel_h, long kernel_w, long output_channels,
+    GPUPtr gamma, GPUPtr beta, GPUPtr bias,
+    long stride_h, long stride_w, long pad_h, long pad_w,
+    float epsilon, bool training,
+    GPUPtr output, long output_h, long output_w,
+    DevicePtr device, CError* error
+);
+
+int perform_fused_linear_activation(
+    GPUPtr input, long batch_size, long input_size,
+    GPUPtr weight, long output_size, GPUPtr bias,
+    int activation_type, float alpha,
+    GPUPtr output, DevicePtr device, CError* error
+);
+
+int perform_fused_attention(
+    GPUPtr query, GPUPtr key, GPUPtr value,
+    long batch_size, long seq_len, long model_dim,
+    int num_heads, float scale, float dropout_rate, bool causal,
+    GPUPtr output, DevicePtr device, CError* error
+);
+
+int perform_fused_gelu_dropout(
+    GPUPtr input, long size, float dropout_rate, unsigned int seed,
+    GPUPtr output, DevicePtr device, CError* error
+);
+
+int perform_fused_layer_norm_linear(
+    GPUPtr input, long batch_size, long seq_len, long input_dim,
+    GPUPtr gamma, GPUPtr beta, float epsilon,
+    GPUPtr weight, long output_dim, GPUPtr bias,
+    GPUPtr output, DevicePtr device, CError* error
+);
+
+int perform_fused_residual_block(
+    GPUPtr input, long batch_size, long height, long width, long channels,
+    GPUPtr conv1_weight, GPUPtr bn1_gamma, GPUPtr bn1_beta,
+    GPUPtr conv2_weight, GPUPtr bn2_gamma, GPUPtr bn2_beta,
+    float epsilon, GPUPtr output, DevicePtr device, CError* error
+);
+
+// Memory management functions
+int initialize_memory_pool(long max_memory, CError* error);
+int allocate_gpu_memory(long size, GPUPtr* ptr, CError* error);
+int free_gpu_memory(GPUPtr ptr, CError* error);
+int cleanup_memory_pool(CError* error);
+
+// Gradient operations
+int perform_gradient_accumulate(
+    GPUPtr existing_grad, GPUPtr new_grad, long size,
+    DevicePtr device, CError* error
+);
+
+int perform_tensor_sum_squares(
+    GPUPtr tensor, long size, float* result,
+    DevicePtr device, CError* error
+);
+
+int perform_sum_along_axis(
+    GPUPtr input, int axis, long input_ndim, long* input_shape,
+    GPUPtr output, long output_ndim, long* output_shape,
+    DevicePtr device, CError* error
+);
+
+int perform_tensor_fill(
+    GPUPtr tensor, long size, float value,
+    DevicePtr device, CError* error
+);
+
+// Dropout operations
+int perform_dropout_forward(
+    GPUPtr input, long size, float probability, unsigned int seed,
+    GPUPtr output, GPUPtr mask, DevicePtr device, CError* error
+);
+
+int perform_dropout_backward(
+    GPUPtr grad_output, GPUPtr mask, long size, float probability,
+    GPUPtr grad_input, DevicePtr device, CError* error
 );
 
 #endif // METAL_BRIDGE_H

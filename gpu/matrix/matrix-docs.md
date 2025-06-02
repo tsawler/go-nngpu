@@ -12,6 +12,13 @@ func AccumulateGradient(existing, newGrad *tensor.Tensor) error
 ```
 AccumulateGradient accumulates gradients using GPU acceleration
 
+#### func  AccumulateGradientsAdvanced
+
+```go
+func AccumulateGradientsAdvanced(gradients []*GradientTensor, layerNames []string, weights []float32) error
+```
+AccumulateGradientsAdvanced performs advanced gradient accumulation
+
 #### func  ActivationBackward
 
 ```go
@@ -32,6 +39,27 @@ ActivationForward applies an activation function to the input tensor
 func Add(A, B *tensor.Tensor) (*tensor.Tensor, error)
 ```
 Add performs element-wise matrix addition C = A + B on the GPU
+
+#### func  AddAutodiffBreakpoint
+
+```go
+func AddAutodiffBreakpoint(tensor *GradientTensor)
+```
+AddBreakpoint adds a breakpoint for a specific tensor
+
+#### func  AddToAutodiffWatchList
+
+```go
+func AddToAutodiffWatchList(tensor *GradientTensor)
+```
+AddToWatchList adds a tensor to the watch list
+
+#### func  ApplyAutodiffConfig
+
+```go
+func ApplyAutodiffConfig(config *AutodiffConfig)
+```
+ApplyAutodiffConfig applies the given configuration
 
 #### func  AvgPool2D
 
@@ -218,6 +246,13 @@ func Cholesky(A *tensor.Tensor) (*tensor.Tensor, error)
 Cholesky performs Cholesky decomposition using the Accelerate framework Returns
 the lower triangular matrix L such that A = L * L^T
 
+#### func  ClearAutodiffDebugLog
+
+```go
+func ClearAutodiffDebugLog()
+```
+ClearDebugLog clears the debug log buffer
+
 #### func  ClearGraph
 
 ```go
@@ -232,12 +267,26 @@ func ClipGradientNorm(gradTensors []*GradientTensor, maxNorm float32) error
 ```
 ClipGradientNorm clips gradients by norm to prevent exploding gradients
 
+#### func  ClipGradientsAdaptive
+
+```go
+func ClipGradientsAdaptive(gradients []*GradientTensor, targetNorm float32, adaptationRate float32) (float32, error)
+```
+ClipGradientsAdaptive performs adaptive gradient clipping
+
 #### func  Col2Im
 
 ```go
 func Col2Im(input *tensor.Tensor, outputShape []int, kernelH, kernelW, strideH, strideW, padH, padW int) (*tensor.Tensor, error)
 ```
 Col2Im performs the col2im operation (inverse of im2col)
+
+#### func  CompressGradients
+
+```go
+func CompressGradients(gradients []*GradientTensor) error
+```
+CompressGradients compresses gradients using the configured method
 
 #### func  Conv2DBackwardInput
 
@@ -269,6 +318,13 @@ func CreateLayerNormParams(features int) (gamma, beta *mat.Dense)
 CreateLayerNormParams creates initialized gamma and beta parameters for layer
 normalization
 
+#### func  DecompressGradient
+
+```go
+func DecompressGradient(compressed *CompressedTensor) (*tensor.Tensor, error)
+```
+DecompressGradient decompresses a compressed gradient tensor
+
 #### func  DenseToSparse
 
 ```go
@@ -276,12 +332,96 @@ func DenseToSparse(A *tensor.Tensor, threshold float32) (*tensor.SparseTensor, e
 ```
 DenseToSparse converts a dense matrix to sparse format using GPU acceleration
 
+#### func  DetectMemoryFragmentation
+
+```go
+func DetectMemoryFragmentation() float32
+```
+DetectMemoryFragmentation detects memory fragmentation
+
 #### func  Determinant
 
 ```go
 func Determinant(A *tensor.Tensor) (float32, error)
 ```
 Determinant computes the matrix determinant using the Accelerate framework
+
+#### func  DisableAdvancedGradientAccumulation
+
+```go
+func DisableAdvancedGradientAccumulation()
+```
+DisableAdvancedGradientAccumulation disables advanced gradient accumulation
+
+#### func  DisableAdvancedOptimizer
+
+```go
+func DisableAdvancedOptimizer()
+```
+DisableAdvancedOptimizer disables the advanced optimizer
+
+#### func  DisableAutodiffDebugging
+
+```go
+func DisableAutodiffDebugging()
+```
+DisableDebugging disables autodiff debugging
+
+#### func  DisableAutodiffProfiling
+
+```go
+func DisableAutodiffProfiling()
+```
+DisableProfiling disables autodiff profiling
+
+#### func  DisableAutomaticCodeGeneration
+
+```go
+func DisableAutomaticCodeGeneration()
+```
+DisableAutomaticCodeGeneration disables automatic code generation
+
+#### func  DisableGlobalFusion
+
+```go
+func DisableGlobalFusion()
+```
+DisableGlobalFusion disables global fusion optimizations
+
+#### func  DisableGradientAnalysis
+
+```go
+func DisableGradientAnalysis()
+```
+DisableGradientAnalysis disables gradient analysis
+
+#### func  DisableGradientNoise
+
+```go
+func DisableGradientNoise()
+```
+DisableGradientNoise disables gradient noise injection
+
+#### func  DisableGradientSmoothing
+
+```go
+func DisableGradientSmoothing()
+```
+DisableGradientSmoothing disables gradient smoothing
+
+#### func  DisableHigherOrderAutodiff
+
+```go
+func DisableHigherOrderAutodiff()
+```
+DisableHigherOrderAutodiff disables higher-order automatic differentiation
+
+#### func  DisableMemoryEfficientAutodiff
+
+```go
+func DisableMemoryEfficientAutodiff()
+```
+DisableMemoryEfficientAutodiff disables memory-efficient autodiff
 
 #### func  Div
 
@@ -317,6 +457,90 @@ ELUBackward computes ELU gradient
 func ELUForward(input *tensor.Tensor, alpha float32) (*tensor.Tensor, error)
 ```
 ELUForward applies ELU (Exponential Linear Unit) activation function
+
+#### func  EnableAdvancedGradientAccumulation
+
+```go
+func EnableAdvancedGradientAccumulation(accumulationType AccumulationType, steps int, threshold float32)
+```
+EnableAdvancedGradientAccumulation enables advanced gradient accumulation
+
+#### func  EnableAdvancedOptimizer
+
+```go
+func EnableAdvancedOptimizer()
+```
+EnableAdvancedOptimizer enables the advanced optimizer
+
+#### func  EnableAutodiffDebugging
+
+```go
+func EnableAutodiffDebugging(logLevel DebugLogLevel)
+```
+EnableDebugging enables autodiff debugging
+
+#### func  EnableAutodiffProfiling
+
+```go
+func EnableAutodiffProfiling()
+```
+EnableProfiling enables autodiff profiling
+
+#### func  EnableAutomaticCodeGeneration
+
+```go
+func EnableAutomaticCodeGeneration()
+```
+EnableAutomaticCodeGeneration enables automatic code generation
+
+#### func  EnableGlobalFusion
+
+```go
+func EnableGlobalFusion()
+```
+EnableGlobalFusion enables global fusion optimizations
+
+#### func  EnableGradientAnalysis
+
+```go
+func EnableGradientAnalysis()
+```
+EnableGradientAnalysis enables gradient analysis
+
+#### func  EnableGradientNoise
+
+```go
+func EnableGradientNoise(noiseType NoiseType, schedule *NoiseSchedule)
+```
+EnableGradientNoise enables gradient noise injection
+
+#### func  EnableGradientSmoothing
+
+```go
+func EnableGradientSmoothing(smoothingType SmoothingType, windowSize int, alpha float32)
+```
+EnableGradientSmoothing enables gradient smoothing
+
+#### func  EnableHigherOrderAutodiff
+
+```go
+func EnableHigherOrderAutodiff(maxOrder int)
+```
+EnableHigherOrderAutodiff enables higher-order automatic differentiation
+
+#### func  EnableMemoryEfficientAutodiff
+
+```go
+func EnableMemoryEfficientAutodiff(config *MemoryEfficientConfig)
+```
+EnableMemoryEfficientAutodiff enables memory-efficient autodiff globally
+
+#### func  EstimateMemoryUsage
+
+```go
+func EstimateMemoryUsage(config DataLoaderConfig, inputShape, targetShape []int) int64
+```
+EstimateMemoryUsage estimates memory usage for a data loader configuration
 
 #### func  Flatten4DTo2D
 
@@ -438,12 +662,54 @@ func GPUSub(a, b mat.Matrix) *mat.Dense
 ```
 GPUSub is a drop-in replacement for gonum's matrix subtraction
 
+#### func  GetAutodiffDebugLog
+
+```go
+func GetAutodiffDebugLog() string
+```
+GetDebugLog returns the accumulated debug log
+
+#### func  GetAutodiffStats
+
+```go
+func GetAutodiffStats() map[string]interface{}
+```
+GetAutodiffStats returns comprehensive statistics about the autodiff system
+
+#### func  GetGlobalFusionStats
+
+```go
+func GetGlobalFusionStats() map[string]*FusionStats
+```
+GetGlobalFusionStats returns global fusion statistics
+
 #### func  GetGradientStats
 
 ```go
 func GetGradientStats(gradTensors []*GradientTensor) (map[string]float32, error)
 ```
 GetGradientStats returns statistics about gradients for debugging
+
+#### func  GetGradientUtilitiesStats
+
+```go
+func GetGradientUtilitiesStats() map[string]interface{}
+```
+GetGradientUtilitiesStats returns comprehensive statistics
+
+#### func  GetMemoryEfficientStats
+
+```go
+func GetMemoryEfficientStats() map[string]interface{}
+```
+GetMemoryEfficientStats returns comprehensive statistics
+
+#### func  GetMemoryOptimizationStats
+
+```go
+func GetMemoryOptimizationStats() map[string]interface{}
+```
+GetMemoryOptimizationStats returns memory optimization statistics
 
 #### func  GonumToTensor
 
@@ -501,6 +767,13 @@ func Im2Col(input *tensor.Tensor, kernelH, kernelW, strideH, strideW, padH, padW
 ```
 Im2Col performs the im2col operation for efficient convolution implementation
 
+#### func  InPlaceOperation
+
+```go
+func InPlaceOperation(tensor *GradientTensor, operation func(*tensor.Tensor) error) error
+```
+InPlaceOperation performs an operation in-place to save memory
+
 #### func  InitializeRunningStats
 
 ```go
@@ -508,6 +781,20 @@ func InitializeRunningStats(features int) (runningMean, runningVar *mat.Dense)
 ```
 InitializeRunningStats creates initialized running mean and variance for batch
 normalization
+
+#### func  InjectGradientNoise
+
+```go
+func InjectGradientNoise(gradients []*GradientTensor, noiseConfig *NoiseSchedule, step int64) error
+```
+InjectGradientNoise injects controlled noise into gradients
+
+#### func  InspectGradientTensor
+
+```go
+func InspectGradientTensor(tensor *GradientTensor) string
+```
+InspectTensor provides detailed inspection of a gradient tensor
 
 #### func  InstanceNormForward
 
@@ -551,6 +838,13 @@ LeakyReLUBackward computes Leaky ReLU gradient
 func LeakyReLUForward(input *tensor.Tensor, alpha float32) (*tensor.Tensor, error)
 ```
 LeakyReLUForward applies Leaky ReLU activation function
+
+#### func  LogAutodiffDebug
+
+```go
+func LogAutodiffDebug(level DebugLogLevel, message string, args ...interface{})
+```
+LogDebug logs a debug message with the specified level
 
 #### func  LossBackward
 
@@ -623,6 +917,20 @@ func NoGradContext(fn func())
 ```
 NoGradContext temporarily disables gradient computation
 
+#### func  OptimizeComputationGraph
+
+```go
+func OptimizeComputationGraph(graph *ComputationGraph) error
+```
+OptimizeComputationGraph applies advanced optimizations to a computation graph
+
+#### func  OptimizeMemoryUsage
+
+```go
+func OptimizeMemoryUsage() error
+```
+OptimizeMemoryUsage performs global memory optimization
+
 #### func  Pad2D
 
 ```go
@@ -630,12 +938,33 @@ func Pad2D(input *tensor.Tensor, padTop, padBottom, padLeft, padRight int, padVa
 ```
 Pad2D adds padding to a 2D tensor
 
+#### func  PrintAdvancedOptimizationStats
+
+```go
+func PrintAdvancedOptimizationStats()
+```
+PrintAdvancedOptimizationStats prints detailed optimization statistics
+
 #### func  PrintConvParams
 
 ```go
 func PrintConvParams(params Conv2DParams)
 ```
 PrintConvParams prints convolution parameters
+
+#### func  PrintGradientUtilitiesStats
+
+```go
+func PrintGradientUtilitiesStats()
+```
+PrintGradientUtilitiesStats prints detailed gradient utilities statistics
+
+#### func  PrintMemoryEfficientStats
+
+```go
+func PrintMemoryEfficientStats()
+```
+PrintMemoryEfficientStats prints detailed memory efficiency statistics
 
 #### func  PrintPoolParams
 
@@ -650,6 +979,20 @@ PrintPoolParams prints pooling parameters
 func PrintTensorInfo(name string, t *tensor.Tensor)
 ```
 PrintTensorInfo prints information about a tensor's shape and GPU status
+
+#### func  ProfiledBackwardOperation
+
+```go
+func ProfiledBackwardOperation(opType OpType, backwardOp func() error) error
+```
+ProfiledBackwardOperation wraps a backward operation with profiling
+
+#### func  ProfiledOperation
+
+```go
+func ProfiledOperation(opType OpType, operation func() error) error
+```
+ProfiledOperation wraps an operation with profiling
 
 #### func  ReLUBackward
 
@@ -671,6 +1014,41 @@ ReLUForward applies ReLU activation function
 func ReflectionPad2D(input *tensor.Tensor, padding int) (*tensor.Tensor, error)
 ```
 ReflectionPad2D adds reflection padding to a tensor
+
+#### func  RegisterAnomalyCallback
+
+```go
+func RegisterAnomalyCallback(callback AnomalyCallback)
+```
+RegisterAnomalyCallback registers a callback for anomaly detection
+
+#### func  RegisterFusedOperation
+
+```go
+func RegisterFusedOperation(name string, operation FusedOperation)
+```
+RegisterFusedOperation registers a custom fused operation
+
+#### func  RegisterOptimizationTechnique
+
+```go
+func RegisterOptimizationTechnique(technique OptimizationTechnique)
+```
+RegisterOptimizationTechnique registers a new optimization technique
+
+#### func  RemoveAutodiffBreakpoint
+
+```go
+func RemoveAutodiffBreakpoint(tensor *GradientTensor)
+```
+RemoveBreakpoint removes a breakpoint for a specific tensor
+
+#### func  ResetGradientUtilities
+
+```go
+func ResetGradientUtilities()
+```
+ResetGradientUtilities resets all gradient utilities to their initial state
 
 #### func  Reshape2DTo4D
 
@@ -700,12 +1078,34 @@ func ScalarMul(A *tensor.Tensor, scalar float32) (*tensor.Tensor, error)
 ```
 ScalarMul performs scalar multiplication C = A * scalar on the GPU
 
+#### func  SetGlobalFusionMemoryThreshold
+
+```go
+func SetGlobalFusionMemoryThreshold(threshold int64)
+```
+SetGlobalFusionMemoryThreshold sets the global memory threshold for fusion
+
+#### func  SetGlobalFusionPerformanceThreshold
+
+```go
+func SetGlobalFusionPerformanceThreshold(threshold float32)
+```
+SetGlobalFusionPerformanceThreshold sets the global performance threshold for
+fusion
+
 #### func  SetGradientMode
 
 ```go
 func SetGradientMode(mode GradientMode)
 ```
 SetGradientMode sets the global gradient computation mode
+
+#### func  SetLayerPriority
+
+```go
+func SetLayerPriority(layerName string, priority float32)
+```
+SetLayerPriority sets the priority weight for a specific layer
 
 #### func  SigmoidBackward
 
@@ -720,6 +1120,13 @@ SigmoidBackward computes Sigmoid gradient
 func SigmoidForward(input *tensor.Tensor) (*tensor.Tensor, error)
 ```
 SigmoidForward applies Sigmoid activation function
+
+#### func  SmoothGradients
+
+```go
+func SmoothGradients(gradients []*GradientTensor, layerNames []string) error
+```
+SmoothGradients applies smoothing to gradients
 
 #### func  SoftmaxBackward
 
@@ -808,6 +1215,20 @@ func SumAlongAxis(input *tensor.Tensor, axis int) (*tensor.Tensor, error)
 ```
 SumAlongAxis sums a tensor along a specific axis
 
+#### func  SwapTensorToCPU
+
+```go
+func SwapTensorToCPU(t *tensor.Tensor) error
+```
+SwapTensorToCPU swaps a tensor from GPU to CPU memory
+
+#### func  SwapTensorToGPU
+
+```go
+func SwapTensorToGPU(t *tensor.Tensor) error
+```
+SwapTensorToGPU swaps a tensor from CPU to GPU memory
+
 #### func  SwishBackward
 
 ```go
@@ -843,6 +1264,34 @@ func TensorToGonum(t *tensor.Tensor) (*mat.Dense, error)
 ```
 TensorToGonum converts a 2D tensor to a Gonum Dense matrix
 
+#### func  TrackMemoryAccess
+
+```go
+func TrackMemoryAccess(ptr unsafe.Pointer, accessType AccessType)
+```
+TrackMemoryAccess tracks access to allocated memory
+
+#### func  TrackMemoryAllocation
+
+```go
+func TrackMemoryAllocation(ptr unsafe.Pointer, size int64, purpose string, tensor *tensor.Tensor)
+```
+TrackMemoryAllocation tracks a memory allocation
+
+#### func  TrackMemoryDeallocation
+
+```go
+func TrackMemoryDeallocation(ptr unsafe.Pointer)
+```
+TrackMemoryDeallocation tracks a memory deallocation
+
+#### func  TrackTensorAllocation
+
+```go
+func TrackTensorAllocation(t *tensor.Tensor, canEvict bool)
+```
+TrackTensorAllocation tracks a tensor allocation
+
 #### func  Transpose
 
 ```go
@@ -871,6 +1320,42 @@ func UpdateRunningStats(runningMean, runningVar, batchMean, batchVar *tensor.Ten
 ```
 UpdateRunningStats updates running mean and variance for batch normalization
 
+#### func  UpdateTensorAccess
+
+```go
+func UpdateTensorAccess(t *tensor.Tensor)
+```
+UpdateTensorAccess updates tensor access information
+
+#### func  ValidateDataLoaderConfig
+
+```go
+func ValidateDataLoaderConfig(config DataLoaderConfig) error
+```
+ValidateDataLoaderConfig validates data loader configuration
+
+#### func  ValidateGradients
+
+```go
+func ValidateGradients(model func(*tensor.Tensor) (*tensor.Tensor, error), input *tensor.Tensor, epsilon float32) error
+```
+ValidateGradients performs gradient validation using finite differences
+
+#### func  WithMemoryEfficientContext
+
+```go
+func WithMemoryEfficientContext(config *MemoryEfficientConfig, fn func() error) error
+```
+WithMemoryEfficientContext executes a function with a specific memory-efficient
+context
+
+#### func  WithMixedPrecision
+
+```go
+func WithMixedPrecision(lossScaling float32, fn func() error) error
+```
+WithMixedPrecision executes a function with mixed precision enabled
+
 #### func  ZeroGrad
 
 ```go
@@ -889,6 +1374,57 @@ ZeroPad2D adds zero padding to a tensor
 
 ```go
 func ZeroTensorGPU(t *tensor.Tensor) error
+```
+
+#### type AccessPattern
+
+```go
+type AccessPattern struct {
+}
+```
+
+AccessPattern tracks how memory is accessed
+
+#### type AccessType
+
+```go
+type AccessType int
+```
+
+AccessType represents types of memory access
+
+```go
+const (
+	ReadAccess AccessType = iota
+	WriteAccess
+	ReadWriteAccess
+)
+```
+
+#### type AccumulationBuffer
+
+```go
+type AccumulationBuffer struct {
+}
+```
+
+AccumulationBuffer stores accumulated gradients
+
+#### type AccumulationType
+
+```go
+type AccumulationType int
+```
+
+AccumulationType represents different accumulation strategies
+
+```go
+const (
+	SimpleAccumulation AccumulationType = iota
+	WeightedAccumulation
+	AdaptiveAccumulation
+	PriorityAccumulation
+)
 ```
 
 #### type ActivationType
@@ -918,6 +1454,334 @@ const (
 func (at ActivationType) String() string
 ```
 String returns string representation of activation type
+
+#### type AdaptiveMemoryManager
+
+```go
+type AdaptiveMemoryManager struct {
+}
+```
+
+AdaptiveMemoryManager automatically adjusts memory settings based on usage
+patterns
+
+#### func  NewAdaptiveMemoryManager
+
+```go
+func NewAdaptiveMemoryManager() *AdaptiveMemoryManager
+```
+NewAdaptiveMemoryManager creates a new adaptive memory manager
+
+#### func (*AdaptiveMemoryManager) AdaptMemorySettings
+
+```go
+func (amm *AdaptiveMemoryManager) AdaptMemorySettings()
+```
+AdaptMemorySettings adapts memory settings based on usage patterns
+
+#### func (*AdaptiveMemoryManager) RecordMemoryUsage
+
+```go
+func (amm *AdaptiveMemoryManager) RecordMemoryUsage(usage int64)
+```
+RecordMemoryUsage records current memory usage
+
+#### func (*AdaptiveMemoryManager) RecordPerformance
+
+```go
+func (amm *AdaptiveMemoryManager) RecordPerformance(performance float32)
+```
+RecordPerformance records performance metric
+
+#### type AdvancedMemoryOptimizer
+
+```go
+type AdvancedMemoryOptimizer struct {
+}
+```
+
+AdvancedMemoryOptimizer provides advanced memory optimization
+
+#### func  NewAdvancedMemoryOptimizer
+
+```go
+func NewAdvancedMemoryOptimizer() *AdvancedMemoryOptimizer
+```
+NewAdvancedMemoryOptimizer creates a new advanced memory optimizer
+
+#### type AdvancedOptimizer
+
+```go
+type AdvancedOptimizer struct {
+}
+```
+
+AdvancedOptimizer provides advanced optimization techniques
+
+#### func  NewAdvancedOptimizer
+
+```go
+func NewAdvancedOptimizer() *AdvancedOptimizer
+```
+NewAdvancedOptimizer creates a new advanced optimizer
+
+#### type AllocationEvent
+
+```go
+type AllocationEvent struct {
+}
+```
+
+AllocationEvent represents an allocation event
+
+#### type AllocationEventType
+
+```go
+type AllocationEventType int
+```
+
+AllocationEventType represents types of allocation events
+
+```go
+const (
+	AllocationEventConst AllocationEventType = iota
+	DeallocationEvent
+	AccessEvent
+	MigrationEvent
+)
+```
+
+#### type AllocationInfo
+
+```go
+type AllocationInfo struct {
+}
+```
+
+AllocationInfo tracks tensor allocation information
+
+#### type AllocationTracker
+
+```go
+type AllocationTracker struct {
+}
+```
+
+AllocationTracker tracks memory allocations
+
+#### type AnomalyCallback
+
+```go
+type AnomalyCallback func(anomaly GradientAnomaly)
+```
+
+AnomalyCallback is called when an anomaly is detected
+
+#### type AsyncDataLoader
+
+```go
+type AsyncDataLoader struct {
+}
+```
+
+AsyncDataLoader provides asynchronous data loading with prefetching
+
+#### func  NewAsyncDataLoader
+
+```go
+func NewAsyncDataLoader(dataset Dataset, config DataLoaderConfig) (*AsyncDataLoader, error)
+```
+NewAsyncDataLoader creates a new asynchronous data loader
+
+#### func (*AsyncDataLoader) BatchCount
+
+```go
+func (adl *AsyncDataLoader) BatchCount() int
+```
+BatchCount returns the number of batches (implements DataLoader interface)
+
+#### func (*AsyncDataLoader) GetBatch
+
+```go
+func (adl *AsyncDataLoader) GetBatch(batchIdx int) (*tensor.Tensor, *tensor.Tensor, error)
+```
+GetBatch returns the next batch (implements DataLoader interface)
+
+#### func (*AsyncDataLoader) GetDatasetSize
+
+```go
+func (adl *AsyncDataLoader) GetDatasetSize() int
+```
+GetDatasetSize returns the dataset size (implements DataLoader interface)
+
+#### func (*AsyncDataLoader) GetStats
+
+```go
+func (adl *AsyncDataLoader) GetStats() DataLoaderStats
+```
+GetStats returns data loader statistics
+
+#### func (*AsyncDataLoader) Reset
+
+```go
+func (adl *AsyncDataLoader) Reset() error
+```
+Reset resets the data loader state (implements DataLoader interface)
+
+#### func (*AsyncDataLoader) SetBatchSize
+
+```go
+func (adl *AsyncDataLoader) SetBatchSize(batchSize int)
+```
+SetBatchSize sets the batch size (implements DataLoader interface)
+
+#### func (*AsyncDataLoader) Shuffle
+
+```go
+func (adl *AsyncDataLoader) Shuffle() error
+```
+Shuffle shuffles the dataset indices (implements DataLoader interface)
+
+#### func (*AsyncDataLoader) Start
+
+```go
+func (adl *AsyncDataLoader) Start() error
+```
+Start begins asynchronous data loading
+
+#### func (*AsyncDataLoader) Stop
+
+```go
+func (adl *AsyncDataLoader) Stop()
+```
+Stop stops the asynchronous data loading
+
+#### type AutodiffConfig
+
+```go
+type AutodiffConfig struct {
+	EnableProfiler     bool
+	EnableDebugger     bool
+	EnableOptimizer    bool
+	MaxGraphDepth      int
+	MemoryOptimization bool
+	FusionOptimization bool
+	ProfilingLevel     int
+	DebugLevel         DebugLogLevel
+}
+```
+
+AutodiffConfig provides global configuration for autodiff behavior
+
+#### func  DefaultAutodiffConfig
+
+```go
+func DefaultAutodiffConfig() *AutodiffConfig
+```
+DefaultAutodiffConfig returns a default configuration
+
+#### type AutodiffDebugger
+
+```go
+type AutodiffDebugger struct {
+}
+```
+
+AutodiffDebugger provides debugging tools for automatic differentiation
+
+#### func  NewAutodiffDebugger
+
+```go
+func NewAutodiffDebugger() *AutodiffDebugger
+```
+NewAutodiffDebugger creates a new autodiff debugger
+
+#### func (*AutodiffDebugger) CheckBreakpoint
+
+```go
+func (d *AutodiffDebugger) CheckBreakpoint(tensor *GradientTensor) bool
+```
+CheckBreakpoint checks if a breakpoint should trigger for a tensor
+
+#### type AutodiffMemoryManager
+
+```go
+type AutodiffMemoryManager struct {
+}
+```
+
+AutodiffMemoryManager handles memory allocation and deallocation
+
+#### type AutodiffMemoryStats
+
+```go
+type AutodiffMemoryStats struct {
+	SavedTensorsMemory  int64
+	GradientMemory      int64
+	PeakGraphMemory     int64
+	TotalAllocations    int64
+	ActiveTensors       int64
+	MemoryFragmentation float32
+}
+```
+
+AutodiffMemoryStats tracks memory usage during autodiff
+
+#### type AutodiffProfiler
+
+```go
+type AutodiffProfiler struct {
+}
+```
+
+AutodiffProfiler provides detailed profiling and analysis of the computation
+graph
+
+#### func  GetAutodiffProfile
+
+```go
+func GetAutodiffProfile() *AutodiffProfiler
+```
+GetAutodiffProfile returns the current profiling results
+
+#### func  NewAutodiffProfiler
+
+```go
+func NewAutodiffProfiler() *AutodiffProfiler
+```
+NewAutodiffProfiler creates a new autodiff profiler
+
+#### func (*AutodiffProfiler) PrintProfile
+
+```go
+func (p *AutodiffProfiler) PrintProfile()
+```
+PrintProfile prints a detailed profiling report
+
+#### type AutomaticCodeGenerator
+
+```go
+type AutomaticCodeGenerator struct {
+}
+```
+
+AutomaticCodeGenerator generates optimized code for gradient computations
+
+#### func  NewAutomaticCodeGenerator
+
+```go
+func NewAutomaticCodeGenerator() *AutomaticCodeGenerator
+```
+NewAutomaticCodeGenerator creates a new code generator
+
+#### type BatchData
+
+```go
+type BatchData struct {
+}
+```
+
+BatchData represents a loaded batch with metadata
 
 #### type BatchNormGradients
 
@@ -1017,14 +1881,66 @@ func (bnt BatchNormType) String() string
 ```
 String returns string representation of batch norm type
 
-#### type CachedBatch
+#### type BufferPool
 
 ```go
-type CachedBatch struct {
+type BufferPool struct {
 }
 ```
 
-CachedBatch represents a cached batch of data
+BufferPool manages reusable tensor buffers
+
+#### func  NewBufferPool
+
+```go
+func NewBufferPool(maxMemory int64) *BufferPool
+```
+NewBufferPool creates a new buffer pool
+
+#### func (*BufferPool) GetBuffer
+
+```go
+func (bp *BufferPool) GetBuffer(shape []int) (*tensor.Tensor, error)
+```
+GetBuffer retrieves a buffer from the pool or creates a new one
+
+#### func (*BufferPool) ReturnBuffer
+
+```go
+func (bp *BufferPool) ReturnBuffer(buffer *tensor.Tensor)
+```
+ReturnBuffer returns a buffer to the pool
+
+#### type CPUGPUSwapManager
+
+```go
+type CPUGPUSwapManager struct {
+}
+```
+
+CPUGPUSwapManager handles swapping between CPU and GPU memory
+
+#### type CacheKey
+
+```go
+type CacheKey struct {
+	OperationType OpType
+	InputShapes   string
+	Order         int
+	Parameters    string
+}
+```
+
+CacheKey uniquely identifies a derivative computation
+
+#### type CachedDerivative
+
+```go
+type CachedDerivative struct {
+}
+```
+
+CachedDerivative stores a cached derivative
 
 #### type CachedTensor
 
@@ -1094,6 +2010,15 @@ type CheckpointConfig struct {
 
 CheckpointConfig contains configuration for checkpoint management
 
+#### type CheckpointData
+
+```go
+type CheckpointData struct {
+}
+```
+
+CheckpointData stores checkpointed computation information
+
 #### type CheckpointManager
 
 ```go
@@ -1159,6 +2084,161 @@ func (cm *CheckpointManager) SaveCheckpoint(trainer *Trainer, model TrainableMod
 ```
 SaveCheckpoint saves a training checkpoint
 
+#### type CheckpointingStrategy
+
+```go
+type CheckpointingStrategy int
+```
+
+CheckpointingStrategy defines different checkpointing strategies
+
+```go
+const (
+	NoCheckpointing CheckpointingStrategy = iota
+	UniformCheckpointing
+	AdaptiveCheckpointing
+	MemoryAwareCheckpointing
+)
+```
+
+#### type ClippingEvent
+
+```go
+type ClippingEvent struct {
+	Timestamp      time.Time
+	OriginalNorm   float32
+	ClippedNorm    float32
+	ClipRatio      float32
+	LayersAffected int
+}
+```
+
+ClippingEvent records a gradient clipping event
+
+#### type CodeTemplate
+
+```go
+type CodeTemplate struct {
+	OperationType    OpType
+	ForwardTemplate  string
+	BackwardTemplate string
+	Requirements     []string
+	Optimizations    map[string]string
+}
+```
+
+CodeTemplate defines how to generate code for an operation
+
+#### type CommunicationCost
+
+```go
+type CommunicationCost struct {
+	Latency   time.Duration
+	Bandwidth int64
+	Overhead  float32
+}
+```
+
+CommunicationCost represents communication costs in distributed settings
+
+#### type CompilationCache
+
+```go
+type CompilationCache struct {
+}
+```
+
+CompilationCache caches compiled functions
+
+#### type CompressedTensor
+
+```go
+type CompressedTensor struct {
+}
+```
+
+CompressedTensor represents a compressed tensor
+
+#### func  CompressGradient
+
+```go
+func CompressGradient(grad *tensor.Tensor, method string) (*CompressedTensor, error)
+```
+CompressGradient compresses a gradient tensor using available compression
+methods
+
+#### type CompressionBuffer
+
+```go
+type CompressionBuffer struct {
+}
+```
+
+CompressionBuffer manages compression workspace
+
+#### type CompressionEngine
+
+```go
+type CompressionEngine struct {
+}
+```
+
+CompressionEngine handles tensor compression
+
+#### type CompressionMethod
+
+```go
+type CompressionMethod interface {
+	GetName() string
+	Compress(tensor *tensor.Tensor) (*CompressedTensor, error)
+	Decompress(compressed *CompressedTensor) (*tensor.Tensor, error)
+	GetCompressionRatio() float32
+	GetDecompressionSpeed() float32
+}
+```
+
+CompressionMethod represents a compression method
+
+#### type CompressionStatistics
+
+```go
+type CompressionStatistics struct {
+}
+```
+
+CompressionStatistics tracks compression performance
+
+#### type CompressionStats
+
+```go
+type CompressionStats struct {
+	TotalCompressed   int64
+	TotalDecompressed int64
+	CompressionRatio  float32
+	CompressionTime   time.Duration
+	DecompressionTime time.Duration
+	AccuracyLoss      float32
+}
+```
+
+CompressionStats tracks compression statistics
+
+#### type ComputationCostModel
+
+```go
+type ComputationCostModel struct {
+}
+```
+
+ComputationCostModel models the cost of operations
+
+#### func  NewComputationCostModel
+
+```go
+func NewComputationCostModel() *ComputationCostModel
+```
+NewComputationCostModel creates a new computation cost model
+
 #### type ComputationGraph
 
 ```go
@@ -1174,6 +2254,44 @@ ComputationGraph tracks the computational graph for backpropagation
 func NewComputationGraph() *ComputationGraph
 ```
 NewComputationGraph creates a new computation graph
+
+#### type ConstantFolding
+
+```go
+type ConstantFolding struct{}
+```
+
+ConstantFolding pre-computes constant expressions
+
+#### func (*ConstantFolding) Apply
+
+```go
+func (cf *ConstantFolding) Apply(graph *ComputationGraph) error
+```
+
+#### func (*ConstantFolding) GetBenefit
+
+```go
+func (cf *ConstantFolding) GetBenefit() OptimizationBenefit
+```
+
+#### func (*ConstantFolding) GetDescription
+
+```go
+func (cf *ConstantFolding) GetDescription() string
+```
+
+#### func (*ConstantFolding) GetName
+
+```go
+func (cf *ConstantFolding) GetName() string
+```
+
+#### func (*ConstantFolding) IsApplicable
+
+```go
+func (cf *ConstantFolding) IsApplicable(graph *ComputationGraph) bool
+```
 
 #### type Conv2DParams
 
@@ -1280,6 +2398,24 @@ type DataLoaderStats struct {
 
 DataLoaderStats tracks data loading performance
 
+#### type DataType
+
+```go
+type DataType int
+```
+
+DataType represents tensor data types
+
+```go
+const (
+	Float32 DataType = iota
+	Float16
+	Int32
+	Int8
+	Bool
+)
+```
+
 #### type DataWorker
 
 ```go
@@ -1300,6 +2436,142 @@ type Dataset interface {
 ```
 
 Dataset interface for data sources
+
+#### type DeadCodeElimination
+
+```go
+type DeadCodeElimination struct{}
+```
+
+DeadCodeElimination removes unused operations from the graph
+
+#### func (*DeadCodeElimination) Apply
+
+```go
+func (dce *DeadCodeElimination) Apply(graph *ComputationGraph) error
+```
+
+#### func (*DeadCodeElimination) GetBenefit
+
+```go
+func (dce *DeadCodeElimination) GetBenefit() OptimizationBenefit
+```
+
+#### func (*DeadCodeElimination) GetDescription
+
+```go
+func (dce *DeadCodeElimination) GetDescription() string
+```
+
+#### func (*DeadCodeElimination) GetName
+
+```go
+func (dce *DeadCodeElimination) GetName() string
+```
+
+#### func (*DeadCodeElimination) IsApplicable
+
+```go
+func (dce *DeadCodeElimination) IsApplicable(graph *ComputationGraph) bool
+```
+
+#### type DebugLogLevel
+
+```go
+type DebugLogLevel int
+```
+
+DebugLogLevel represents different levels of debug logging
+
+```go
+const (
+	DebugOff DebugLogLevel = iota
+	DebugError
+	DebugWarning
+	DebugInfo
+	DebugVerbose
+)
+```
+
+#### type DependencyGraph
+
+```go
+type DependencyGraph struct {
+}
+```
+
+DependencyGraph tracks task dependencies
+
+#### type DependencyNode
+
+```go
+type DependencyNode struct {
+}
+```
+
+DependencyNode represents a node in the dependency graph
+
+#### type DerivativeCache
+
+```go
+type DerivativeCache struct {
+}
+```
+
+DerivativeCache caches computed derivatives for efficiency
+
+#### type DirectionalStats
+
+```go
+type DirectionalStats struct {
+	CosineSimilarities []float32
+	AngleChanges       []float32
+	Consistency        float32
+	Stability          float32
+}
+```
+
+DirectionalStats tracks gradient direction statistics
+
+#### type DistributedCoordinator
+
+```go
+type DistributedCoordinator struct {
+}
+```
+
+DistributedCoordinator coordinates data loading across distributed nodes
+
+#### type DistributedDataLoader
+
+```go
+type DistributedDataLoader struct {
+}
+```
+
+DistributedDataLoader handles distributed data loading across multiple
+GPUs/nodes
+
+#### func  NewDistributedDataLoader
+
+```go
+func NewDistributedDataLoader(config DataLoaderConfig, nodeRank, worldSize int, localLoader DataLoader) (*DistributedDataLoader, error)
+```
+NewDistributedDataLoader creates a new distributed data loader
+
+#### func (*DistributedDataLoader) GetBatch
+
+```go
+func (ddl *DistributedDataLoader) GetBatch(batchIdx int) (*tensor.Tensor, *tensor.Tensor, error)
+```
+GetBatch returns the next batch for this distributed node
+
+#### func (*DistributedDataLoader) GetLocalBatchCount
+
+```go
+func (ddl *DistributedDataLoader) GetLocalBatchCount() int
+```
+GetLocalBatchCount returns the number of batches for this node
 
 #### type EigenDecomposition
 
@@ -1327,49 +2599,449 @@ func (eigen *EigenDecomposition) ReleaseGPU()
 ```
 ReleaseGPU releases GPU resources for the eigenvalue decomposition
 
-#### type FileDataset
+#### type FragmentationDetector
 
 ```go
-type FileDataset struct {
+type FragmentationDetector struct {
 }
 ```
 
-FileDataset loads data from files on demand
+FragmentationDetector detects memory fragmentation
 
-#### func  NewFileDataset
-
-```go
-func NewFileDataset(inputPaths, targetPaths []string, inputShape, targetShape []int) (*FileDataset, error)
-```
-NewFileDataset creates a new file-based dataset
-
-#### func (*FileDataset) GetItem
+#### type FunctionSignature
 
 ```go
-func (ds *FileDataset) GetItem(index int) (*tensor.Tensor, *tensor.Tensor, error)
+type FunctionSignature struct {
+	InputTypes  []TensorType
+	OutputTypes []TensorType
+	Parameters  map[string]interface{}
+}
 ```
-GetItem loads and returns a single item from files
 
-#### func (*FileDataset) GetShape
+FunctionSignature describes the function interface
+
+#### type FusedActivationConfig
 
 ```go
-func (ds *FileDataset) GetShape() ([]int, []int)
+type FusedActivationConfig struct {
+	ActivationType ActivationType
+	Alpha          float32 // For LeakyReLU, ELU
+	InPlace        bool    // Whether to perform operation in-place
+}
 ```
-GetShape returns the shape of input and target tensors
 
-#### func (*FileDataset) Len
+FusedActivationConfig configures fused activation operations
+
+#### type FusedAttention
 
 ```go
-func (ds *FileDataset) Len() int
+type FusedAttention struct{}
 ```
-Len returns the size of the dataset
 
-#### func (*FileDataset) SetTransform
+Fused Multi-Head Attention
+
+#### func (*FusedAttention) Backward
 
 ```go
-func (ds *FileDataset) SetTransform(transform func(*tensor.Tensor, *tensor.Tensor) (*tensor.Tensor, *tensor.Tensor, error))
+func (f *FusedAttention) Backward(gradOutput *tensor.Tensor, savedTensors []*tensor.Tensor, configInterface interface{}) ([]*tensor.Tensor, error)
 ```
-SetTransform sets a transformation function for the data
+
+#### func (*FusedAttention) Forward
+
+```go
+func (f *FusedAttention) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error)
+```
+
+#### func (*FusedAttention) GetMemorySavings
+
+```go
+func (f *FusedAttention) GetMemorySavings() int64
+```
+
+#### func (*FusedAttention) GetName
+
+```go
+func (f *FusedAttention) GetName() string
+```
+
+#### func (*FusedAttention) GetSpeedup
+
+```go
+func (f *FusedAttention) GetSpeedup() float32
+```
+
+#### type FusedAttentionConfig
+
+```go
+type FusedAttentionConfig struct {
+	NumHeads    int
+	DropoutRate float32
+	Causal      bool    // Causal (masked) attention
+	Scale       float32 // Attention scale factor
+}
+```
+
+FusedAttentionConfig configures fused attention operations
+
+#### type FusedConvBNReLU
+
+```go
+type FusedConvBNReLU struct{}
+```
+
+Fused Convolution + BatchNorm + ReLU
+
+#### func (*FusedConvBNReLU) Backward
+
+```go
+func (f *FusedConvBNReLU) Backward(gradOutput *tensor.Tensor, savedTensors []*tensor.Tensor, configInterface interface{}) ([]*tensor.Tensor, error)
+```
+
+#### func (*FusedConvBNReLU) Forward
+
+```go
+func (f *FusedConvBNReLU) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error)
+```
+
+#### func (*FusedConvBNReLU) GetMemorySavings
+
+```go
+func (f *FusedConvBNReLU) GetMemorySavings() int64
+```
+
+#### func (*FusedConvBNReLU) GetName
+
+```go
+func (f *FusedConvBNReLU) GetName() string
+```
+
+#### func (*FusedConvBNReLU) GetSpeedup
+
+```go
+func (f *FusedConvBNReLU) GetSpeedup() float32
+```
+
+#### type FusedConvolutionConfig
+
+```go
+type FusedConvolutionConfig struct {
+	Conv2DParams Conv2DParams
+	BatchNorm    *FusedNormalizationConfig
+	Activation   *FusedActivationConfig
+	Bias         bool
+	DropoutRate  float32 // 0.0 = no dropout
+}
+```
+
+FusedConvolutionConfig configures fused convolution operations
+
+#### type FusedGELUDropout
+
+```go
+type FusedGELUDropout struct{}
+```
+
+Fused GELU + Dropout
+
+#### func (*FusedGELUDropout) Backward
+
+```go
+func (f *FusedGELUDropout) Backward(gradOutput *tensor.Tensor, savedTensors []*tensor.Tensor, configInterface interface{}) ([]*tensor.Tensor, error)
+```
+
+#### func (*FusedGELUDropout) Forward
+
+```go
+func (f *FusedGELUDropout) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error)
+```
+
+#### func (*FusedGELUDropout) GetMemorySavings
+
+```go
+func (f *FusedGELUDropout) GetMemorySavings() int64
+```
+
+#### func (*FusedGELUDropout) GetName
+
+```go
+func (f *FusedGELUDropout) GetName() string
+```
+
+#### func (*FusedGELUDropout) GetSpeedup
+
+```go
+func (f *FusedGELUDropout) GetSpeedup() float32
+```
+
+#### type FusedLayerNormLinear
+
+```go
+type FusedLayerNormLinear struct{}
+```
+
+Fused LayerNorm + Linear
+
+#### func (*FusedLayerNormLinear) Backward
+
+```go
+func (f *FusedLayerNormLinear) Backward(gradOutput *tensor.Tensor, savedTensors []*tensor.Tensor, configInterface interface{}) ([]*tensor.Tensor, error)
+```
+
+#### func (*FusedLayerNormLinear) Forward
+
+```go
+func (f *FusedLayerNormLinear) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error)
+```
+
+#### func (*FusedLayerNormLinear) GetMemorySavings
+
+```go
+func (f *FusedLayerNormLinear) GetMemorySavings() int64
+```
+
+#### func (*FusedLayerNormLinear) GetName
+
+```go
+func (f *FusedLayerNormLinear) GetName() string
+```
+
+#### func (*FusedLayerNormLinear) GetSpeedup
+
+```go
+func (f *FusedLayerNormLinear) GetSpeedup() float32
+```
+
+#### type FusedLinearActivation
+
+```go
+type FusedLinearActivation struct{}
+```
+
+Fused Linear + Activation
+
+#### func (*FusedLinearActivation) Backward
+
+```go
+func (f *FusedLinearActivation) Backward(gradOutput *tensor.Tensor, savedTensors []*tensor.Tensor, configInterface interface{}) ([]*tensor.Tensor, error)
+```
+
+#### func (*FusedLinearActivation) Forward
+
+```go
+func (f *FusedLinearActivation) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error)
+```
+
+#### func (*FusedLinearActivation) GetMemorySavings
+
+```go
+func (f *FusedLinearActivation) GetMemorySavings() int64
+```
+
+#### func (*FusedLinearActivation) GetName
+
+```go
+func (f *FusedLinearActivation) GetName() string
+```
+
+#### func (*FusedLinearActivation) GetSpeedup
+
+```go
+func (f *FusedLinearActivation) GetSpeedup() float32
+```
+
+#### type FusedLinearConfig
+
+```go
+type FusedLinearConfig struct {
+	Bias       bool
+	Activation *FusedActivationConfig
+	Dropout    float32 // 0.0 = no dropout
+	LayerNorm  *FusedNormalizationConfig
+}
+```
+
+FusedLinearConfig configures fused linear layer operations
+
+#### type FusedNormalizationConfig
+
+```go
+type FusedNormalizationConfig struct {
+	NormType     BatchNormType
+	Epsilon      float32
+	Momentum     float32
+	Training     bool
+	FuseWithReLU bool // Fuse with ReLU activation
+}
+```
+
+FusedNormalizationConfig configures fused normalization operations
+
+#### type FusedOperation
+
+```go
+type FusedOperation interface {
+	Forward(inputs []*tensor.Tensor, config interface{}) (*tensor.Tensor, error)
+	Backward(gradOutput *tensor.Tensor, savedTensors []*tensor.Tensor, config interface{}) ([]*tensor.Tensor, error)
+	GetName() string
+	GetMemorySavings() int64
+	GetSpeedup() float32
+}
+```
+
+FusedOperation interface for all fused operations
+
+#### func  GetFusedOperation
+
+```go
+func GetFusedOperation(name string) (FusedOperation, bool)
+```
+GetFusedOperation retrieves a fused operation by name
+
+#### type FusedResidualBlock
+
+```go
+type FusedResidualBlock struct{}
+```
+
+Fused Residual Block (Conv + BN + ReLU + Conv + BN + Add + ReLU)
+
+#### func (*FusedResidualBlock) Backward
+
+```go
+func (f *FusedResidualBlock) Backward(gradOutput *tensor.Tensor, savedTensors []*tensor.Tensor, configInterface interface{}) ([]*tensor.Tensor, error)
+```
+
+#### func (*FusedResidualBlock) Forward
+
+```go
+func (f *FusedResidualBlock) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error)
+```
+
+#### func (*FusedResidualBlock) GetMemorySavings
+
+```go
+func (f *FusedResidualBlock) GetMemorySavings() int64
+```
+
+#### func (*FusedResidualBlock) GetName
+
+```go
+func (f *FusedResidualBlock) GetName() string
+```
+
+#### func (*FusedResidualBlock) GetSpeedup
+
+```go
+func (f *FusedResidualBlock) GetSpeedup() float32
+```
+
+#### type FusionRegistry
+
+```go
+type FusionRegistry struct {
+}
+```
+
+FusionRegistry tracks available fused operations
+
+#### func  NewFusionRegistry
+
+```go
+func NewFusionRegistry() *FusionRegistry
+```
+NewFusionRegistry creates a new fusion registry
+
+#### type FusionRule
+
+```go
+type FusionRule struct {
+	Pattern     []OpType
+	FusedOp     OpType
+	Speedup     float32
+	MemorySaved int64
+}
+```
+
+FusionRule defines how operations can be fused together
+
+#### type FusionScheduler
+
+```go
+type FusionScheduler struct {
+}
+```
+
+FusionScheduler manages when to apply fusion optimizations
+
+#### func  NewFusionScheduler
+
+```go
+func NewFusionScheduler() *FusionScheduler
+```
+NewFusionScheduler creates a new fusion scheduler
+
+#### func (*FusionScheduler) DisableFusion
+
+```go
+func (fs *FusionScheduler) DisableFusion()
+```
+DisableFusion disables fusion optimizations
+
+#### func (*FusionScheduler) EnableFusion
+
+```go
+func (fs *FusionScheduler) EnableFusion()
+```
+EnableFusion enables fusion optimizations
+
+#### func (*FusionScheduler) GetFusionStats
+
+```go
+func (fs *FusionScheduler) GetFusionStats() map[string]*FusionStats
+```
+GetFusionStats returns statistics for all fusion operations
+
+#### func (*FusionScheduler) RecordFusionResult
+
+```go
+func (fs *FusionScheduler) RecordFusionResult(operationName string, success bool, speedup float32, memorySaved int64, latency time.Duration)
+```
+RecordFusionResult records the result of a fusion operation
+
+#### func (*FusionScheduler) SetMemoryThreshold
+
+```go
+func (fs *FusionScheduler) SetMemoryThreshold(threshold int64)
+```
+SetMemoryThreshold sets the memory threshold for fusion decisions
+
+#### func (*FusionScheduler) SetPerformanceThreshold
+
+```go
+func (fs *FusionScheduler) SetPerformanceThreshold(threshold float32)
+```
+SetPerformanceThreshold sets the minimum performance gain required for fusion
+
+#### func (*FusionScheduler) ShouldFuse
+
+```go
+func (fs *FusionScheduler) ShouldFuse(operationName string, memoryUsage int64, expectedSpeedup float32) bool
+```
+ShouldFuse determines if a fusion should be applied based on various criteria
+
+#### type FusionStats
+
+```go
+type FusionStats struct {
+	Count          int64
+	TotalSpeedup   float32
+	MemorySaved    int64
+	SuccessRate    float32
+	AverageLatency time.Duration
+}
+```
+
+FusionStats tracks statistics for fusion operations
 
 #### type GPUBatchNormLayer
 
@@ -2051,6 +3723,151 @@ func (gs *GPUSparse) ToDense() *mat.Dense
 ```
 ToDense converts the sparse matrix to a dense gonum matrix
 
+#### type GeneratedFunction
+
+```go
+type GeneratedFunction struct {
+}
+```
+
+GeneratedFunction represents generated and compiled code
+
+#### func  GenerateOptimizedCode
+
+```go
+func GenerateOptimizedCode(graph *ComputationGraph, functionName string) (*GeneratedFunction, error)
+```
+GenerateOptimizedCode generates optimized code for a computation graph
+
+#### type GlobalGradientStats
+
+```go
+type GlobalGradientStats struct {
+	GlobalNorm      float32
+	TotalParameters int64
+	ActiveLayers    int
+	NormTrend       float32
+	HealthScore     float32
+}
+```
+
+GlobalGradientStats contains global gradient statistics
+
+#### type GradientAccumulator
+
+```go
+type GradientAccumulator struct {
+}
+```
+
+GradientAccumulator handles sophisticated gradient accumulation
+
+#### type GradientAnalysisReport
+
+```go
+type GradientAnalysisReport struct {
+	Timestamp    time.Time
+	LayerReports map[string]*LayerGradientReport
+	GlobalStats  *GlobalGradientStats
+	Anomalies    []GradientAnomaly
+}
+```
+
+GradientAnalysisReport contains comprehensive gradient analysis results
+
+#### func  AnalyzeGradients
+
+```go
+func AnalyzeGradients(gradients []*GradientTensor, layerNames []string) (*GradientAnalysisReport, error)
+```
+AnalyzeGradients performs comprehensive gradient analysis
+
+#### type GradientAnalyzer
+
+```go
+type GradientAnalyzer struct {
+}
+```
+
+GradientAnalyzer provides detailed analysis of gradients
+
+#### func  NewGradientAnalyzer
+
+```go
+func NewGradientAnalyzer(historySize int) *GradientAnalyzer
+```
+NewGradientAnalyzer creates a new gradient analyzer
+
+#### type GradientAnomaly
+
+```go
+type GradientAnomaly struct {
+	Type        GradientAnomalyType
+	Timestamp   time.Time
+	LayerName   string
+	Severity    float32
+	Description string
+	Metadata    map[string]interface{}
+}
+```
+
+GradientAnomaly represents a detected gradient anomaly
+
+#### type GradientAnomalyTracker
+
+```go
+type GradientAnomalyTracker struct {
+}
+```
+
+GradientAnomalyTracker detects gradient anomalies
+
+#### type GradientAnomalyType
+
+```go
+type GradientAnomalyType int
+```
+
+GradientAnomalyType represents different types of gradient anomalies
+
+```go
+const (
+	VanishingGradient GradientAnomalyType = iota
+	ExplodingGradient
+	GradientInstability
+	GradientOscillation
+	GradientPlateau
+	GradientSpike
+)
+```
+
+#### type GradientCompressionMethod
+
+```go
+type GradientCompressionMethod int
+```
+
+GradientCompressionMethod defines gradient compression methods
+
+```go
+const (
+	NoCompression GradientCompressionMethod = iota
+	TopKSparsification
+	RandomSparsification
+	Quantization
+	ErrorFeedback
+)
+```
+
+#### type GradientCompressor
+
+```go
+type GradientCompressor struct {
+}
+```
+
+GradientCompressor handles gradient compression
+
 #### type GradientFunction
 
 ```go
@@ -2072,6 +3889,39 @@ GradientFunction represents a backward function for an operation
 func CreateBackwardFunction(opType OpType, inputs []*GradientTensor, savedTensors []*tensor.Tensor, metadata map[string]interface{}) *GradientFunction
 ```
 CreateBackwardFunction creates a backward function for gradient computation
+
+#### type GradientLayerStats
+
+```go
+type GradientLayerStats struct {
+	LayerName      string
+	ParameterCount int64
+	NormHistory    []float32
+	MagnitudeStats *StatisticalSummary
+	DirectionStats *DirectionalStats
+	UpdateHistory  []GradientUpdate
+	AnomalyCount   int64
+	LastUpdated    time.Time
+}
+```
+
+GradientLayerStats tracks statistics for gradients of a specific layer
+
+#### type GradientManipulator
+
+```go
+type GradientManipulator struct {
+}
+```
+
+GradientManipulator provides advanced gradient manipulation operations
+
+#### func  NewGradientManipulator
+
+```go
+func NewGradientManipulator() *GradientManipulator
+```
+NewGradientManipulator creates a new gradient manipulator
 
 #### type GradientMode
 
@@ -2095,6 +3945,24 @@ func GetGradientMode() GradientMode
 ```
 GetGradientMode returns the current gradient computation mode
 
+#### type GradientNoiseInjector
+
+```go
+type GradientNoiseInjector struct {
+}
+```
+
+GradientNoiseInjector adds controlled noise to gradients for regularization
+
+#### type GradientSmoother
+
+```go
+type GradientSmoother struct {
+}
+```
+
+GradientSmoother applies smoothing to gradients
+
 #### type GradientTensor
 
 ```go
@@ -2109,12 +3977,26 @@ type GradientTensor struct {
 
 GradientTensor wraps a tensor with gradient tracking capabilities
 
+#### func  CheckpointedOperation
+
+```go
+func CheckpointedOperation(forwardFn func([]*GradientTensor) (*GradientTensor, error), inputs []*GradientTensor) (*GradientTensor, error)
+```
+CheckpointedOperation creates a checkpointed operation
+
 #### func  CloneGradientTensor
 
 ```go
 func CloneGradientTensor(gt *GradientTensor) (*GradientTensor, error)
 ```
 CloneGradientTensor creates a deep copy of a gradient tensor
+
+#### func  ComputeHigherOrderDerivative
+
+```go
+func ComputeHigherOrderDerivative(function func(*GradientTensor) (*GradientTensor, error), input *GradientTensor, order int) (*GradientTensor, error)
+```
+ComputeHigherOrderDerivative computes higher-order derivatives
 
 #### func  DetachGradient
 
@@ -2178,6 +4060,50 @@ Dropout performs gradient-aware dropout for regularization
 func GradFlatten(input *GradientTensor, startDim int) (*GradientTensor, error)
 ```
 Flatten reshapes a multi-dimensional tensor to 2D
+
+#### func  GradFusedAttention
+
+```go
+func GradFusedAttention(query, key, value *GradientTensor, config *FusedAttentionConfig) (*GradientTensor, error)
+```
+GradFusedAttention performs fused multi-head attention
+
+#### func  GradFusedConvBNReLU
+
+```go
+func GradFusedConvBNReLU(input, kernel, gamma, beta, bias *GradientTensor, config *FusedConvolutionConfig) (*GradientTensor, error)
+```
+GradFusedConvBNReLU performs fused convolution + batch normalization + ReLU
+
+#### func  GradFusedGELUDropout
+
+```go
+func GradFusedGELUDropout(input *GradientTensor, dropoutRate float32, training bool, seed uint32) (*GradientTensor, error)
+```
+GradFusedGELUDropout performs fused GELU + dropout
+
+#### func  GradFusedLayerNormLinear
+
+```go
+func GradFusedLayerNormLinear(input, gamma, beta, weight, bias *GradientTensor, epsilon float32) (*GradientTensor, error)
+```
+GradFusedLayerNormLinear performs fused layer normalization + linear
+transformation
+
+#### func  GradFusedLinearActivation
+
+```go
+func GradFusedLinearActivation(input, weight, bias *GradientTensor, config *FusedLinearConfig) (*GradientTensor, error)
+```
+GradFusedLinearActivation performs fused linear transformation + activation
+
+#### func  GradFusedResidualBlock
+
+```go
+func GradFusedResidualBlock(input, conv1Weight, bn1Gamma, bn1Beta, conv2Weight, bn2Gamma, bn2Beta *GradientTensor) (*GradientTensor, error)
+```
+GradFusedResidualBlock performs fused residual block
+(Conv+BN+ReLU+Conv+BN+Add+ReLU)
 
 #### func  GradMSELoss
 
@@ -2312,6 +4238,13 @@ func NewGradientTensor(t *tensor.Tensor, requiresGrad bool) *GradientTensor
 ```
 NewGradientTensor creates a new gradient tensor
 
+#### func  TensorFusion
+
+```go
+func TensorFusion(tensors []*GradientTensor) ([]*GradientTensor, error)
+```
+TensorFusion fuses multiple small tensors into larger ones for efficiency
+
 #### func (*GradientTensor) Backward
 
 ```go
@@ -2326,42 +4259,110 @@ func (gt *GradientTensor) BackwardWithGradient(grad *tensor.Tensor) error
 ```
 BackwardWithGradient performs backpropagation with a specific gradient
 
-#### type InMemoryDataset
+#### type GradientUpdate
 
 ```go
-type InMemoryDataset struct {
+type GradientUpdate struct {
+	Timestamp time.Time
+	Norm      float32
+	Direction []float32 // Unit vector
+	Magnitude float32
+	StepSize  float32
 }
 ```
 
-InMemoryDataset is a simple dataset that holds all data in memory
+GradientUpdate represents a single gradient update
 
-#### func  NewInMemoryDataset
-
-```go
-func NewInMemoryDataset(inputs, targets []*tensor.Tensor) (*InMemoryDataset, error)
-```
-NewInMemoryDataset creates a new in-memory dataset
-
-#### func (*InMemoryDataset) GetItem
+#### type GraphAnalysis
 
 ```go
-func (ds *InMemoryDataset) GetItem(index int) (*tensor.Tensor, *tensor.Tensor, error)
+type GraphAnalysis struct {
+	NodeCount          int
+	EdgeCount          int
+	MaxDepth           int
+	CriticalPath       []*GradientTensor
+	CyclicDependencies bool
+	ParallelizableOps  [][]OpType
+	MemoryBottlenecks  []*GradientTensor
+}
 ```
-GetItem returns a single item from the dataset
 
-#### func (*InMemoryDataset) GetShape
+GraphAnalysis provides analysis of the computation graph structure
+
+#### type GraphOptimizer
 
 ```go
-func (ds *InMemoryDataset) GetShape() ([]int, []int)
+type GraphOptimizer struct {
+}
 ```
-GetShape returns the shape of input and target tensors
 
-#### func (*InMemoryDataset) Len
+GraphOptimizer provides optimization tools for computation graphs
+
+#### func  NewGraphOptimizer
 
 ```go
-func (ds *InMemoryDataset) Len() int
+func NewGraphOptimizer() *GraphOptimizer
 ```
-Len returns the size of the dataset
+NewGraphOptimizer creates a new graph optimizer
+
+#### func (*GraphOptimizer) OptimizeGraph
+
+```go
+func (go_ *GraphOptimizer) OptimizeGraph() error
+```
+OptimizeGraph applies various optimizations to the computation graph
+
+#### type GraphParallelizer
+
+```go
+type GraphParallelizer struct {
+}
+```
+
+GraphParallelizer identifies parallelizable operations
+
+#### type HigherOrderAutodiff
+
+```go
+type HigherOrderAutodiff struct {
+}
+```
+
+HigherOrderAutodiff provides higher-order automatic differentiation
+
+#### func  NewHigherOrderAutodiff
+
+```go
+func NewHigherOrderAutodiff(maxOrder int) *HigherOrderAutodiff
+```
+NewHigherOrderAutodiff creates a new higher-order autodiff system
+
+#### type IROperation
+
+```go
+type IROperation struct {
+}
+```
+
+IROperation represents an operation in IR
+
+#### type IRVariable
+
+```go
+type IRVariable struct {
+}
+```
+
+IRVariable represents a variable in IR
+
+#### type IntermediateRepresentation
+
+```go
+type IntermediateRepresentation struct {
+}
+```
+
+IntermediateRepresentation represents code in IR form
 
 #### type LRUList
 
@@ -2441,6 +4442,52 @@ LU performs LU decomposition using the Accelerate framework
 func (lu *LUDecomposition) ReleaseGPU()
 ```
 ReleaseGPU releases GPU resources for the LU decomposition
+
+#### type LayerGradientReport
+
+```go
+type LayerGradientReport struct {
+	LayerName       string
+	ParameterCount  int64
+	Norm            float32
+	Mean            float32
+	Variance        float32
+	Min             float32
+	Max             float32
+	Percentiles     map[int]float32
+	Sparsity        float32
+	DirectionChange float32
+	UpdateStability float32
+}
+```
+
+LayerGradientReport contains analysis for a single layer
+
+#### type LoadBalancer
+
+```go
+type LoadBalancer struct {
+}
+```
+
+LoadBalancer balances load across workers
+
+#### type LoadBalancingStrategy
+
+```go
+type LoadBalancingStrategy int
+```
+
+LoadBalancingStrategy defines load balancing strategies
+
+```go
+const (
+	RoundRobin LoadBalancingStrategy = iota
+	LeastLoaded
+	WorkStealing
+	LocalityAware
+)
+```
 
 #### type LoadRequest
 
@@ -2550,6 +4597,15 @@ func (mpr *MaxPool2DResult) ReleaseGPU()
 ```
 ReleaseGPU releases GPU resources for the max pooling result
 
+#### type MemoryAllocation
+
+```go
+type MemoryAllocation struct {
+}
+```
+
+MemoryAllocation represents a memory allocation
+
 #### type MemoryBlock
 
 ```go
@@ -2559,77 +4615,125 @@ type MemoryBlock struct {
 
 MemoryBlock represents a block of GPU memory
 
-#### type MemoryDataLoader
+#### type MemoryConstraints
 
 ```go
-type MemoryDataLoader struct {
+type MemoryConstraints struct {
+	MaxMemoryUsage     int64
+	MaxTensorSize      int64
+	FragmentationLimit float32
 }
 ```
 
-MemoryDataLoader loads data efficiently with memory optimization
+MemoryConstraints defines memory constraints
 
-#### func  NewMemoryDataLoader
-
-```go
-func NewMemoryDataLoader(dataset Dataset, config DataLoaderConfig) (*MemoryDataLoader, error)
-```
-NewMemoryDataLoader creates a new memory-efficient data loader
-
-#### func (*MemoryDataLoader) BatchCount
+#### type MemoryCost
 
 ```go
-func (dl *MemoryDataLoader) BatchCount() int
+type MemoryCost struct {
+	AllocationCost int64
+	AccessCost     int64
+	BandwidthUsage int64
+}
 ```
-BatchCount returns the number of batches in the dataset
 
-#### func (*MemoryDataLoader) GetBatch
+MemoryCost represents memory usage costs
+
+#### type MemoryEfficientAutodiffEngine
 
 ```go
-func (dl *MemoryDataLoader) GetBatch(batchIdx int) (*tensor.Tensor, *tensor.Tensor, error)
+type MemoryEfficientAutodiffEngine struct {
+}
 ```
-GetBatch returns a batch of data
 
-#### func (*MemoryDataLoader) GetDatasetSize
+MemoryEfficientAutodiffEngine manages memory-efficient autodiff
+
+#### func  NewMemoryEfficientAutodiffEngine
 
 ```go
-func (dl *MemoryDataLoader) GetDatasetSize() int
+func NewMemoryEfficientAutodiffEngine(config *MemoryEfficientConfig) *MemoryEfficientAutodiffEngine
 ```
-GetDatasetSize returns the size of the dataset
+NewMemoryEfficientAutodiffEngine creates a new memory-efficient autodiff engine
 
-#### func (*MemoryDataLoader) GetStats
+#### type MemoryEfficientConfig
 
 ```go
-func (dl *MemoryDataLoader) GetStats() DataLoaderStats
+type MemoryEfficientConfig struct {
+	MaxMemoryUsage        int64
+	CheckpointingStrategy CheckpointingStrategy
+	CheckpointingRatio    float32 // Fraction of layers to checkpoint
+	GradientCompression   GradientCompressionMethod
+	CompressionRatio      float32 // Compression ratio (0.0-1.0)
+	EnableGradientScaling bool
+	EnableMixedPrecision  bool
+	EnableInPlaceOps      bool
+	EnableTensorFusion    bool
+	MemoryBudget          int64 // Target memory budget
+	SwapThreshold         int64 // Threshold for CPU-GPU swapping
+}
 ```
-GetStats returns data loader statistics
 
-#### func (*MemoryDataLoader) Reset
+MemoryEfficientConfig configures memory-efficient autodiff
+
+#### type MemoryEfficientGradContext
 
 ```go
-func (dl *MemoryDataLoader) Reset() error
+type MemoryEfficientGradContext struct {
+}
 ```
-Reset resets the data loader state
 
-#### func (*MemoryDataLoader) SetBatchSize
+MemoryEfficientGradContext provides a context for memory-efficient gradient
+computation
+
+#### type MemoryLayout
 
 ```go
-func (dl *MemoryDataLoader) SetBatchSize(batchSize int)
+type MemoryLayout int
 ```
-SetBatchSize sets the batch size
 
-#### func (*MemoryDataLoader) Shuffle
+MemoryLayout represents tensor memory layout
 
 ```go
-func (dl *MemoryDataLoader) Shuffle() error
+const (
+	RowMajor MemoryLayout = iota
+	ColumnMajor
+	Packed
+	Sparse
+)
 ```
-Shuffle shuffles the dataset indices
 
-#### func (*MemoryDataLoader) Stop
+#### type MemoryOptimizationBenefit
 
 ```go
-func (dl *MemoryDataLoader) Stop()
+type MemoryOptimizationBenefit struct {
+	MemorySaved          int64
+	FragmentationReduced float32
+	AllocationSpeedup    float32
+}
 ```
-Stop stops the data loader and cleans up resources
+
+MemoryOptimizationBenefit quantifies memory optimization benefits
+
+#### type MemoryOptimizationTechnique
+
+```go
+type MemoryOptimizationTechnique interface {
+	GetName() string
+	Apply(allocations []*MemoryAllocation) error
+	GetBenefit() MemoryOptimizationBenefit
+}
+```
+
+MemoryOptimizationTechnique represents a memory optimization technique
+
+#### type MemoryOptimizer
+
+```go
+type MemoryOptimizer struct {
+}
+```
+
+MemoryOptimizer handles memory optimization for gradients
 
 #### type MemoryProfiler
 
@@ -2706,6 +4810,90 @@ type MemoryStats struct {
 
 MemoryStats tracks memory pool statistics
 
+#### type MixedPrecisionContext
+
+```go
+type MixedPrecisionContext struct {
+}
+```
+
+MixedPrecisionContext provides mixed precision training context
+
+#### type NodeInfo
+
+```go
+type NodeInfo struct {
+	NodeID    int
+	Address   string
+	GPUCount  int
+	Available bool
+	LastSeen  time.Time
+}
+```
+
+NodeInfo represents information about a distributed node
+
+#### type NoiseEvent
+
+```go
+type NoiseEvent struct {
+	Timestamp      time.Time
+	NoiseLevel     float32
+	NoiseType      NoiseType
+	LayersAffected int
+}
+```
+
+NoiseEvent records a noise injection event
+
+#### type NoiseSchedule
+
+```go
+type NoiseSchedule struct {
+	ScheduleType NoiseScheduleType
+	InitialLevel float32
+	FinalLevel   float32
+	DecaySteps   int64
+	DecayRate    float32
+}
+```
+
+NoiseSchedule controls how noise level changes over time
+
+#### type NoiseScheduleType
+
+```go
+type NoiseScheduleType int
+```
+
+NoiseScheduleType represents different noise scheduling strategies
+
+```go
+const (
+	ConstantNoise NoiseScheduleType = iota
+	LinearDecay
+	ExponentialDecay
+	CosineDecay
+)
+```
+
+#### type NoiseType
+
+```go
+type NoiseType int
+```
+
+NoiseType represents different types of gradient noise
+
+```go
+const (
+	GaussianNoise NoiseType = iota
+	UniformNoise
+	SaltPepperNoise
+	DropoutNoise
+)
+```
+
 #### type OpType
 
 ```go
@@ -2763,6 +4951,76 @@ const (
 )
 ```
 
+#### type OperationCost
+
+```go
+type OperationCost struct {
+	ComputeTime  time.Duration
+	MemoryAccess int64
+	FlopsCount   int64
+	PowerUsage   float32
+}
+```
+
+OperationCost represents the cost of an operation
+
+#### type OperationStats
+
+```go
+type OperationStats struct {
+	Count           int64
+	TotalTime       time.Duration
+	AverageTime     time.Duration
+	PeakMemoryUsage int64
+	TotalMemoryUsed int64
+	GradientNorm    float32
+	BackwardTime    time.Duration
+	ForwardTime     time.Duration
+}
+```
+
+OperationStats tracks statistics for each operation type
+
+#### type OptimizationBenefit
+
+```go
+type OptimizationBenefit struct {
+	MemorySaving   int64
+	ComputeSaving  float32
+	Speedup        float32
+	AccuracyImpact float32
+}
+```
+
+OptimizationBenefit quantifies the benefit of an optimization
+
+#### type OptimizationPass
+
+```go
+type OptimizationPass struct {
+	Name        string
+	Description string
+	Apply       func(*IntermediateRepresentation) error
+	Priority    int
+}
+```
+
+OptimizationPass represents a code optimization pass
+
+#### type OptimizationTechnique
+
+```go
+type OptimizationTechnique interface {
+	GetName() string
+	GetDescription() string
+	Apply(graph *ComputationGraph) error
+	GetBenefit() OptimizationBenefit
+	IsApplicable(graph *ComputationGraph) bool
+}
+```
+
+OptimizationTechnique represents an optimization technique
+
 #### type OptimizerType
 
 ```go
@@ -2780,6 +5038,22 @@ const (
 )
 ```
 
+#### type ParallelizationEngine
+
+```go
+type ParallelizationEngine struct {
+}
+```
+
+ParallelizationEngine manages parallel execution
+
+#### func  NewParallelizationEngine
+
+```go
+func NewParallelizationEngine() *ParallelizationEngine
+```
+NewParallelizationEngine creates a new parallelization engine
+
 #### type Pool2DParams
 
 ```go
@@ -2795,6 +5069,24 @@ type Pool2DParams struct {
 
 Pool2DParams represents parameters for 2D pooling operations
 
+#### type PrefetchQueue
+
+```go
+type PrefetchQueue struct {
+}
+```
+
+PrefetchQueue manages prefetching of tensors from CPU to GPU
+
+#### type PrefetchTask
+
+```go
+type PrefetchTask struct {
+}
+```
+
+PrefetchTask represents a prefetching task
+
 #### type PrefetchedBatch
 
 ```go
@@ -2803,6 +5095,45 @@ type PrefetchedBatch struct {
 ```
 
 PrefetchedBatch represents a prefetched batch
+
+#### type PriorityItem
+
+```go
+type PriorityItem struct {
+}
+```
+
+PriorityItem represents an item in the priority queue
+
+#### type PriorityQueue
+
+```go
+type PriorityQueue struct {
+}
+```
+
+PriorityQueue implements a priority queue for tasks
+
+#### func  NewPriorityQueue
+
+```go
+func NewPriorityQueue() *PriorityQueue
+```
+NewPriorityQueue creates a new priority queue
+
+#### func (*PriorityQueue) Pop
+
+```go
+func (pq *PriorityQueue) Pop() *Task
+```
+Pop removes and returns the highest priority item
+
+#### func (*PriorityQueue) Push
+
+```go
+func (pq *PriorityQueue) Push(task *Task, priority int)
+```
+Push adds an item to the priority queue
 
 #### type QRDecomposition
 
@@ -2828,6 +5159,48 @@ QR performs QR decomposition using the Accelerate framework
 func (qr *QRDecomposition) ReleaseGPU()
 ```
 ReleaseGPU releases GPU resources for the QR decomposition
+
+#### type RecomputationManager
+
+```go
+type RecomputationManager struct {
+}
+```
+
+RecomputationManager manages selective recomputation
+
+#### func  NewRecomputationManager
+
+```go
+func NewRecomputationManager() *RecomputationManager
+```
+NewRecomputationManager creates a new recomputation manager
+
+#### type RecomputationSchedule
+
+```go
+type RecomputationSchedule struct {
+}
+```
+
+RecomputationSchedule defines when to recompute
+
+#### type RecomputationStrategy
+
+```go
+type RecomputationStrategy int
+```
+
+RecomputationStrategy defines recomputation strategies
+
+```go
+const (
+	NoRecomputation RecomputationStrategy = iota
+	MemoryConstrainedRecomputation
+	ComputeOptimalRecomputation
+	HybridRecomputation
+)
+```
 
 #### type SVDDecomposition
 
@@ -2855,6 +5228,19 @@ func (svd *SVDDecomposition) ReleaseGPU()
 ```
 ReleaseGPU releases GPU resources for the SVD decomposition
 
+#### type ScalingEvent
+
+```go
+type ScalingEvent struct {
+	Timestamp      time.Time
+	ScaleFactor    float32
+	Reason         string
+	LayersAffected int
+}
+```
+
+ScalingEvent records a gradient scaling event
+
 #### type SchedulerType
 
 ```go
@@ -2871,6 +5257,33 @@ const (
 	CosineAnnealingLR
 	PolynomialLR
 	WarmupLR
+)
+```
+
+#### type SmoothingBuffer
+
+```go
+type SmoothingBuffer struct {
+}
+```
+
+SmoothingBuffer maintains smoothing history for a parameter
+
+#### type SmoothingType
+
+```go
+type SmoothingType int
+```
+
+SmoothingType represents different gradient smoothing methods
+
+```go
+const (
+	NoSmoothing SmoothingType = iota
+	MovingAverage
+	ExponentialMovingAverage
+	MedianFilter
+	GaussianFilter
 )
 ```
 
@@ -2902,6 +5315,133 @@ GetSparseMatrixInfo returns detailed information about a sparse matrix
 func (info SparseMatrixInfo) String() string
 ```
 String returns a string representation of sparse matrix info
+
+#### type StatisticalSummary
+
+```go
+type StatisticalSummary struct {
+	Mean        float32
+	Variance    float32
+	Min         float32
+	Max         float32
+	Percentiles map[int]float32 // 25th, 50th, 75th, 90th, 95th, 99th
+	Skewness    float32
+	Kurtosis    float32
+}
+```
+
+StatisticalSummary provides statistical summary of gradient values
+
+#### type StreamInfo
+
+```go
+type StreamInfo struct {
+	Source        string
+	Format        string
+	Compression   string
+	EstimatedSize int64
+	LastModified  time.Time
+}
+```
+
+StreamInfo provides information about a data stream
+
+#### type StreamProvider
+
+```go
+type StreamProvider interface {
+	NextBatch() (*BatchData, error)
+	Reset() error
+	EstimatedBatches() int
+	GetStreamInfo() StreamInfo
+}
+```
+
+StreamProvider interface for streaming data sources
+
+#### type StreamingDataLoader
+
+```go
+type StreamingDataLoader struct {
+}
+```
+
+StreamingDataLoader provides streaming data loading for large datasets
+
+#### func  NewStreamingDataLoader
+
+```go
+func NewStreamingDataLoader(config DataLoaderConfig, providers []StreamProvider) (*StreamingDataLoader, error)
+```
+NewStreamingDataLoader creates a new streaming data loader
+
+#### func (*StreamingDataLoader) GetBatch
+
+```go
+func (sdl *StreamingDataLoader) GetBatch(batchIdx int) (*tensor.Tensor, *tensor.Tensor, error)
+```
+GetBatch returns the next batch from the stream
+
+#### type SwapBuffer
+
+```go
+type SwapBuffer struct {
+}
+```
+
+SwapBuffer manages the swap buffer
+
+#### type SwapInfo
+
+```go
+type SwapInfo struct {
+}
+```
+
+SwapInfo tracks swapped tensor information
+
+#### type SwapStats
+
+```go
+type SwapStats struct {
+	TotalSwapOuts   int64
+	TotalSwapIns    int64
+	SwapOutBytes    int64
+	SwapInBytes     int64
+	PrefetchHits    int64
+	PrefetchMisses  int64
+	AverageSwapTime time.Duration
+}
+```
+
+SwapStats tracks swapping statistics
+
+#### type Task
+
+```go
+type Task struct {
+}
+```
+
+Task represents a computation task
+
+#### type TaskResult
+
+```go
+type TaskResult struct {
+}
+```
+
+TaskResult represents the result of a task
+
+#### type TaskScheduler
+
+```go
+type TaskScheduler struct {
+}
+```
+
+TaskScheduler schedules tasks for execution
 
 #### type TensorCache
 
@@ -2946,6 +5486,40 @@ GetStats returns cache statistics
 func (tc *TensorCache) Put(key string, tensor *tensor.Tensor, shape []int)
 ```
 Put adds a tensor to the cache
+
+#### type TensorType
+
+```go
+type TensorType struct {
+	Shape    []int
+	DataType DataType
+	Layout   MemoryLayout
+}
+```
+
+TensorType describes tensor characteristics
+
+#### func (TensorType) String
+
+```go
+func (tt TensorType) String() string
+```
+
+#### type ThreadPool
+
+```go
+type ThreadPool struct {
+}
+```
+
+ThreadPool manages worker threads
+
+#### func  NewThreadPool
+
+```go
+func NewThreadPool(numWorkers int) *ThreadPool
+```
+NewThreadPool creates a new thread pool
 
 #### type TrainableModel
 
@@ -3132,3 +5706,35 @@ type ValidationCallback func(epoch int, batch int, validationLoss float32) error
 ```
 
 ValidationCallback is called during validation
+
+#### type Worker
+
+```go
+type Worker struct {
+}
+```
+
+Worker represents a worker thread
+
+#### type WorkerLoad
+
+```go
+type WorkerLoad struct {
+}
+```
+
+WorkerLoad tracks worker load
+
+#### type WorkerStatistics
+
+```go
+type WorkerStatistics struct {
+	TasksCompleted     int64
+	TotalExecutionTime time.Duration
+	AverageTaskTime    time.Duration
+	ErrorCount         int64
+	IdleTime           time.Duration
+}
+```
+
+WorkerStatistics tracks worker performance

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/tsawler/go-nngpu/gpu/optimizer"
@@ -20,6 +21,12 @@ type CheckpointManager struct {
 	saveScheduler  bool
 	compression    bool
 	checksumVerify bool
+	checkpoints        map[*GradientTensor]*CheckpointData // Stores actual checkpoints
+	strategy           CheckpointingStrategy               // Checkpointing strategy
+	checkpointingRatio float32                           // Fraction of layers to checkpoint
+	currentMemoryUsage int64                               // Tracks memory used by checkpoints
+	memoryBudget       int64                               // Memory budget for checkpoints
+	mutex              sync.RWMutex                        // Mutex for concurrent access
 }
 
 // Checkpoint represents a training checkpoint

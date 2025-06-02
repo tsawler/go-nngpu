@@ -1,80 +1,37 @@
 package matrix
 
+/*
+#cgo LDFLAGS: -framework Metal -framework MetalPerformanceShaders -framework Foundation -framework Accelerate
+#include <stdlib.h>
+#include "../../internal/cgo/metal_bridge.h"
+*/
+import "C"
+
 import (
 	"fmt"
 	"math/rand"
-	"runtime"
 	"sync"
 	"time"
 
 	"github.com/tsawler/go-nngpu/tensor"
 )
 
-// DataLoader interface for efficient data loading
-type DataLoader interface {
-	GetBatch(batchIdx int) (*tensor.Tensor, *tensor.Tensor, error)
-	BatchCount() int
-	Shuffle() error
-	Reset() error
-	SetBatchSize(batchSize int)
-	GetDatasetSize() int
-}
+// Enhanced data loading implementations with memory efficiency and async loading
 
-// Dataset interface for data sources
-type Dataset interface {
-	GetItem(index int) (*tensor.Tensor, *tensor.Tensor, error)
-	Len() int
-	GetShape() ([]int, []int) // input shape, target shape
-}
-
-// MemoryDataLoader loads data efficiently with memory optimization
-type MemoryDataLoader struct {
-	dataset        Dataset
-	batchSize      int
-	shuffle        bool
-	dropLast       bool
-	numWorkers     int
-	prefetchFactor int
-	
-	// Internal state
-	indices        []int
-	currentEpoch   int
-	batchCache     map[int]*CachedBatch
-	prefetchQueue  chan *PrefetchedBatch
-	memoryPool     *GPUMemoryPool
-	tensorCache    *TensorCache
-	
-	// Async loading
-	workers        []*DataWorker
-	workerPool     chan *DataWorker
-	loadQueue      chan *LoadRequest
-	
-	// Synchronization
-	mutex          sync.RWMutex
-	wg             sync.WaitGroup
-	stopChan       chan bool
-	active         bool
-	
-	// Statistics
-	stats          DataLoaderStats
-}
-
-// CachedBatch represents a cached batch of data
-type CachedBatch struct {
-	inputs     *tensor.Tensor
-	targets    *tensor.Tensor
-	batchIdx   int
-	created    time.Time
-	accessed   time.Time
-	useCount   int64
-}
-
-// PrefetchedBatch represents a prefetched batch
-type PrefetchedBatch struct {
-	inputs   *tensor.Tensor
-	targets  *tensor.Tensor
-	batchIdx int
-	error    error
+// AsyncDataLoader provides asynchronous data loading with prefetching
+type AsyncDataLoader struct {
+	dataset       Dataset
+	config        DataLoaderConfig
+	batchQueue    chan *BatchData
+	prefetchQueue chan *PrefetchTask
+	workers       []*DataWorker
+	currentEpoch  int
+	currentBatch  int
+	indices       []int
+	stats         DataLoaderStats
+	mutex         sync.RWMutex
+	stopChan      chan struct{}
+	running       bool
 }
 
 // DataWorker handles async data loading
@@ -85,7 +42,10 @@ type DataWorker struct {
 	cache      *TensorCache
 	active     bool
 	loadChan   chan *LoadRequest
-	resultChan chan *PrefetchedBatch
+	resultChan chan *BatchData
+	loader     *AsyncDataLoader // Add this field
+	taskChan   chan *PrefetchTask // Add this field
+	stopChan   chan struct{}      // Add this field
 }
 
 // LoadRequest represents a data loading request
@@ -95,88 +55,40 @@ type LoadRequest struct {
 	resultChan chan *PrefetchedBatch
 }
 
-// DataLoaderStats tracks data loading performance
-type DataLoaderStats struct {
-	TotalBatches      int64
-	CacheHits         int64
-	CacheMisses       int64
-	LoadTime          time.Duration
-	AverageLoadTime   time.Duration
-	PrefetchHits      int64
-	MemoryUsage       int64
-	WorkerUtilization []float32
+// PrefetchedBatch represents a prefetched batch
+type PrefetchedBatch struct {
+	inputs   *tensor.Tensor
+	targets  *tensor.Tensor
+	batchIdx int
+	error    error
 }
 
-// NewMemoryDataLoader creates a new memory-efficient data loader
-func NewMemoryDataLoader(dataset Dataset, config DataLoaderConfig) (*MemoryDataLoader, error) {
-	if dataset == nil {
-		return nil, fmt.Errorf("dataset cannot be nil")
-	}
-	
-	if config.BatchSize <= 0 {
-		config.BatchSize = 32
-	}
-	
-	if config.NumWorkers <= 0 {
-		config.NumWorkers = runtime.NumCPU()
-	}
-	
-	if config.PrefetchFactor <= 0 {
-		config.PrefetchFactor = 2
-	}
-	
-	// Create memory pool if not provided
-	var memPool *GPUMemoryPool
-	var err error
-	if config.MemoryPool != nil {
-		memPool = config.MemoryPool
-	} else {
-		memPool, err = NewGPUMemoryPool(config.MaxMemoryUsage)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create memory pool: %w", err)
-		}
-	}
-	
-	// Create tensor cache if not provided
-	var cache *TensorCache
-	if config.TensorCache != nil {
-		cache = config.TensorCache
-	} else {
-		cache = NewTensorCache(config.CacheSize)
-	}
-	
-	loader := &MemoryDataLoader{
-		dataset:        dataset,
-		batchSize:      config.BatchSize,
-		shuffle:        config.Shuffle,
-		dropLast:       config.DropLast,
-		numWorkers:     config.NumWorkers,
-		prefetchFactor: config.PrefetchFactor,
-		batchCache:     make(map[int]*CachedBatch),
-		prefetchQueue:  make(chan *PrefetchedBatch, config.NumWorkers*config.PrefetchFactor),
-		memoryPool:     memPool,
-		tensorCache:    cache,
-		workerPool:     make(chan *DataWorker, config.NumWorkers),
-		loadQueue:      make(chan *LoadRequest, config.NumWorkers*2),
-		stopChan:       make(chan bool),
-		stats:          DataLoaderStats{
-			WorkerUtilization: make([]float32, config.NumWorkers),
-		},
-	}
-	
-	// Initialize indices
-	err = loader.initializeIndices()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize indices: %w", err)
-	}
-	
-	// Start workers
-	err = loader.startWorkers()
-	if err != nil {
-		return nil, fmt.Errorf("failed to start workers: %w", err)
-	}
-	
-	return loader, nil
+// BatchData represents a loaded batch with metadata
+type BatchData struct {
+	inputs     *tensor.Tensor
+	targets    *tensor.Tensor
+	batchIndex int
+	loadTime   time.Duration
+	fromCache  bool
+	metadata   map[string]interface{}
+}
+
+// PrefetchTask represents a prefetching task
+type PrefetchTask struct {
+	batchIndex int
+	priority   int
+	requiredBy time.Time
+	retryCount int
+}
+
+// DataLoader interface for efficient data loading
+type DataLoader interface {
+	GetBatch(batchIdx int) (*tensor.Tensor, *tensor.Tensor, error)
+	BatchCount() int
+	Shuffle() error
+	Reset() error
+	SetBatchSize(batchSize int)
+	GetDatasetSize() int
 }
 
 // DataLoaderConfig contains configuration for data loader
@@ -192,656 +104,759 @@ type DataLoaderConfig struct {
 	TensorCache     *TensorCache
 }
 
-// GetBatch returns a batch of data
-func (dl *MemoryDataLoader) GetBatch(batchIdx int) (*tensor.Tensor, *tensor.Tensor, error) {
-	startTime := time.Now()
-	defer func() {
-		dl.stats.LoadTime += time.Since(startTime)
-		dl.stats.TotalBatches++
-		if dl.stats.TotalBatches > 0 {
-			dl.stats.AverageLoadTime = dl.stats.LoadTime / time.Duration(dl.stats.TotalBatches)
-		}
-	}()
-	
-	// Check cache first
-	dl.mutex.RLock()
-	if cached, exists := dl.batchCache[batchIdx]; exists {
-		cached.accessed = time.Now()
-		cached.useCount++
-		dl.mutex.RUnlock()
-		dl.stats.CacheHits++
-		return cached.inputs, cached.targets, nil
-	}
-	dl.mutex.RUnlock()
-	
-	// Check prefetch queue
-	select {
-	case prefetched := <-dl.prefetchQueue:
-		if prefetched.batchIdx == batchIdx {
-			dl.stats.PrefetchHits++
-			if prefetched.error != nil {
-				return nil, nil, prefetched.error
-			}
-			
-			// Cache the batch
-			dl.cacheBatch(batchIdx, prefetched.inputs, prefetched.targets)
-			return prefetched.inputs, prefetched.targets, nil
-		}
-		// Put it back if it's a different batch
-		dl.prefetchQueue <- prefetched
-	default:
-		// No prefetched batch available
-	}
-	
-	// Load synchronously
-	dl.stats.CacheMisses++
-	return dl.loadBatchSync(batchIdx)
+// StreamingDataLoader provides streaming data loading for large datasets
+type StreamingDataLoader struct {
+	config          DataLoaderConfig
+	streamProviders []StreamProvider
+	bufferPool      *BufferPool
+	currentStream   int
+	stats           DataLoaderStats
+	mutex           sync.RWMutex
 }
 
-// loadBatchSync loads a batch synchronously
-func (dl *MemoryDataLoader) loadBatchSync(batchIdx int) (*tensor.Tensor, *tensor.Tensor, error) {
-	batchIndices := dl.getBatchIndices(batchIdx)
-	if len(batchIndices) == 0 {
-		return nil, nil, fmt.Errorf("invalid batch index: %d", batchIdx)
-	}
-	
-	// Get sample shapes
-	inputShape, targetShape := dl.dataset.GetShape()
-	
-	// Calculate batch shapes
-	batchInputShape := append([]int{len(batchIndices)}, inputShape...)
-	batchTargetShape := append([]int{len(batchIndices)}, targetShape...)
-	
-	// Allocate batch tensors
-	inputSize := 1
-	for _, dim := range batchInputShape {
-		inputSize *= dim
-	}
-	targetSize := 1
-	for _, dim := range batchTargetShape {
-		targetSize *= dim
-	}
-	
-	inputData := make([]float32, inputSize)
-	targetData := make([]float32, targetSize)
-	
-	batchInputs, err := tensor.NewTensor(batchInputShape, inputData)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create batch input tensor: %w", err)
-	}
-	
-	batchTargets, err := tensor.NewTensor(batchTargetShape, targetData)
-	if err != nil {
-		batchInputs.ReleaseGPU()
-		return nil, nil, fmt.Errorf("failed to create batch target tensor: %w", err)
-	}
-	
-	// Load individual samples
-	inputOffset := 0
-	targetOffset := 0
-	inputStride := inputSize / len(batchIndices)
-	targetStride := targetSize / len(batchIndices)
-	
-	for _, idx := range batchIndices {
-		input, target, err := dl.dataset.GetItem(idx)
-		if err != nil {
-			batchInputs.ReleaseGPU()
-			batchTargets.ReleaseGPU()
-			return nil, nil, fmt.Errorf("failed to get item %d: %w", idx, err)
-		}
-		
-		// Copy input data
-		if err := input.RetrieveCPU(); err != nil {
-			input.ReleaseGPU()
-			target.ReleaseGPU()
-			batchInputs.ReleaseGPU()
-			batchTargets.ReleaseGPU()
-			return nil, nil, fmt.Errorf("failed to retrieve input to CPU: %w", err)
-		}
-		
-		copy(batchInputs.Data[inputOffset:inputOffset+len(input.Data)], input.Data)
-		inputOffset += inputStride
-		
-		// Copy target data
-		if err := target.RetrieveCPU(); err != nil {
-			input.ReleaseGPU()
-			target.ReleaseGPU()
-			batchInputs.ReleaseGPU()
-			batchTargets.ReleaseGPU()
-			return nil, nil, fmt.Errorf("failed to retrieve target to CPU: %w", err)
-		}
-		
-		copy(batchTargets.Data[targetOffset:targetOffset+len(target.Data)], target.Data)
-		targetOffset += targetStride
-		
-		// Release individual tensors
-		input.ReleaseGPU()
-		target.ReleaseGPU()
-	}
-	
-	// Move to GPU
-	if err := batchInputs.EnsureGPU(); err != nil {
-		batchInputs.ReleaseGPU()
-		batchTargets.ReleaseGPU()
-		return nil, nil, fmt.Errorf("failed to move batch inputs to GPU: %w", err)
-	}
-	
-	if err := batchTargets.EnsureGPU(); err != nil {
-		batchInputs.ReleaseGPU()
-		batchTargets.ReleaseGPU()
-		return nil, nil, fmt.Errorf("failed to move batch targets to GPU: %w", err)
-	}
-	
-	// Cache the batch
-	dl.cacheBatch(batchIdx, batchInputs, batchTargets)
-	
-	return batchInputs, batchTargets, nil
+// DataLoaderStats tracks data loading performance
+type DataLoaderStats struct {
+	TotalBatches      int64
+	CacheHits         int64
+	CacheMisses       int64
+	LoadTime          time.Duration
+	AverageLoadTime   time.Duration
+	PrefetchHits      int64
+	MemoryUsage       int64
+	WorkerUtilization []float32
 }
 
-// getBatchIndices returns the indices for a specific batch
-func (dl *MemoryDataLoader) getBatchIndices(batchIdx int) []int {
-	dl.mutex.RLock()
-	defer dl.mutex.RUnlock()
-	
-	start := batchIdx * dl.batchSize
-	end := start + dl.batchSize
-	
-	if start >= len(dl.indices) {
-		return nil
-	}
-	
-	if end > len(dl.indices) {
-		if dl.dropLast {
-			return nil
-		}
-		end = len(dl.indices)
-	}
-	
-	return dl.indices[start:end]
+// StreamProvider interface for streaming data sources
+type StreamProvider interface {
+	NextBatch() (*BatchData, error)
+	Reset() error
+	EstimatedBatches() int
+	GetStreamInfo() StreamInfo
 }
 
-// cacheBatch adds a batch to the cache
-func (dl *MemoryDataLoader) cacheBatch(batchIdx int, inputs, targets *tensor.Tensor) {
-	dl.mutex.Lock()
-	defer dl.mutex.Unlock()
-	
-	// Check cache size limit
-	maxCacheSize := 100 // Maximum number of cached batches
-	if len(dl.batchCache) >= maxCacheSize {
-		// Remove oldest cached batch
-		var oldestIdx int
-		var oldestTime time.Time = time.Now()
-		
-		for idx, cached := range dl.batchCache {
-			if cached.accessed.Before(oldestTime) {
-				oldestTime = cached.accessed
-				oldestIdx = idx
-			}
-		}
-		
-		if oldest, exists := dl.batchCache[oldestIdx]; exists {
-			oldest.inputs.ReleaseGPU()
-			oldest.targets.ReleaseGPU()
-			delete(dl.batchCache, oldestIdx)
-		}
-	}
-	
-	dl.batchCache[batchIdx] = &CachedBatch{
-		inputs:   inputs,
-		targets:  targets,
-		batchIdx: batchIdx,
-		created:  time.Now(),
-		accessed: time.Now(),
-		useCount: 1,
-	}
+// StreamInfo provides information about a data stream
+type StreamInfo struct {
+	Source        string
+	Format        string
+	Compression   string
+	EstimatedSize int64
+	LastModified  time.Time
 }
 
-// BatchCount returns the number of batches in the dataset
-func (dl *MemoryDataLoader) BatchCount() int {
-	dl.mutex.RLock()
-	defer dl.mutex.RUnlock()
-	
-	datasetSize := len(dl.indices)
-	if dl.dropLast {
-		return datasetSize / dl.batchSize
-	}
-	return (datasetSize + dl.batchSize - 1) / dl.batchSize
+// BufferPool manages reusable tensor buffers
+type BufferPool struct {
+	buffers    map[string][]*tensor.Tensor
+	maxBuffers int
+	mutex      sync.RWMutex
 }
 
-// Shuffle shuffles the dataset indices
-func (dl *MemoryDataLoader) Shuffle() error {
-	if !dl.shuffle {
-		return nil
-	}
-	
-	dl.mutex.Lock()
-	defer dl.mutex.Unlock()
-	
-	// Clear cache when shuffling
-	for _, cached := range dl.batchCache {
-		cached.inputs.ReleaseGPU()
-		cached.targets.ReleaseGPU()
-	}
-	dl.batchCache = make(map[int]*CachedBatch)
-	
-	// Shuffle indices
-	rand.Seed(time.Now().UnixNano())
-	for i := len(dl.indices) - 1; i > 0; i-- {
-		j := rand.Intn(i + 1)
-		dl.indices[i], dl.indices[j] = dl.indices[j], dl.indices[i]
-	}
-	
-	dl.currentEpoch++
-	return nil
+// DistributedDataLoader handles distributed data loading across multiple GPUs/nodes
+type DistributedDataLoader struct {
+	config      DataLoaderConfig
+	nodeRank    int
+	worldSize   int
+	localLoader DataLoader
+	coordinator *DistributedCoordinator
+	stats       DataLoaderStats
 }
 
-// Reset resets the data loader state
-func (dl *MemoryDataLoader) Reset() error {
-	dl.mutex.Lock()
-	defer dl.mutex.Unlock()
-	
-	// Clear cache
-	for _, cached := range dl.batchCache {
-		cached.inputs.ReleaseGPU()
-		cached.targets.ReleaseGPU()
-	}
-	dl.batchCache = make(map[int]*CachedBatch)
-	
-	// Clear prefetch queue
-	for len(dl.prefetchQueue) > 0 {
-		prefetched := <-dl.prefetchQueue
-		if prefetched.inputs != nil {
-			prefetched.inputs.ReleaseGPU()
-		}
-		if prefetched.targets != nil {
-			prefetched.targets.ReleaseGPU()
-		}
-	}
-	
-	return dl.initializeIndices()
+// DistributedCoordinator coordinates data loading across distributed nodes
+type DistributedCoordinator struct {
+	nodes        []NodeInfo
+	currentNode  int
+	shardMapping map[int][]int // node -> shard indices
+	mutex        sync.RWMutex
 }
 
-// SetBatchSize sets the batch size
-func (dl *MemoryDataLoader) SetBatchSize(batchSize int) {
-	dl.mutex.Lock()
-	defer dl.mutex.Unlock()
-	
-	dl.batchSize = batchSize
-	
-	// Clear cache since batch structure changed
-	for _, cached := range dl.batchCache {
-		cached.inputs.ReleaseGPU()
-		cached.targets.ReleaseGPU()
-	}
-	dl.batchCache = make(map[int]*CachedBatch)
+
+// NodeInfo represents information about a distributed node
+type NodeInfo struct {
+	NodeID    int
+	Address   string
+	GPUCount  int
+	Available bool
+	LastSeen  time.Time
 }
 
-// GetDatasetSize returns the size of the dataset
-func (dl *MemoryDataLoader) GetDatasetSize() int {
-	return dl.dataset.Len()
+// Dataset interface for data sources
+type Dataset interface {
+	GetItem(index int) (*tensor.Tensor, *tensor.Tensor, error)
+	Len() int
+	GetShape() ([]int, []int) // input shape, target shape
 }
 
-// initializeIndices creates the initial index sequence
-func (dl *MemoryDataLoader) initializeIndices() error {
-	datasetSize := dl.dataset.Len()
-	dl.indices = make([]int, datasetSize)
-	for i := 0; i < datasetSize; i++ {
-		dl.indices[i] = i
+// NewAsyncDataLoader creates a new asynchronous data loader
+func NewAsyncDataLoader(dataset Dataset, config DataLoaderConfig) (*AsyncDataLoader, error) {
+	if dataset == nil {
+		return nil, fmt.Errorf("dataset cannot be nil")
 	}
-	
-	if dl.shuffle {
-		rand.Seed(time.Now().UnixNano())
-		for i := len(dl.indices) - 1; i > 0; i-- {
-			j := rand.Intn(i + 1)
-			dl.indices[i], dl.indices[j] = dl.indices[j], dl.indices[i]
-		}
-	}
-	
-	return nil
-}
 
-// startWorkers starts the background worker goroutines
-func (dl *MemoryDataLoader) startWorkers() error {
-	dl.workers = make([]*DataWorker, dl.numWorkers)
-	
-	for i := 0; i < dl.numWorkers; i++ {
+	loader := &AsyncDataLoader{
+		dataset:       dataset,
+		config:        config,
+		batchQueue:    make(chan *BatchData, config.PrefetchFactor),
+		prefetchQueue: make(chan *PrefetchTask, config.PrefetchFactor*2),
+		workers:       make([]*DataWorker, config.NumWorkers),
+		indices:       make([]int, dataset.Len()),
+		stopChan:      make(chan struct{}),
+		running:       false,
+	}
+
+	// Initialize indices
+	for i := 0; i < dataset.Len(); i++ {
+		loader.indices[i] = i
+	}
+
+	// Create workers
+	for i := 0; i < config.NumWorkers; i++ {
 		worker := &DataWorker{
 			id:         i,
-			dataset:    dl.dataset,
-			memPool:    dl.memoryPool,
-			cache:      dl.tensorCache,
-			active:     true,
-			loadChan:   make(chan *LoadRequest, 1),
-			resultChan: make(chan *PrefetchedBatch, 1),
+			loader:     loader,
+			taskChan:   make(chan *PrefetchTask, 10),
+			resultChan: make(chan *BatchData, 5),
+			stopChan:   make(chan struct{}),
 		}
-		
-		dl.workers[i] = worker
-		dl.workerPool <- worker
-		
-		dl.wg.Add(1)
-		go dl.runWorker(worker)
+		loader.workers[i] = worker
 	}
-	
-	dl.active = true
-	
-	// Start prefetch manager
-	dl.wg.Add(1)
-	go dl.runPrefetchManager()
-	
+
+	return loader, nil
+}
+
+// Start begins asynchronous data loading
+func (adl *AsyncDataLoader) Start() error {
+	adl.mutex.Lock()
+	defer adl.mutex.Unlock()
+
+	if adl.running {
+		return fmt.Errorf("data loader is already running")
+	}
+
+	adl.running = true
+
+	// Start workers
+	for _, worker := range adl.workers {
+		go worker.run()
+	}
+
+	// Start prefetch coordinator
+	go adl.runPrefetchCoordinator()
+
+	// Start batch collector
+	go adl.runBatchCollector()
+
 	return nil
 }
 
-// runWorker runs a data loading worker
-func (dl *MemoryDataLoader) runWorker(worker *DataWorker) {
-	defer dl.wg.Done()
-	
+// Stop stops the asynchronous data loading
+func (adl *AsyncDataLoader) Stop() {
+	adl.mutex.Lock()
+	defer adl.mutex.Unlock()
+
+	if !adl.running {
+		return
+	}
+
+	adl.running = false
+	close(adl.stopChan)
+
+	// Stop workers
+	for _, worker := range adl.workers {
+		close(worker.stopChan)
+	}
+}
+
+// GetBatch returns the next batch (implements DataLoader interface)
+func (adl *AsyncDataLoader) GetBatch(batchIdx int) (*tensor.Tensor, *tensor.Tensor, error) {
+	if !adl.running {
+		err := adl.Start()
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to start async loader: %w", err)
+		}
+	}
+
+	// Try to get from cache first
+	if adl.config.TensorCache != nil {
+		cacheKey := fmt.Sprintf("batch_%d_epoch_%d", batchIdx, adl.currentEpoch)
+		if cachedBatch := adl.getCachedBatch(cacheKey); cachedBatch != nil {
+			adl.updateStats(true, cachedBatch.loadTime)
+			return cachedBatch.inputs, cachedBatch.targets, nil
+		}
+	}
+
+	// Schedule prefetch for this batch if not already done
+	adl.schedulePrefetch(batchIdx, 1)
+
+	// Wait for batch to be ready
+	select {
+	case batch := <-adl.batchQueue:
+		if batch.batchIndex == batchIdx {
+			adl.updateStats(batch.fromCache, batch.loadTime)
+			return batch.inputs, batch.targets, nil
+		} else {
+			// Wrong batch, put it back and try again
+			adl.batchQueue <- batch
+			return adl.loadBatchDirect(batchIdx)
+		}
+	case <-time.After(time.Second * 10):
+		// Timeout, fall back to direct loading
+		return adl.loadBatchDirect(batchIdx)
+	}
+}
+
+// BatchCount returns the number of batches (implements DataLoader interface)
+func (adl *AsyncDataLoader) BatchCount() int {
+	datasetSize := adl.dataset.Len()
+	batchCount := datasetSize / adl.config.BatchSize
+	if adl.config.DropLast {
+		return batchCount
+	}
+	if datasetSize%adl.config.BatchSize != 0 {
+		batchCount++
+	}
+	return batchCount
+}
+
+// Shuffle shuffles the dataset indices (implements DataLoader interface)
+func (adl *AsyncDataLoader) Shuffle() error {
+	adl.mutex.Lock()
+	defer adl.mutex.Unlock()
+
+	if adl.config.Shuffle {
+		rand.Shuffle(len(adl.indices), func(i, j int) {
+			adl.indices[i], adl.indices[j] = adl.indices[j], adl.indices[i]
+		})
+	}
+
+	return nil
+}
+
+// Reset resets the data loader state (implements DataLoader interface)
+func (adl *AsyncDataLoader) Reset() error {
+	adl.mutex.Lock()
+	defer adl.mutex.Unlock()
+
+	adl.currentBatch = 0
+	adl.currentEpoch++
+
+	// Clear batch queue
+	for len(adl.batchQueue) > 0 {
+		batch := <-adl.batchQueue
+		batch.inputs.ReleaseGPU()
+		batch.targets.ReleaseGPU()
+	}
+
+	return adl.Shuffle()
+}
+
+// SetBatchSize sets the batch size (implements DataLoader interface)
+func (adl *AsyncDataLoader) SetBatchSize(batchSize int) {
+	adl.mutex.Lock()
+	defer adl.mutex.Unlock()
+	adl.config.BatchSize = batchSize
+}
+
+// GetDatasetSize returns the dataset size (implements DataLoader interface)
+func (adl *AsyncDataLoader) GetDatasetSize() int {
+	return adl.dataset.Len()
+}
+
+// GetStats returns data loader statistics
+func (adl *AsyncDataLoader) GetStats() DataLoaderStats {
+	adl.mutex.RLock()
+	defer adl.mutex.RUnlock()
+	return adl.stats
+}
+
+// Private methods for AsyncDataLoader
+
+func (adl *AsyncDataLoader) runPrefetchCoordinator() {
+	ticker := time.NewTicker(time.Millisecond * 100)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case req := <-dl.loadQueue:
-			if req == nil {
-				return
-			}
-			
-			startTime := time.Now()
-			inputs, targets, err := dl.loadBatchSync(req.batchIdx)
-			loadTime := time.Since(startTime)
-			
-			result := &PrefetchedBatch{
-				inputs:   inputs,
-				targets:  targets,
-				batchIdx: req.batchIdx,
-				error:    err,
-			}
-			
-			// Update worker utilization
-			dl.mutex.Lock()
-			if worker.id < len(dl.stats.WorkerUtilization) {
-				// Simple utilization metric based on load time
-				utilization := float32(loadTime.Nanoseconds()) / float32(time.Millisecond.Nanoseconds())
-				dl.stats.WorkerUtilization[worker.id] = utilization
-			}
-			dl.mutex.Unlock()
-			
-			select {
-			case req.resultChan <- result:
-			case <-dl.stopChan:
-				return
-			}
-			
-		case <-dl.stopChan:
+		case <-adl.stopChan:
 			return
+		case <-ticker.C:
+			adl.coordinatePrefetching()
+		case task := <-adl.prefetchQueue:
+			adl.assignTaskToWorker(task)
 		}
 	}
 }
 
-// runPrefetchManager manages prefetching of batches
-func (dl *MemoryDataLoader) runPrefetchManager() {
-	defer dl.wg.Done()
-	
+func (adl *AsyncDataLoader) runBatchCollector() {
 	for {
 		select {
-		case <-dl.stopChan:
+		case <-adl.stopChan:
 			return
 		default:
-			// Check if we need to prefetch more batches
-			if len(dl.prefetchQueue) < dl.prefetchFactor {
-				// Find next batch to prefetch
-				batchCount := dl.BatchCount()
-				for batchIdx := 0; batchIdx < batchCount; batchIdx++ {
-					// Check if already cached or in prefetch queue
-					dl.mutex.RLock()
-					_, cached := dl.batchCache[batchIdx]
-					dl.mutex.RUnlock()
-					
-					if !cached && !dl.isInPrefetchQueue(batchIdx) {
-						// Request prefetch
-						resultChan := make(chan *PrefetchedBatch, 1)
-						req := &LoadRequest{
-							batchIdx:   batchIdx,
-							indices:    dl.getBatchIndices(batchIdx),
-							resultChan: resultChan,
-						}
-						
-						select {
-						case dl.loadQueue <- req:
-							// Wait for result and add to prefetch queue
-							go func() {
-								select {
-								case result := <-resultChan:
-									select {
-									case dl.prefetchQueue <- result:
-									case <-dl.stopChan:
-										// Clean up if stopping
-										if result.inputs != nil {
-											result.inputs.ReleaseGPU()
-										}
-										if result.targets != nil {
-											result.targets.ReleaseGPU()
-										}
-									}
-								case <-dl.stopChan:
-									return
-								}
-							}()
-						default:
-							// Worker queue full, try again later
-						}
-						break
-					}
+			// Collect results from workers
+			for _, worker := range adl.workers {
+				select {
+				case batch := <-worker.resultChan:
+					adl.batchQueue <- batch
+				default:
+					// No batch ready from this worker
 				}
 			}
-			
-			// Sleep briefly to avoid busy waiting
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(time.Millisecond * 10)
 		}
 	}
 }
 
-// isInPrefetchQueue checks if a batch is already in the prefetch queue
-func (dl *MemoryDataLoader) isInPrefetchQueue(batchIdx int) bool {
-	// This is a simplified check - in practice you might want a more efficient implementation
-	tempQueue := make([]*PrefetchedBatch, 0, len(dl.prefetchQueue))
+func (adl *AsyncDataLoader) coordinatePrefetching() {
+	// Schedule prefetching for upcoming batches
+	batchCount := adl.BatchCount()
+
+	for i := 0; i < adl.config.PrefetchFactor; i++ {
+		nextBatch := (adl.currentBatch + i) % batchCount
+		if !adl.isBatchInQueue(nextBatch) {
+			adl.schedulePrefetch(nextBatch, 5-i) // Higher priority for closer batches
+		}
+	}
+}
+
+func (adl *AsyncDataLoader) schedulePrefetch(batchIdx, priority int) {
+	task := &PrefetchTask{
+		batchIndex: batchIdx,
+		priority:   priority,
+		requiredBy: time.Now().Add(time.Second * 5),
+		retryCount: 0,
+	}
+
+	select {
+	case adl.prefetchQueue <- task:
+		// Task scheduled successfully
+	default:
+		// Queue full, skip this prefetch
+	}
+}
+
+func (adl *AsyncDataLoader) assignTaskToWorker(task *PrefetchTask) {
+	// Simple round-robin assignment
+	workerID := task.batchIndex % len(adl.workers)
+	worker := adl.workers[workerID]
+
+	select {
+	case worker.taskChan <- task:
+		// Task assigned successfully
+	default:
+		// Worker busy, try next worker
+		nextWorker := adl.workers[(workerID+1)%len(adl.workers)]
+		select {
+		case nextWorker.taskChan <- task:
+			// Assigned to next worker
+		default:
+			// All workers busy, drop task
+		}
+	}
+}
+
+func (adl *AsyncDataLoader) isBatchInQueue(batchIdx int) bool {
+	// Check if batch is already in queue
+	tempQueue := make([]*BatchData, 0, len(adl.batchQueue))
 	found := false
-	
-	// Drain queue and check
-	for len(dl.prefetchQueue) > 0 {
-		batch := <-dl.prefetchQueue
-		if batch.batchIdx == batchIdx {
+
+	// Drain queue temporarily
+	for len(adl.batchQueue) > 0 {
+		batch := <-adl.batchQueue
+		if batch.batchIndex == batchIdx {
 			found = true
 		}
 		tempQueue = append(tempQueue, batch)
 	}
-	
+
 	// Restore queue
 	for _, batch := range tempQueue {
-		dl.prefetchQueue <- batch
+		adl.batchQueue <- batch
 	}
-	
+
 	return found
 }
 
-// GetStats returns data loader statistics
-func (dl *MemoryDataLoader) GetStats() DataLoaderStats {
-	dl.mutex.RLock()
-	defer dl.mutex.RUnlock()
-	
-	stats := dl.stats
-	stats.MemoryUsage = dl.memoryPool.GetUsage()
-	return stats
-}
+func (adl *AsyncDataLoader) loadBatchDirect(batchIdx int) (*tensor.Tensor, *tensor.Tensor, error) {
+	start := time.Now()
 
-// Stop stops the data loader and cleans up resources
-func (dl *MemoryDataLoader) Stop() {
-	dl.mutex.Lock()
-	if !dl.active {
-		dl.mutex.Unlock()
-		return
-	}
-	dl.active = false
-	dl.mutex.Unlock()
-	
-	// Signal stop to all workers
-	close(dl.stopChan)
-	
-	// Wait for workers to finish
-	dl.wg.Wait()
-	
-	// Clean up cache
-	for _, cached := range dl.batchCache {
-		cached.inputs.ReleaseGPU()
-		cached.targets.ReleaseGPU()
-	}
-	
-	// Clean up prefetch queue
-	for len(dl.prefetchQueue) > 0 {
-		prefetched := <-dl.prefetchQueue
-		if prefetched.inputs != nil {
-			prefetched.inputs.ReleaseGPU()
-		}
-		if prefetched.targets != nil {
-			prefetched.targets.ReleaseGPU()
-		}
-	}
-}
+	batchSize := adl.config.BatchSize
+	startIdx := batchIdx * batchSize
+	endIdx := startIdx + batchSize
 
-// InMemoryDataset is a simple dataset that holds all data in memory
-type InMemoryDataset struct {
-	inputs  []*tensor.Tensor
-	targets []*tensor.Tensor
-	inputShape  []int
-	targetShape []int
-}
-
-// NewInMemoryDataset creates a new in-memory dataset
-func NewInMemoryDataset(inputs, targets []*tensor.Tensor) (*InMemoryDataset, error) {
-	if len(inputs) != len(targets) {
-		return nil, fmt.Errorf("inputs and targets must have the same length")
+	if endIdx > len(adl.indices) {
+		endIdx = len(adl.indices)
 	}
-	
-	if len(inputs) == 0 {
-		return nil, fmt.Errorf("dataset cannot be empty")
+
+	actualBatchSize := endIdx - startIdx
+	if actualBatchSize == 0 {
+		return nil, nil, fmt.Errorf("empty batch")
 	}
-	
-	return &InMemoryDataset{
-		inputs:      inputs,
-		targets:     targets,
-		inputShape:  inputs[0].Shape,
-		targetShape: targets[0].Shape,
-	}, nil
-}
 
-// GetItem returns a single item from the dataset
-func (ds *InMemoryDataset) GetItem(index int) (*tensor.Tensor, *tensor.Tensor, error) {
-	if index < 0 || index >= len(ds.inputs) {
-		return nil, nil, fmt.Errorf("index out of bounds: %d", index)
+	// Get input and target shapes
+	inputShape, targetShape := adl.dataset.GetShape()
+
+	// Create batch tensors
+	batchInputShape := append([]int{actualBatchSize}, inputShape...)
+	batchTargetShape := append([]int{actualBatchSize}, targetShape...)
+
+	inputSize := actualBatchSize
+	for _, dim := range inputShape {
+		inputSize *= dim
 	}
-	
-	return ds.inputs[index], ds.targets[index], nil
-}
 
-// Len returns the size of the dataset
-func (ds *InMemoryDataset) Len() int {
-	return len(ds.inputs)
-}
-
-// GetShape returns the shape of input and target tensors
-func (ds *InMemoryDataset) GetShape() ([]int, []int) {
-	return ds.inputShape, ds.targetShape
-}
-
-// FileDataset loads data from files on demand
-type FileDataset struct {
-	inputPaths  []string
-	targetPaths []string
-	inputShape  []int
-	targetShape []int
-	transform   func(*tensor.Tensor, *tensor.Tensor) (*tensor.Tensor, *tensor.Tensor, error)
-}
-
-// NewFileDataset creates a new file-based dataset
-func NewFileDataset(inputPaths, targetPaths []string, inputShape, targetShape []int) (*FileDataset, error) {
-	if len(inputPaths) != len(targetPaths) {
-		return nil, fmt.Errorf("input and target paths must have the same length")
+	targetSize := actualBatchSize
+	for _, dim := range targetShape {
+		targetSize *= dim
 	}
-	
-	return &FileDataset{
-		inputPaths:  inputPaths,
-		targetPaths: targetPaths,
-		inputShape:  inputShape,
-		targetShape: targetShape,
-	}, nil
-}
 
-// SetTransform sets a transformation function for the data
-func (ds *FileDataset) SetTransform(transform func(*tensor.Tensor, *tensor.Tensor) (*tensor.Tensor, *tensor.Tensor, error)) {
-	ds.transform = transform
-}
+	inputData := make([]float32, inputSize)
+	targetData := make([]float32, targetSize)
 
-// GetItem loads and returns a single item from files
-func (ds *FileDataset) GetItem(index int) (*tensor.Tensor, *tensor.Tensor, error) {
-	if index < 0 || index >= len(ds.inputPaths) {
-		return nil, nil, fmt.Errorf("index out of bounds: %d", index)
-	}
-	
-	// Load input (placeholder - implement based on your file format)
-	input, err := ds.loadTensorFromFile(ds.inputPaths[index], ds.inputShape)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to load input: %w", err)
-	}
-	
-	// Load target (placeholder - implement based on your file format)
-	target, err := ds.loadTensorFromFile(ds.targetPaths[index], ds.targetShape)
-	if err != nil {
-		input.ReleaseGPU()
-		return nil, nil, fmt.Errorf("failed to load target: %w", err)
-	}
-	
-	// Apply transform if set
-	if ds.transform != nil {
-		transformedInput, transformedTarget, err := ds.transform(input, target)
+	// Load batch data
+	for i := 0; i < actualBatchSize; i++ {
+		dataIdx := adl.indices[startIdx+i]
+
+		input, target, err := adl.dataset.GetItem(dataIdx)
 		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get item %d: %w", dataIdx, err)
+		}
+
+		// Ensure data is on CPU for copying
+		if err := input.RetrieveCPU(); err != nil {
 			input.ReleaseGPU()
 			target.ReleaseGPU()
-			return nil, nil, fmt.Errorf("transform failed: %w", err)
+			return nil, nil, fmt.Errorf("failed to retrieve input to CPU: %w", err)
 		}
-		
-		// Release original tensors if they were replaced
-		if transformedInput != input {
+
+		if err := target.RetrieveCPU(); err != nil {
 			input.ReleaseGPU()
-		}
-		if transformedTarget != target {
 			target.ReleaseGPU()
+			return nil, nil, fmt.Errorf("failed to retrieve target to CPU: %w", err)
 		}
-		
-		return transformedInput, transformedTarget, nil
+
+		// Copy data
+		inputOffset := i * len(input.Data)
+		targetOffset := i * len(target.Data)
+
+		copy(inputData[inputOffset:inputOffset+len(input.Data)], input.Data)
+		copy(targetData[targetOffset:targetOffset+len(target.Data)], target.Data)
+
+		// Release individual tensors
+		input.ReleaseGPU()
+		target.ReleaseGPU()
 	}
-	
-	return input, target, nil
+
+	// Create batch tensors
+	batchInputs, err := tensor.NewTensor(batchInputShape, inputData)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create batch inputs: %w", err)
+	}
+
+	batchTargets, err := tensor.NewTensor(batchTargetShape, targetData)
+	if err != nil {
+		batchInputs.ReleaseGPU()
+		return nil, nil, fmt.Errorf("failed to create batch targets: %w", err)
+	}
+
+	loadTime := time.Since(start)
+	adl.updateStats(false, loadTime)
+
+	return batchInputs, batchTargets, nil
 }
 
-// loadTensorFromFile loads a tensor from a file (placeholder implementation)
-func (ds *FileDataset) loadTensorFromFile(path string, shape []int) (*tensor.Tensor, error) {
-	// This is a placeholder implementation
-	// In practice, you would implement file loading based on your data format
-	// (e.g., binary files, images, etc.)
-	
+func (adl *AsyncDataLoader) getCachedBatch(cacheKey string) *BatchData {
+	if adl.config.TensorCache == nil {
+		return nil
+	}
+
+	// Try to get from cache
+	inputShape, targetShape := adl.dataset.GetShape()
+	batchInputShape := append([]int{adl.config.BatchSize}, inputShape...)
+	batchTargetShape := append([]int{adl.config.BatchSize}, targetShape...)
+
+	inputs, err := adl.config.TensorCache.Get(cacheKey+"_inputs", batchInputShape, func() (*tensor.Tensor, error) {
+		return nil, fmt.Errorf("not in cache")
+	})
+	if err != nil {
+		return nil
+	}
+
+	targets, err := adl.config.TensorCache.Get(cacheKey+"_targets", batchTargetShape, func() (*tensor.Tensor, error) {
+		return nil, fmt.Errorf("not in cache")
+	})
+	if err != nil {
+		return nil
+	}
+
+	return &BatchData{
+		inputs:    inputs,
+		targets:   targets,
+		fromCache: true,
+		loadTime:  0,
+	}
+}
+
+func (adl *AsyncDataLoader) updateStats(fromCache bool, loadTime time.Duration) {
+	adl.mutex.Lock()
+	defer adl.mutex.Unlock()
+
+	adl.stats.TotalBatches++
+	adl.stats.LoadTime += loadTime
+
+	if adl.stats.TotalBatches > 0 {
+		adl.stats.AverageLoadTime = adl.stats.LoadTime / time.Duration(adl.stats.TotalBatches)
+	}
+
+	if fromCache {
+		adl.stats.CacheHits++
+	} else {
+		adl.stats.CacheMisses++
+	}
+}
+
+// DataWorker implementation
+
+func (dw *DataWorker) run() {
+	for {
+		select {
+		case <-dw.stopChan:
+			return
+		case task := <-dw.taskChan:
+			batch, err := dw.processBatch(task)
+			if err != nil {
+				// Retry if possible
+				if task.retryCount < 3 {
+					task.retryCount++
+					time.Sleep(time.Millisecond * 100)
+					dw.taskChan <- task
+				}
+				continue
+			}
+
+			// Try to send result
+			select {
+			case dw.resultChan <- batch:
+				// Result sent successfully
+			case <-time.After(time.Second):
+				// Timeout, discard batch to prevent memory leak
+				batch.inputs.ReleaseGPU()
+				batch.targets.ReleaseGPU()
+			}
+		}
+	}
+}
+
+func (dw *DataWorker) processBatch(task *PrefetchTask) (*BatchData, error) {
+	start := time.Now()
+
+	// Use the loader's direct batch loading method
+	inputs, targets, err := dw.loader.loadBatchDirect(task.batchIndex)
+	if err != nil {
+		return nil, err
+	}
+
+	batch := &BatchData{
+		inputs:     inputs,
+		targets:    targets,
+		batchIndex: task.batchIndex,
+		loadTime:   time.Since(start),
+		fromCache:  false,
+		metadata:   make(map[string]interface{}),
+	}
+
+	return batch, nil
+}
+
+// NewStreamingDataLoader creates a new streaming data loader
+func NewStreamingDataLoader(config DataLoaderConfig, providers []StreamProvider) (*StreamingDataLoader, error) {
+	if len(providers) == 0 {
+		return nil, fmt.Errorf("at least one stream provider is required")
+	}
+
+	loader := &StreamingDataLoader{
+		config:          config,
+		streamProviders: providers,
+		bufferPool:      NewBufferPool(config.MaxMemoryUsage),
+		currentStream:   0,
+	}
+
+	return loader, nil
+}
+
+// GetBatch returns the next batch from the stream
+func (sdl *StreamingDataLoader) GetBatch(batchIdx int) (*tensor.Tensor, *tensor.Tensor, error) {
+	provider := sdl.streamProviders[sdl.currentStream]
+
+	batch, err := provider.NextBatch()
+	if err != nil {
+		// Try next stream provider
+		sdl.currentStream = (sdl.currentStream + 1) % len(sdl.streamProviders)
+		if sdl.currentStream == 0 {
+			// All streams exhausted, reset
+			for _, p := range sdl.streamProviders {
+				p.Reset()
+			}
+		}
+
+		provider = sdl.streamProviders[sdl.currentStream]
+		batch, err = provider.NextBatch()
+		if err != nil {
+			return nil, nil, fmt.Errorf("all streams failed: %w", err)
+		}
+	}
+
+	return batch.inputs, batch.targets, nil
+}
+
+// NewBufferPool creates a new buffer pool
+func NewBufferPool(maxMemory int64) *BufferPool {
+	return &BufferPool{
+		buffers:    make(map[string][]*tensor.Tensor),
+		maxBuffers: int(maxMemory / (1024 * 1024)), // Rough estimate
+	}
+}
+
+// GetBuffer retrieves a buffer from the pool or creates a new one
+func (bp *BufferPool) GetBuffer(shape []int) (*tensor.Tensor, error) {
+	bp.mutex.Lock()
+	defer bp.mutex.Unlock()
+
+	key := fmt.Sprintf("%v", shape)
+
+	if buffers, exists := bp.buffers[key]; exists && len(buffers) > 0 {
+		// Reuse existing buffer
+		buffer := buffers[len(buffers)-1]
+		bp.buffers[key] = buffers[:len(buffers)-1]
+		return buffer, nil
+	}
+
+	// Create new buffer
 	size := 1
 	for _, dim := range shape {
 		size *= dim
 	}
-	
+
 	data := make([]float32, size)
-	// Load actual data from file here
-	
 	return tensor.NewTensor(shape, data)
 }
 
-// Len returns the size of the dataset
-func (ds *FileDataset) Len() int {
-	return len(ds.inputPaths)
+// ReturnBuffer returns a buffer to the pool
+func (bp *BufferPool) ReturnBuffer(buffer *tensor.Tensor) {
+	bp.mutex.Lock()
+	defer bp.mutex.Unlock()
+
+	key := fmt.Sprintf("%v", buffer.Shape)
+
+	if buffers, exists := bp.buffers[key]; exists {
+		if len(buffers) < bp.maxBuffers {
+			bp.buffers[key] = append(buffers, buffer)
+		} else {
+			// Pool full, release buffer
+			buffer.ReleaseGPU()
+		}
+	} else {
+		bp.buffers[key] = []*tensor.Tensor{buffer}
+	}
 }
 
-// GetShape returns the shape of input and target tensors
-func (ds *FileDataset) GetShape() ([]int, []int) {
-	return ds.inputShape, ds.targetShape
+// NewDistributedDataLoader creates a new distributed data loader
+func NewDistributedDataLoader(config DataLoaderConfig, nodeRank, worldSize int, localLoader DataLoader) (*DistributedDataLoader, error) {
+	if nodeRank >= worldSize || nodeRank < 0 {
+		return nil, fmt.Errorf("invalid node rank %d for world size %d", nodeRank, worldSize)
+	}
+
+	coordinator := &DistributedCoordinator{
+		nodes:        make([]NodeInfo, worldSize),
+		currentNode:  nodeRank,
+		shardMapping: make(map[int][]int),
+	}
+
+	// Initialize shard mapping (simple round-robin for now)
+	totalBatches := localLoader.BatchCount()
+	for i := 0; i < totalBatches; i++ {
+		targetNode := i % worldSize
+		coordinator.shardMapping[targetNode] = append(coordinator.shardMapping[targetNode], i)
+	}
+
+	loader := &DistributedDataLoader{
+		config:      config,
+		nodeRank:    nodeRank,
+		worldSize:   worldSize,
+		localLoader: localLoader,
+		coordinator: coordinator,
+	}
+
+	return loader, nil
+}
+
+// GetBatch returns the next batch for this distributed node
+func (ddl *DistributedDataLoader) GetBatch(batchIdx int) (*tensor.Tensor, *tensor.Tensor, error) {
+	// Check if this batch belongs to this node
+	myShards := ddl.coordinator.shardMapping[ddl.nodeRank]
+
+	localBatchIdx := -1
+	for i, shardIdx := range myShards {
+		if shardIdx == batchIdx {
+			localBatchIdx = i
+			break
+		}
+	}
+
+	if localBatchIdx == -1 {
+		return nil, nil, fmt.Errorf("batch %d not assigned to node %d", batchIdx, ddl.nodeRank)
+	}
+
+	return ddl.localLoader.GetBatch(localBatchIdx)
+}
+
+// GetLocalBatchCount returns the number of batches for this node
+func (ddl *DistributedDataLoader) GetLocalBatchCount() int {
+	return len(ddl.coordinator.shardMapping[ddl.nodeRank])
+}
+
+// Utility functions
+
+// ValidateDataLoaderConfig validates data loader configuration
+func ValidateDataLoaderConfig(config DataLoaderConfig) error {
+	if config.BatchSize <= 0 {
+		return fmt.Errorf("batch size must be positive")
+	}
+
+	if config.NumWorkers < 0 {
+		return fmt.Errorf("number of workers cannot be negative")
+	}
+
+	if config.PrefetchFactor < 0 {
+		return fmt.Errorf("prefetch factor cannot be negative")
+	}
+
+	if config.MaxMemoryUsage < 0 {
+		return fmt.Errorf("max memory usage cannot be negative")
+	}
+
+	return nil
+}
+
+// EstimateMemoryUsage estimates memory usage for a data loader configuration
+func EstimateMemoryUsage(config DataLoaderConfig, inputShape, targetShape []int) int64 {
+	inputSize := int64(config.BatchSize)
+	for _, dim := range inputShape {
+		inputSize *= int64(dim)
+	}
+
+	targetSize := int64(config.BatchSize)
+	for _, dim := range targetShape {
+		targetSize *= int64(dim)
+	}
+
+	// 4 bytes per float32
+	batchSize := (inputSize + targetSize) * 4
+
+	// Account for prefetching and caching
+	totalMemory := batchSize * int64(config.PrefetchFactor)
+
+	if config.CacheSize > 0 {
+		totalMemory += batchSize * int64(config.CacheSize)
+	}
+
+	return totalMemory
 }

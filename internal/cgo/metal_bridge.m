@@ -6161,4 +6161,64 @@ int perform_tensor_fill(
 }
 
 
+// Add these imports to the top of metal_bridge.m (after existing imports)
+#import <Metal/Metal.h>
+#import <MetalPerformanceShaders/MetalPerformanceShaders.h>
+#import <Accelerate/Accelerate.h>
+
+// Add these new function implementations to metal_bridge.m
+
+// Gradient accumulation function
+// int perform_gradient_accumulate(GPUPtr existing_grad, GPUPtr new_grad, long size, DevicePtr device, CError* error) {
+//     @autoreleasepool {
+//         @try {
+//             id<MTLDevice> mtlDevice = (__bridge id<MTLDevice>)device;
+//             id<MTLCommandQueue> commandQueue = [mtlDevice newCommandQueue];
+//             id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+            
+//             id<MTLBuffer> existingBuffer = (__bridge id<MTLBuffer>)existing_grad;
+//             id<MTLBuffer> newBuffer = (__bridge id<MTLBuffer>)new_grad;
+            
+//             // Create compute encoder
+//             id<MTLComputeCommandEncoder> computeEncoder = [commandBuffer computeCommandEncoder];
+            
+//             // Get the compute pipeline state for gradient accumulation
+//             NSError* pipelineError = nil;
+//             id<MTLLibrary> library = [mtlDevice newDefaultLibrary];
+//             id<MTLFunction> kernelFunction = [library newFunctionWithName:@"gradient_accumulate"];
+//             id<MTLComputePipelineState> pipelineState = [mtlDevice newComputePipelineStateWithFunction:kernelFunction error:&pipelineError];
+            
+//             if (pipelineError) {
+//                 if (error) {
+//                     error->message = strdup([[pipelineError localizedDescription] UTF8String]);
+//                 }
+//                 return -1;
+//             }
+            
+//             [computeEncoder setComputePipelineState:pipelineState];
+//             [computeEncoder setBuffer:existingBuffer offset:0 atIndex:0];
+//             [computeEncoder setBuffer:newBuffer offset:0 atIndex:1];
+            
+//             // Set thread group size
+//             MTLSize threadsPerThreadgroup = MTLSizeMake(256, 1, 1);
+//             MTLSize threadgroupsPerGrid = MTLSizeMake((size + 255) / 256, 1, 1);
+            
+//             [computeEncoder dispatchThreadgroups:threadgroupsPerGrid threadsPerThreadgroup:threadsPerThreadgroup];
+//             [computeEncoder endEncoding];
+            
+//             [commandBuffer commit];
+//             [commandBuffer waitUntilCompleted];
+            
+//             return 0;
+//         }
+//         @catch (NSException* exception) {
+//             if (error) {
+//                 error->message = strdup([[exception reason] UTF8String]);
+//             }
+//             return -1;
+//         }
+//     }
+// }
+
+
 #pragma clang diagnostic pop

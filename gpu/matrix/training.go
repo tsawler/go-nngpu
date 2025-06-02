@@ -351,20 +351,13 @@ func (t *Trainer) trainEpoch(trainLoader, validLoader DataLoader) error {
 func (t *Trainer) trainBatch(trainLoader DataLoader, batchIdx int) (float32, error) {
 	totalLoss := float32(0.0)
 
-	// Gradient accumulation loop
+	// Gradient accumulation loop - process the SAME batch multiple times
 	for accumStep := 0; accumStep < t.Config.GradientAccumulationSteps; accumStep++ {
-		// Calculate the true batch index considering accumulation steps
-		realBatchIdx := batchIdx*t.Config.GradientAccumulationSteps + accumStep
-		if realBatchIdx >= trainLoader.BatchCount() {
-			break // No more data in this accumulation window
-		}
-
-		// Get batch data
-		// inputs: *tensor.Tensor (e.g., [batchSize, H, W, C])
-		// targets: *tensor.Tensor (a dummy tensor holding integer class indices as float32)
-		inputs, targets, err := trainLoader.GetBatch(realBatchIdx)
+		// ✅ FIXED: Use the same batchIdx for all accumulation steps
+		// This processes the same batch multiple times for gradient accumulation
+		inputs, targets, err := trainLoader.GetBatch(batchIdx)
 		if err != nil {
-			return 0, fmt.Errorf("failed to get batch %d: %w", realBatchIdx, err)
+			return 0, fmt.Errorf("failed to get batch %d: %w", batchIdx, err)
 		}
 		// Ensure inputs/targets are released even on early exit from this loop
 		defer inputs.ReleaseGPU()
@@ -380,22 +373,19 @@ func (t *Trainer) trainBatch(trainLoader DataLoader, batchIdx int) (float32, err
 			outputs, err = t.Model.Forward(inputs)
 		}
 		if err != nil {
-			return 0, fmt.Errorf("forward pass failed for batch %d: %w", realBatchIdx, err)
+			return 0, fmt.Errorf("forward pass failed for batch %d: %w", batchIdx, err)
 		}
 		defer outputs.ReleaseGPU() // Ensure outputs are released after backward pass
 
 		// Compute loss (scalar value for logging/display)
-		// We need to retrieve target indices from the tensor for SparseCategoricalCrossEntropyForward.
-		// Note: The `targets` tensor is released within `t.backward` after its data is extracted.
-		if err := targets.RetrieveCPU(); err != nil { // Retrieve target indices to CPU for this scalar loss computation
-			return 0, fmt.Errorf("failed to retrieve target indices for loss computation to CPU: %w", err)
+		// ✅ FIXED: Use categorical cross-entropy for one-hot targets
+		if err := targets.RetrieveCPU(); err != nil {
+			return 0, fmt.Errorf("failed to retrieve targets for loss computation to CPU: %w", err)
 		}
-		currentTargetIndicesForLoss := float32SliceToIntSlice(targets.Data) // Convert to []int
-		targets.ReleaseGPU() // Release GPU memory of targets since we've retrieved to CPU and are done with this tensor.
 
-		currentLoss, err := SparseCategoricalCrossEntropyForward(outputs, currentTargetIndicesForLoss)
+		currentLoss, err := CategoricalCrossEntropyLoss(outputs, targets)
 		if err != nil {
-			return 0, fmt.Errorf("loss computation failed for batch %d: %w", realBatchIdx, err)
+			return 0, fmt.Errorf("loss computation failed for batch %d: %w", batchIdx, err)
 		}
 
 		// Scale loss for gradient accumulation (this is the value, not the gradient itself)
@@ -403,33 +393,32 @@ func (t *Trainer) trainBatch(trainLoader DataLoader, batchIdx int) (float32, err
 		totalLoss += scaledLoss
 
 		// Backward pass: This is where gradients are computed and stored in p.Gradient
-		// Pass the outputs and the original `targets` tensor (which will be processed internally by `backward`)
-		err = t.backward(outputs, targets) // `targets` here is the *original* tensor passed in, which has been retrieved to CPU by this point.
+		// Pass the outputs and the targets tensor (one-hot encoded)
+		err = t.backward(outputs, targets)
 		if err != nil {
-			return 0, fmt.Errorf("backward pass failed for batch %d: %w", realBatchIdx, err)
+			return 0, fmt.Errorf("backward pass failed for batch %d: %w", batchIdx, err)
 		}
 
 		// Accumulate gradients: This will read from `p.Gradient` (populated by `lossGT.Backward()`)
 		// and sum them into `trainer.State.AccumulatedGrads`.
 		err = t.accumulateGradients()
 		if err != nil {
-			return 0, fmt.Errorf("gradient accumulation failed for batch %d: %w", realBatchIdx, err)
+			return 0, fmt.Errorf("gradient accumulation failed for batch %d: %w", batchIdx, err)
 		}
 
 		// `inputs` and `outputs` are deferred to be released. `targets` was released inside this loop.
 	} // End of gradient accumulation loop
 
-	// Apply accumulated gradients (only if accumulation steps reached)
-	if t.State.AccumulationCount >= t.Config.GradientAccumulationSteps {
-		err := t.applyGradients()
-		if err != nil {
-			return 0, fmt.Errorf("gradient application failed: %w", err)
-		}
-
-		// Reset accumulation state for the next application cycle
-		t.resetGradientAccumulation()
-		t.State.Step++ // Increment trainer step count
+	// ✅ FIXED: Always apply accumulated gradients after processing all accumulation steps
+	// Remove the condition check since we always want to apply gradients after each batch
+	err := t.applyGradients()
+	if err != nil {
+		return 0, fmt.Errorf("gradient application failed: %w", err)
 	}
+
+	// Reset accumulation state for the next batch
+	t.resetGradientAccumulation()
+	t.State.Step++ // Increment trainer step count
 
 	return totalLoss, nil
 }
@@ -443,11 +432,14 @@ func (t *Trainer) forwardWithCheckpointing(inputs *tensor.Tensor) (*tensor.Tenso
 
 // computeLoss computes the loss for the current batch
 func (t *Trainer) computeLoss(outputs, targets *tensor.Tensor) (float32, error) {
-	// This is a placeholder - implement based on your loss function
-	// For now, assume MSE loss
-	return MSELoss(outputs, targets)
-}
+	// For classification tasks, use sparse categorical cross-entropy
+	if err := targets.RetrieveCPU(); err != nil {
+		return 0, fmt.Errorf("failed to retrieve target indices: %w", err)
+	}
 
+	targetIndices := float32SliceToIntSlice(targets.Data)
+	return SparseCategoricalCrossEntropyForward(outputs, targetIndices)
+}
 
 // float32SliceToIntSlice converts a slice of float32 to a slice of int.
 // This is a helper function used internally by the matrix package,
@@ -461,58 +453,77 @@ func float32SliceToIntSlice(f []float32) []int {
 }
 
 // backward performs backward pass
-// It takes the model's outputs and the true targets (as a tensor containing integer indices).
+// It takes the model's outputs and the true targets (as a tensor containing one-hot encoded targets).
 // It computes the loss and then triggers the backpropagation.
 func (t *Trainer) backward(outputTensor *tensor.Tensor, targetTensorFromDataLoader *tensor.Tensor) error {
 	// 1. Convert model outputs to a GradientTensor (requires gradients)
 	outputsGT := NewGradientTensor(outputTensor, true) // Predictions usually require gradients
 
-	// 2. Retrieve target indices from the targetTensorFromDataLoader.
-	// This tensor is a "dummy" used by the DataLoader interface to pass integer indices.
-	// We need to retrieve its data to CPU and convert it back to []int.
+	// 2. Ensure target tensor is on CPU for loss computation
 	if err := targetTensorFromDataLoader.RetrieveCPU(); err != nil {
 		return fmt.Errorf("failed to retrieve target tensor from data loader to CPU: %w", err)
 	}
-	// IMPORTANT: The `float32SliceToIntSlice` helper needs to be defined in `main.go`
-	// or the `matrix` package if it's a common utility. For this example, it's in `main.go`.
-	targetIndices := float32SliceToIntSlice(targetTensorFromDataLoader.Data)
 
-	// 3. Release the target tensor's GPU memory since its data has been copied to CPU.
-	targetTensorFromDataLoader.ReleaseGPU()
-
-	// 4. Compute sparse cross-entropy loss with gradient tracking.
-	// This operation will build part of the computational graph and register its backward function.
-	lossGT, err := GradSparseCrossEntropyLoss(outputsGT, targetIndices)
+	// 3. Apply softmax to get probabilities
+	softmaxOutput, err := GradSoftmax(outputsGT)
 	if err != nil {
-		// Release outputGT's tensor if loss computation fails
 		if outputsGT != nil && outputsGT.Tensor != nil {
 			outputsGT.Tensor.ReleaseGPU()
 		}
-		return fmt.Errorf("sparse cross-entropy loss failed in backward pass: %w", err)
+		return fmt.Errorf("softmax failed in backward pass: %w", err)
 	}
 
-	// 5. Trigger backpropagation: Call Backward() on the final loss GradientTensor.
-	// This is the core autograd step that traverses the computational graph
-	// and populates the `Gradient` fields of all `RequiresGrad` GradientTensors
-	// (i.e., your model's parameters).
-	if err := lossGT.Backward(); err != nil {
-		// Release outputGT's tensor and lossGT's tensor if backprop fails
+	// 4. Manually compute gradients for categorical cross-entropy
+	// Ensure softmax output is on CPU for gradient computation
+	if err := softmaxOutput.Tensor.RetrieveCPU(); err != nil {
+		return fmt.Errorf("failed to retrieve softmax output: %w", err)
+	}
+
+	batchSize := softmaxOutput.Tensor.Shape[0]
+	numClasses := softmaxOutput.Tensor.Shape[1]
+
+	// Initialize gradient tensor if not exists
+	if softmaxOutput.Gradient == nil {
+		gradData := make([]float32, len(softmaxOutput.Tensor.Data))
+		gradTensor, err := tensor.NewTensor(softmaxOutput.Tensor.Shape, gradData)
+		if err != nil {
+			return fmt.Errorf("failed to create gradient tensor: %w", err)
+		}
+		softmaxOutput.Gradient = gradTensor
+	}
+
+	// Compute gradient: d_loss/d_softmax = (softmax_output - targets) / batch_size
+	for i := 0; i < batchSize; i++ {
+		for j := 0; j < numClasses; j++ {
+			idx := i*numClasses + j
+			softmaxOutput.Gradient.Data[idx] = (softmaxOutput.Tensor.Data[idx] - targetTensorFromDataLoader.Data[idx]) / float32(batchSize)
+		}
+	}
+
+	// Ensure gradient is on GPU for backward pass
+	if err := softmaxOutput.Gradient.EnsureGPU(); err != nil {
+		return fmt.Errorf("failed to move gradient to GPU: %w", err)
+	}
+
+	// 5. Trigger backpropagation: Call BackwardWithGradient on the softmax output
+	if err := softmaxOutput.BackwardWithGradient(softmaxOutput.Gradient); err != nil {
+		// Release tensors if backprop fails
 		if outputsGT != nil && outputsGT.Tensor != nil {
 			outputsGT.Tensor.ReleaseGPU()
 		}
-		if lossGT != nil && lossGT.Tensor != nil {
-			lossGT.Tensor.ReleaseGPU()
+		if softmaxOutput != nil && softmaxOutput.Tensor != nil {
+			softmaxOutput.Tensor.ReleaseGPU()
 		}
 		return fmt.Errorf("backpropagation failed: %w", err)
 	}
 
-	// Release the tensors used in the backward pass that are no longer needed.
-	// The `outputTensor` was passed in, and `lossGT.Tensor` was created.
-	// `outputsGT.Tensor` directly points to `outputTensor`, so it's released outside.
-	// `lossGT.Tensor` needs explicit release.
-	if lossGT != nil && lossGT.Tensor != nil {
-		lossGT.Tensor.ReleaseGPU()
+	// Release the softmax tensor
+	if softmaxOutput != nil && softmaxOutput.Tensor != nil {
+		softmaxOutput.Tensor.ReleaseGPU()
 	}
+
+	// Release the target tensor's GPU memory
+	targetTensorFromDataLoader.ReleaseGPU()
 
 	// Note: `outputTensor` (model's forward output) is released outside this `backward` function
 	// in `trainBatch` after this call.
@@ -643,48 +654,59 @@ func (t *Trainer) resetGradientAccumulation() {
 	t.State.AccumulationCount = 0
 }
 
-// validate performs validation on the validation dataset
 func (t *Trainer) validate(validLoader DataLoader) (float32, error) {
 	t.Model.SetTraining(false)
 	defer t.Model.SetTraining(true)
 
-	NoGradContext(func() {
-		totalLoss := float32(0.0)
-		batchCount := validLoader.BatchCount()
+	totalLoss := float32(0.0)
+	validBatches := 0
+	batchCount := validLoader.BatchCount()
 
-		for batch := 0; batch < batchCount; batch++ {
-			inputs, targets, err := validLoader.GetBatch(batch)
-			if err != nil {
-				continue
-			}
+	for batch := 0; batch < batchCount; batch++ {
+		inputs, targets, err := validLoader.GetBatch(batch)
+		if err != nil {
+			return 0, fmt.Errorf("failed to get validation batch %d: %w", batch, err)
+		}
 
-			outputs, err := t.Model.Forward(inputs)
-			if err != nil {
-				inputs.ReleaseGPU()
-				targets.ReleaseGPU()
-				continue
-			}
+		outputs, err := t.Model.Forward(inputs)
+		if err != nil {
+			inputs.ReleaseGPU()
+			targets.ReleaseGPU()
+			return 0, fmt.Errorf("forward pass failed for validation batch %d: %w", batch, err)
+		}
 
-			loss, err := t.computeLoss(outputs, targets)
-			if err != nil {
-				inputs.ReleaseGPU()
-				targets.ReleaseGPU()
-				outputs.ReleaseGPU()
-				continue
-			}
-
-			totalLoss += loss
-
-			// Release tensors
+		// ✅ FIXED: Use categorical cross-entropy for one-hot targets (not sparse)
+		if err := targets.RetrieveCPU(); err != nil {
 			inputs.ReleaseGPU()
 			targets.ReleaseGPU()
 			outputs.ReleaseGPU()
+			return 0, fmt.Errorf("failed to retrieve targets for validation batch %d: %w", batch, err)
 		}
 
-		t.State.ValidationLoss = totalLoss / float32(batchCount)
-	})
+		// ✅ FIXED: Use categorical cross-entropy loss with one-hot targets
+		loss, err := CategoricalCrossEntropyLoss(outputs, targets)
+		if err != nil {
+			inputs.ReleaseGPU()
+			targets.ReleaseGPU()
+			outputs.ReleaseGPU()
+			return 0, fmt.Errorf("loss computation failed for validation batch %d: %w", batch, err)
+		}
 
-	return t.State.ValidationLoss, nil
+		totalLoss += loss
+		validBatches++
+
+		// Release tensors
+		inputs.ReleaseGPU()
+		targets.ReleaseGPU()
+		outputs.ReleaseGPU()
+	}
+
+	if validBatches == 0 {
+		return 0, fmt.Errorf("no valid batches processed during validation")
+	}
+
+	avgLoss := totalLoss / float32(validBatches)
+	return avgLoss, nil
 }
 
 // initializeOptimizer creates and initializes the optimizer
