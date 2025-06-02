@@ -1,6 +1,7 @@
-# https://taskfile.dev
-
 version: '3'
+
+vars:
+  BASE: /Users/tcs/vs-projects/go-nngpu\ project/go-nngpu
 
 tasks:
   build:
@@ -8,3 +9,9 @@ tasks:
       - go clean -cache
       - go build ./...
     silent: true
+
+  docs:
+    cmds:
+      - cd {{.BASE}}/gpu/matrix && godocdown -output matrix-docs.md
+      - cd {{.BASE}}/gpu/optimizer && godocdown -output optimizer-docs.md
+      - cd {{.BASE}}/tensor && godocdown -output tensor-docs.md
