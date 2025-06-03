@@ -5983,6 +5983,27 @@ int initialize_memory_pool(long maxSize, CError *err) {
         memoryQueue = dispatch_queue_create("com.nngpu.memory", DISPATCH_QUEUE_SERIAL);
     });
     
+    // Initialize Metal device if not already initialized
+    if (!_global_mtl_device_ptr) {
+        @autoreleasepool {
+            id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+            if (!device) {
+                set_c_error_message(err, @"Could not create Metal device.");
+                return -1;
+            }
+            _global_mtl_device_ptr = (__bridge_retained void*)device;
+
+            id<MTLCommandQueue> commandQueue = [device newCommandQueue];
+            if (!commandQueue) {
+                set_c_error_message(err, @"Could not create Metal command queue.");
+                CFRelease(_global_mtl_device_ptr);
+                _global_mtl_device_ptr = NULL;
+                return -2;
+            }
+            _global_mtl_command_queue_ptr = (__bridge_retained void*)commandQueue;
+        }
+    }
+    
     __block int result = 0;
     dispatch_sync(memoryQueue, ^{
         maxMemorySize = (size_t)maxSize;
