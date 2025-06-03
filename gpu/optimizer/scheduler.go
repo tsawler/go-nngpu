@@ -318,7 +318,15 @@ func (s *WarmupScheduler) Step(step int64) error {
 	} else {
 		// Use base scheduler if available, otherwise keep target LR
 		if s.baseScheduler != nil {
-			return s.baseScheduler.Step(step - s.warmupSteps)
+			err := s.baseScheduler.Step(step - s.warmupSteps)
+			if err != nil {
+				return err
+			}
+			// Update our current LR to match the base scheduler
+			s.currentLR = s.baseScheduler.GetLR()
+			if s.optimizer != nil {
+				s.optimizer.SetLearningRate(s.currentLR)
+			}
 		} else {
 			s.currentLR = s.targetLR
 			if s.optimizer != nil {
@@ -631,7 +639,9 @@ func (s *ChainedScheduler) SetOptimizer(opt Optimizer) {
 
 // Helper function to create a common warmup + cosine annealing scheduler
 func NewWarmupCosineScheduler(initialLR, maxLR, minLR float32, warmupSteps, totalSteps int64) LRScheduler {
-	cosineScheduler := NewCosineAnnealingScheduler(maxLR, minLR, totalSteps-warmupSteps)
+	// Cosine scheduler should run for the remaining steps after warmup
+	cosineSteps := totalSteps - warmupSteps
+	cosineScheduler := NewCosineAnnealingScheduler(maxLR, minLR, cosineSteps)
 	warmupScheduler := NewWarmupScheduler(maxLR, warmupSteps, 0) // Linear warmup
 	warmupScheduler.SetBaseScheduler(cosineScheduler)
 	return warmupScheduler
