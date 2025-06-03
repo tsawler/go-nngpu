@@ -223,7 +223,12 @@ func NewMemoryEfficientAutodiffEngine(config *MemoryEfficientConfig) *MemoryEffi
 	}
 
 	// Initialize memory manager
-	memoryPool, _ := NewGPUMemoryPool(config.MaxMemoryUsage)
+	memoryPool, err := NewGPUMemoryPool(config.MaxMemoryUsage)
+	if err != nil {
+		// Log error but continue with nil memory pool
+		// In production, you might want to handle this differently
+		memoryPool = nil
+	}
 	engine.memoryManager = &AutodiffMemoryManager{
 		memoryPool:        memoryPool,
 		tensorCache:       NewTensorCache(1000),

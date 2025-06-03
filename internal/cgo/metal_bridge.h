@@ -1481,4 +1481,306 @@ int perform_layer_norm_optimized(
     CError *err
 );
 
+// Phase 8C: Memory Optimization Features
+
+// Allocate aligned GPU buffer with optimal memory layout
+int allocate_aligned_gpu_buffer(
+    long size,                  // Size in bytes to allocate
+    long alignment,             // Memory alignment requirement (must be power of 2)
+    GPUPtr *bufferPtr,          // Output: pointer to allocated buffer
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Release GPU buffer with proper cleanup
+int release_optimized_gpu_buffer(
+    GPUPtr bufferPtr,           // Buffer to release
+    CError *err
+);
+
+// Optimized memory copy with coalescing for better bandwidth utilization
+int coalesced_memory_copy(
+    GPUPtr srcPtr,              // Source buffer
+    GPUPtr dstPtr,              // Destination buffer
+    long size,                  // Size in bytes to copy
+    long srcStride,             // Source stride in bytes (0 for contiguous)
+    long dstStride,             // Destination stride in bytes (0 for contiguous)
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Prefetch data to GPU cache for optimal access patterns
+int prefetch_gpu_data(
+    GPUPtr bufferPtr,           // Buffer to prefetch
+    long size,                  // Size in bytes to prefetch
+    long offset,                // Offset in bytes from buffer start
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Flush GPU cache to ensure optimal access patterns for subsequent operations
+int flush_gpu_cache(
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Advanced memory management functions
+
+// Allocate GPU buffer with specific memory placement hints
+int allocate_gpu_buffer_with_placement(
+    long size,                  // Size in bytes to allocate
+    long alignment,             // Memory alignment requirement
+    int memoryHint,             // 0: default, 1: high bandwidth, 2: low latency, 3: shared
+    GPUPtr *bufferPtr,          // Output: pointer to allocated buffer
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Batch memory allocation for multiple buffers (more efficient than individual allocations)
+int batch_allocate_gpu_buffers(
+    long *sizes,                // Array of sizes for each buffer
+    long *alignments,           // Array of alignment requirements
+    int *memoryHints,           // Array of memory placement hints
+    long numBuffers,            // Number of buffers to allocate
+    GPUPtr *bufferPtrs,         // Output: array of buffer pointers
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Batch memory deallocation
+int batch_release_gpu_buffers(
+    GPUPtr *bufferPtrs,         // Array of buffer pointers to release
+    long numBuffers,            // Number of buffers to release
+    CError *err
+);
+
+// Memory bandwidth optimization for large transfers
+int optimized_memory_transfer(
+    void *hostPtr,              // Host memory pointer
+    GPUPtr gpuPtr,              // GPU buffer pointer
+    long size,                  // Size in bytes to transfer
+    int direction,              // 0: host to GPU, 1: GPU to host
+    int asyncMode,              // 0: synchronous, 1: asynchronous
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Cache-aware memory operations
+
+// Set memory access pattern hints for optimal caching
+int set_memory_access_pattern(
+    GPUPtr bufferPtr,           // Buffer to set access pattern for
+    int accessPattern,          // 0: sequential, 1: random, 2: temporal locality, 3: spatial locality
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Invalidate specific memory regions in cache
+int invalidate_memory_cache_region(
+    GPUPtr bufferPtr,           // Buffer containing region to invalidate
+    long offset,                // Offset from buffer start
+    long size,                  // Size of region to invalidate
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Memory synchronization and coherency
+
+// Ensure memory coherency between GPU and CPU
+int synchronize_memory_coherency(
+    GPUPtr bufferPtr,           // Buffer to synchronize
+    int coherencyType,          // 0: full sync, 1: GPU to CPU, 2: CPU to GPU
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Create memory barrier for ordering memory operations
+int create_memory_barrier(
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Memory profiling and monitoring
+
+// Get detailed memory usage statistics
+int get_memory_usage_stats(
+    long *totalAllocated,       // Output: total allocated memory
+    long *totalUsed,            // Output: total used memory
+    long *peakUsage,            // Output: peak memory usage
+    long *numAllocations,       // Output: number of active allocations
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Get memory bandwidth utilization metrics
+int get_memory_bandwidth_stats(
+    float *readBandwidth,       // Output: current read bandwidth (GB/s)
+    float *writeBandwidth,      // Output: current write bandwidth (GB/s)
+    float *peakReadBandwidth,   // Output: peak read bandwidth
+    float *peakWriteBandwidth,  // Output: peak write bandwidth
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Memory layout optimization
+
+// Optimize memory layout for specific computation pattern
+int optimize_memory_layout(
+    GPUPtr *bufferPtrs,         // Array of buffer pointers to optimize
+    long *bufferSizes,          // Array of buffer sizes
+    long numBuffers,            // Number of buffers
+    int computationPattern,     // 0: matrix ops, 1: convolution, 2: attention, 3: general
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Reshape buffer memory layout without copying data
+int reshape_memory_layout(
+    GPUPtr bufferPtr,           // Buffer to reshape
+    long *currentShape,         // Current shape dimensions
+    long *newShape,             // New shape dimensions
+    long numDims,               // Number of dimensions
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Memory pool optimization
+
+// Create memory pool with specific characteristics
+int create_optimized_memory_pool(
+    long poolSize,              // Total pool size in bytes
+    long blockSize,             // Default block size for allocations
+    int poolType,               // 0: general purpose, 1: high throughput, 2: low latency
+    void **poolHandle,          // Output: handle to memory pool
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Allocate from optimized memory pool
+int allocate_from_pool(
+    void *poolHandle,           // Memory pool handle
+    long size,                  // Size to allocate
+    long alignment,             // Alignment requirement
+    GPUPtr *bufferPtr,          // Output: allocated buffer pointer
+    CError *err
+);
+
+// Return memory to pool
+int deallocate_to_pool(
+    void *poolHandle,           // Memory pool handle
+    GPUPtr bufferPtr,           // Buffer to return to pool
+    CError *err
+);
+
+// Destroy memory pool and free all resources
+int destroy_memory_pool(
+    void *poolHandle,           // Memory pool handle to destroy
+    CError *err
+);
+
+// NUMA-aware memory allocation (for multi-GPU systems)
+int allocate_numa_aware_buffer(
+    long size,                  // Size in bytes to allocate
+    int numaNode,               // NUMA node preference (-1 for any)
+    GPUPtr *bufferPtr,          // Output: allocated buffer pointer
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Phase 8C: Metal Kernel Compilation Caching
+
+// Structure for kernel compilation options
+typedef struct {
+    int optimization_level;     // 0=none, 1=basic, 2=aggressive
+    bool fast_math;            // Enable fast math optimizations
+    bool debug_info;           // Include debug information
+    int num_constants;         // Number of compile-time constants
+    int num_macros;            // Number of preprocessor macros
+    // Note: In full implementation, would include arrays for constants and macros
+} KernelCompileOptions;
+
+// Compile Metal kernel with optimization and caching
+int compile_metal_kernel_optimized(
+    const char *kernelSource,       // Metal kernel source code
+    KernelCompileOptions options,   // Compilation options
+    GPUPtr *compiledKernelPtr,      // Output: compiled kernel pointer
+    long *kernelSizeBytes,          // Output: size of compiled kernel
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Release compiled Metal kernel
+int release_compiled_kernel(
+    GPUPtr compiledKernelPtr,       // Compiled kernel to release
+    CError *err
+);
+
+// Execute cached/compiled kernel with parameters
+int execute_compiled_kernel(
+    GPUPtr compiledKernelPtr,       // Compiled kernel to execute
+    GPUPtr *bufferPtrs,             // Array of buffer pointers (arguments)
+    long numBuffers,                // Number of buffer arguments
+    long *threadgroupSize,          // Threadgroup size [x, y, z]
+    long *numThreadgroups,          // Number of threadgroups [x, y, z]
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Kernel cache management
+int initialize_kernel_cache(
+    long maxCacheSize,              // Maximum cache size in bytes
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int clear_kernel_cache(
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int get_kernel_cache_stats(
+    long *cacheHits,                // Output: number of cache hits
+    long *cacheMisses,              // Output: number of cache misses
+    long *cacheSize,                // Output: current cache size in bytes
+    long *numCachedKernels,         // Output: number of cached kernels
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Precompile common kernels for better performance
+int precompile_common_kernels(
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Kernel performance profiling
+int profile_kernel_execution(
+    GPUPtr compiledKernelPtr,       // Kernel to profile
+    GPUPtr *bufferPtrs,             // Array of buffer arguments
+    long numBuffers,                // Number of buffer arguments
+    long *threadgroupSize,          // Threadgroup size
+    long *numThreadgroups,          // Number of threadgroups
+    float *executionTimeMs,         // Output: execution time in milliseconds
+    long *memoryBandwidthBytes,     // Output: memory bandwidth used
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Advanced kernel optimization features
+int optimize_kernel_for_hardware(
+    const char *kernelSource,       // Original kernel source
+    char **optimizedSource,         // Output: hardware-optimized source
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+int analyze_kernel_performance(
+    GPUPtr compiledKernelPtr,       // Kernel to analyze
+    float *occupancy,               // Output: theoretical occupancy (0.0-1.0)
+    long *sharedMemoryUsage,        // Output: shared memory usage in bytes
+    long *registerUsage,            // Output: register usage per thread
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
 #endif // METAL_BRIDGE_H

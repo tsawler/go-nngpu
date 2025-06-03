@@ -149,6 +149,13 @@ func (f *FusedConvBNReLU) Forward(inputs []*tensor.Tensor, configInterface inter
 
 	input := inputs[0]
 	kernel := inputs[1]
+	
+	// Memory optimization: Use optimized layouts and reduce transfers
+	transferOptimizer := GetGlobalTransferOptimizer()
+	if transferOptimizer == nil {
+		InitializeMemoryOptimizers()
+		transferOptimizer = GetGlobalTransferOptimizer()
+	}
 
 	// Expected inputs: [input, kernel, gamma, beta, bias(optional)]
 	var gamma, beta, bias *tensor.Tensor
@@ -160,26 +167,42 @@ func (f *FusedConvBNReLU) Forward(inputs []*tensor.Tensor, configInterface inter
 		bias = inputs[4]
 	}
 
-	// Ensure all tensors are on GPU
-	if err := input.EnsureGPU(); err != nil {
-		return nil, fmt.Errorf("failed to move input to GPU: %w", err)
-	}
-	if err := kernel.EnsureGPU(); err != nil {
-		return nil, fmt.Errorf("failed to move kernel to GPU: %w", err)
-	}
+	// Optimized GPU transfer: Only transfer if necessary
+	tensorsToOptimize := []*tensor.Tensor{input, kernel}
 	if gamma != nil {
-		if err := gamma.EnsureGPU(); err != nil {
-			return nil, fmt.Errorf("failed to move gamma to GPU: %w", err)
-		}
+		tensorsToOptimize = append(tensorsToOptimize, gamma)
 	}
 	if beta != nil {
-		if err := beta.EnsureGPU(); err != nil {
-			return nil, fmt.Errorf("failed to move beta to GPU: %w", err)
-		}
+		tensorsToOptimize = append(tensorsToOptimize, beta)
 	}
 	if bias != nil {
-		if err := bias.EnsureGPU(); err != nil {
-			return nil, fmt.Errorf("failed to move bias to GPU: %w", err)
+		tensorsToOptimize = append(tensorsToOptimize, bias)
+	}
+	
+	// Batch optimize tensor layouts for convolution
+	for _, t := range tensorsToOptimize {
+		if transferOptimizer.ShouldTransferToGPU(t) {
+			// Optimize layout before GPU transfer
+			optimized, _, err := OptimizeTensorForOperation(t, "conv2d")
+			if err == nil {
+				// Use optimized tensor if successful
+				if t == input {
+					input = optimized
+				} else if t == kernel {
+					kernel = optimized
+				} else if t == gamma {
+					gamma = optimized
+				} else if t == beta {
+					beta = optimized
+				} else if t == bias {
+					bias = optimized
+				}
+			}
+			
+			if err := t.EnsureGPU(); err != nil {
+				return nil, fmt.Errorf("failed to move tensor to GPU: %w", err)
+			}
+			transferOptimizer.MarkGPUValid(t, "conv_bn_relu")
 		}
 	}
 
