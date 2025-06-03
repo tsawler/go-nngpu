@@ -290,6 +290,78 @@ int perform_mps_matrix_add(
     }
 }
 
+int perform_mps_matrix_add_broadcast(
+    GPUPtr aMatrixPtr, long aRows, long aCols,
+    GPUPtr bMatrixPtr, long bRows, long bCols,
+    GPUPtr resultMatrixPtr, long resultRows, long resultCols,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLBuffer> A_buffer = (__bridge id<MTLBuffer>)aMatrixPtr;
+        id<MTLBuffer> B_buffer = (__bridge id<MTLBuffer>)bMatrixPtr;
+        id<MTLBuffer> C_buffer = (__bridge id<MTLBuffer>)resultMatrixPtr;
+
+        if (!A_buffer || !B_buffer || !C_buffer) {
+            set_c_error_message(err, @"Invalid input or output buffer pointers.");
+            return -3;
+        }
+
+        float *a_data = (float*)A_buffer.contents;
+        float *b_data = (float*)B_buffer.contents;
+        float *result_data = (float*)C_buffer.contents;
+        
+        // Handle broadcasting cases
+        if (aRows == resultRows && aCols == resultCols && bRows == 1 && bCols == resultCols) {
+            // Case: [M, N] + [1, N] -> [M, N] (bias broadcasting)
+            for (long i = 0; i < resultRows; i++) {
+                for (long j = 0; j < resultCols; j++) {
+                    long a_idx = i * aCols + j;
+                    long b_idx = j; // Broadcast along rows
+                    long result_idx = i * resultCols + j;
+                    result_data[result_idx] = a_data[a_idx] + b_data[b_idx];
+                }
+            }
+        } else if (bRows == resultRows && bCols == resultCols && aRows == 1 && aCols == resultCols) {
+            // Case: [1, N] + [M, N] -> [M, N] (bias broadcasting, swapped)
+            for (long i = 0; i < resultRows; i++) {
+                for (long j = 0; j < resultCols; j++) {
+                    long a_idx = j; // Broadcast along rows
+                    long b_idx = i * bCols + j;
+                    long result_idx = i * resultCols + j;
+                    result_data[result_idx] = a_data[a_idx] + b_data[b_idx];
+                }
+            }
+        } else if (aRows == resultRows && aCols == resultCols && bRows == resultRows && bCols == 1) {
+            // Case: [M, N] + [M, 1] -> [M, N] (broadcast along columns)
+            for (long i = 0; i < resultRows; i++) {
+                for (long j = 0; j < resultCols; j++) {
+                    long a_idx = i * aCols + j;
+                    long b_idx = i; // Broadcast along columns
+                    long result_idx = i * resultCols + j;
+                    result_data[result_idx] = a_data[a_idx] + b_data[b_idx];
+                }
+            }
+        } else if (bRows == resultRows && bCols == resultCols && aRows == resultRows && aCols == 1) {
+            // Case: [M, 1] + [M, N] -> [M, N] (broadcast along columns, swapped)
+            for (long i = 0; i < resultRows; i++) {
+                for (long j = 0; j < resultCols; j++) {
+                    long a_idx = i; // Broadcast along columns
+                    long b_idx = i * bCols + j;
+                    long result_idx = i * resultCols + j;
+                    result_data[result_idx] = a_data[a_idx] + b_data[b_idx];
+                }
+            }
+        } else {
+            set_c_error_message(err, @"Unsupported broadcasting pattern: A (%ldx%ld) + B (%ldx%ld) -> Result (%ldx%ld)", 
+                                aRows, aCols, bRows, bCols, resultRows, resultCols);
+            return -2;
+        }
+
+        return 0;
+    }
+}
+
 int perform_mps_matrix_subtract(
     GPUPtr aMatrixPtr, long aRows, long aCols,
     GPUPtr bMatrixPtr, long bRows, long bCols,

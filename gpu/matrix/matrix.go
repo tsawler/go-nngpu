@@ -374,11 +374,60 @@ func Add(A, B *tensor.Tensor) (*tensor.Tensor, error) {
 	if len(A.Shape) != 2 || len(B.Shape) != 2 {
 		return nil, fmt.Errorf("Add requires 2D tensors (matrices)")
 	}
-	if A.Shape[0] != B.Shape[0] || A.Shape[1] != B.Shape[1] {
-		return nil, fmt.Errorf("incompatible matrix dimensions for addition: A (%dx%d) != B (%dx%d)", 
+	
+	// Check for broadcasting compatibility
+	canBroadcast, resultShape := canBroadcast2D(A.Shape, B.Shape)
+	if !canBroadcast {
+		return nil, fmt.Errorf("incompatible matrix dimensions for addition: A (%dx%d) vs B (%dx%d)", 
 			A.Shape[0], A.Shape[1], B.Shape[0], B.Shape[1])
 	}
+	
+	// If shapes are identical, use the original fast path
+	if A.Shape[0] == B.Shape[0] && A.Shape[1] == B.Shape[1] {
+		return addSameShape(A, B)
+	}
+	
+	// Handle broadcasting case
+	return addWithBroadcasting(A, B, resultShape)
+}
 
+// canBroadcast2D checks if two 2D tensors can be broadcast together
+func canBroadcast2D(shapeA, shapeB []int) (bool, []int) {
+	// For 2D broadcasting: [M, N] + [1, N] = [M, N] or [M, N] + [M, 1] = [M, N]
+	// Also handle exact matches: [M, N] + [M, N] = [M, N]
+	
+	if len(shapeA) != 2 || len(shapeB) != 2 {
+		return false, nil
+	}
+	
+	// Case 1: Exact match
+	if shapeA[0] == shapeB[0] && shapeA[1] == shapeB[1] {
+		return true, []int{shapeA[0], shapeA[1]}
+	}
+	
+	// Case 2: Broadcasting along dimension 0 (bias case: [M, N] + [1, N])
+	if (shapeA[0] != shapeB[0] && (shapeA[0] == 1 || shapeB[0] == 1)) && shapeA[1] == shapeB[1] {
+		resultRows := shapeA[0]
+		if shapeB[0] > resultRows {
+			resultRows = shapeB[0]
+		}
+		return true, []int{resultRows, shapeA[1]}
+	}
+	
+	// Case 3: Broadcasting along dimension 1 ([M, N] + [M, 1])
+	if shapeA[0] == shapeB[0] && (shapeA[1] != shapeB[1] && (shapeA[1] == 1 || shapeB[1] == 1)) {
+		resultCols := shapeA[1]
+		if shapeB[1] > resultCols {
+			resultCols = shapeB[1]
+		}
+		return true, []int{shapeA[0], resultCols}
+	}
+	
+	return false, nil
+}
+
+// addSameShape performs addition when both tensors have the same shape (fast path)
+func addSameShape(A, B *tensor.Tensor) (*tensor.Tensor, error) {
 	resultSize := A.Shape[0] * A.Shape[1]
 	resultData := make([]float32, resultSize)
 	resultTensor, err := tensor.NewTensor([]int{A.Shape[0], A.Shape[1]}, resultData)
@@ -415,6 +464,50 @@ func Add(A, B *tensor.Tensor) (*tensor.Tensor, error) {
 			C.free_c_error_message(cErr.message)
 		}
 		return nil, fmt.Errorf("GPU matrix addition failed (code %d): %s", retCode, errMsg)
+	}
+
+	return resultTensor, nil
+}
+
+// addWithBroadcasting performs addition with broadcasting support
+func addWithBroadcasting(A, B *tensor.Tensor, resultShape []int) (*tensor.Tensor, error) {
+	// Create result tensor
+	resultSize := resultShape[0] * resultShape[1]
+	resultData := make([]float32, resultSize)
+	resultTensor, err := tensor.NewTensor(resultShape, resultData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create result tensor: %w", err)
+	}
+
+	if err := A.EnsureGPU(); err != nil {
+		return nil, fmt.Errorf("failed to move tensor A to GPU: %w", err)
+	}
+	if err := B.EnsureGPU(); err != nil {
+		return nil, fmt.Errorf("failed to move tensor B to GPU: %w", err)
+	}
+	if err := resultTensor.EnsureGPU(); err != nil {
+		return nil, fmt.Errorf("failed to move result tensor to GPU: %w", err)
+	}
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	var cErr C.CError
+	retCode := C.perform_mps_matrix_add_broadcast(
+		C.GPUPtr(A.GPUPtr()), C.long(A.Shape[0]), C.long(A.Shape[1]),
+		C.GPUPtr(B.GPUPtr()), C.long(B.Shape[0]), C.long(B.Shape[1]),
+		C.GPUPtr(resultTensor.GPUPtr()), C.long(resultTensor.Shape[0]), C.long(resultTensor.Shape[1]),
+		C.DevicePtr(A.DevicePtr()),
+		&cErr,
+	)
+
+	if retCode != 0 {
+		var errMsg string
+		if cErr.message != nil {
+			errMsg = C.GoString(cErr.message)
+			C.free_c_error_message(cErr.message)
+		}
+		return nil, fmt.Errorf("GPU matrix addition with broadcasting failed (code %d): %s", retCode, errMsg)
 	}
 
 	return resultTensor, nil

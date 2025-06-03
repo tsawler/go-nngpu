@@ -10,8 +10,71 @@ import "C"
 import (
 	"fmt"
 	"runtime"
+	"sync"
 	"unsafe"
 )
+
+// globalMemoryPool is a package-level memory pool for tracking all tensor allocations
+var globalMemoryPool *GlobalMemoryPool
+var globalMemoryPoolOnce sync.Once
+
+// GlobalMemoryPool tracks all GPU memory allocations made by tensors
+type GlobalMemoryPool struct {
+	allocations map[unsafe.Pointer]int64
+	totalUsage  int64
+	peakUsage   int64
+	mutex       sync.RWMutex
+}
+
+// initGlobalMemoryPool initializes the global memory pool
+func initGlobalMemoryPool() {
+	globalMemoryPool = &GlobalMemoryPool{
+		allocations: make(map[unsafe.Pointer]int64),
+	}
+}
+
+// getGlobalMemoryPool returns the singleton global memory pool
+func getGlobalMemoryPool() *GlobalMemoryPool {
+	globalMemoryPoolOnce.Do(initGlobalMemoryPool)
+	return globalMemoryPool
+}
+
+// trackAllocation records a new allocation
+func (p *GlobalMemoryPool) trackAllocation(ptr unsafe.Pointer, size int64) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	
+	p.allocations[ptr] = size
+	p.totalUsage += size
+	if p.totalUsage > p.peakUsage {
+		p.peakUsage = p.totalUsage
+	}
+}
+
+// trackDeallocation records a deallocation
+func (p *GlobalMemoryPool) trackDeallocation(ptr unsafe.Pointer) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	
+	if size, exists := p.allocations[ptr]; exists {
+		delete(p.allocations, ptr)
+		p.totalUsage -= size
+	}
+}
+
+// GetStats returns current memory usage statistics
+func (p *GlobalMemoryPool) GetStats() (currentUsage, peakUsage int64, numAllocations int) {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
+	
+	return p.totalUsage, p.peakUsage, len(p.allocations)
+}
+
+// GetGlobalMemoryStats returns global memory statistics for all tensors
+func GetGlobalMemoryStats() (currentUsage, peakUsage int64, numAllocations int) {
+	pool := getGlobalMemoryPool()
+	return pool.GetStats()
+}
 
 // Tensor represents a multi-dimensional array of float32, potentially backed by a Metal GPU buffer.
 type Tensor struct {
@@ -78,6 +141,11 @@ func (t *Tensor) EnsureGPU() error {
 	t.gpuPtr = unsafe.Pointer(cGPUPtr)
 	t.devicePtr = unsafe.Pointer(cDevice) // Store the device pointer
 	t.isOnGPU = true
+	
+	// Track the allocation in the global memory pool
+	pool := getGlobalMemoryPool()
+	pool.trackAllocation(t.gpuPtr, int64(cLen))
+	
 	return nil
 }
 
@@ -122,6 +190,11 @@ func (t *Tensor) ReleaseGPU() {
 	if t.isOnGPU && t.gpuPtr != nil && t.isOwner {
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
+		
+		// Track the deallocation in the global memory pool
+		pool := getGlobalMemoryPool()
+		pool.trackDeallocation(t.gpuPtr)
+		
 		C.release_gpu_buffer(C.GPUPtr(t.gpuPtr))
 		t.gpuPtr = nil
 		t.isOnGPU = false

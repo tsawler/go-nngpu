@@ -836,6 +836,20 @@ func (t *Trainer) SaveCheckpoint(filepath string) error {
 	return fmt.Errorf("checkpoint saving not implemented yet")
 }
 
+// GetCombinedMemoryStats returns memory statistics from both the memory pool and tensor tracking
+func GetCombinedMemoryStats(state *TrainingState) (poolUsage, tensorUsage, peakUsage int64) {
+	// Get tensor memory stats (actual GPU memory usage)
+	tensorUsage, peakUsage, _ = tensor.GetGlobalMemoryStats()
+	
+	// Get memory pool stats (if available)
+	if state.MemoryPool != nil {
+		poolStats := state.MemoryPool.GetStats()
+		poolUsage = poolStats.PeakUsage
+	}
+	
+	return poolUsage, tensorUsage, peakUsage
+}
+
 // LoadCheckpoint loads a training state from checkpoint
 func (t *Trainer) LoadCheckpoint(filepath string) error {
 	// This would load the model, optimizer state, and training state

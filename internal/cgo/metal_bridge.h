@@ -49,6 +49,14 @@ int perform_mps_matrix_add(
     CError *err
 );
 
+int perform_mps_matrix_add_broadcast(
+    GPUPtr aMatrixPtr, long aRows, long aCols,
+    GPUPtr bMatrixPtr, long bRows, long bCols,
+    GPUPtr resultMatrixPtr, long resultRows, long resultCols,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
 int perform_mps_matrix_subtract(
     GPUPtr aMatrixPtr, long aRows, long aCols,
     GPUPtr bMatrixPtr, long bRows, long bCols,
