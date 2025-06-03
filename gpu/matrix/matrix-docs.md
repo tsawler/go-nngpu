@@ -310,6 +310,13 @@ func CreateBatchNormParams(features int) (gamma, beta *mat.Dense)
 CreateBatchNormParams creates initialized gamma and beta parameters for batch
 normalization
 
+#### func  CreateCausalMask
+
+```go
+func CreateCausalMask(rows, cols int) (*tensor.Tensor, error)
+```
+CreateCausalMask creates a causal attention mask
+
 #### func  CreateLayerNormParams
 
 ```go
@@ -725,6 +732,14 @@ func GradientScaleAndClip(gradTensors []*GradientTensor, scale float32, maxNorm 
 ```
 GradientScaleAndClip combines gradient scaling and clipping in one operation
 
+#### func  GreaterThanScalar
+
+```go
+func GreaterThanScalar(t *tensor.Tensor, scalar float32) (*tensor.Tensor, error)
+```
+GreaterThanScalar creates a binary mask tensor where elements > scalar are 1.0,
+else 0.0
+
 #### func  GroupNormForward
 
 ```go
@@ -824,6 +839,14 @@ func LayerNormForwardBackward(input, gamma, beta, gradOutput *tensor.Tensor, eps
 ```
 LayerNormForwardBackward performs both forward and backward passes for layer
 normalization
+
+#### func  LayerNormForwardWithStats
+
+```go
+func LayerNormForwardWithStats(input, gamma, beta *tensor.Tensor, epsilon float32) (*tensor.Tensor, *tensor.Tensor, *tensor.Tensor, error)
+```
+LayerNormForwardWithStats computes layer normalization and returns normalized
+output and statistics
 
 #### func  LeakyReLUBackward
 
@@ -1008,6 +1031,13 @@ func ReLUForward(input *tensor.Tensor) (*tensor.Tensor, error)
 ```
 ReLUForward applies ReLU activation function
 
+#### func  ReduceSum
+
+```go
+func ReduceSum(t *tensor.Tensor, axes []int, keepDims bool) (*tensor.Tensor, error)
+```
+ReduceSum reduces a tensor by summing along specified axes
+
 #### func  ReflectionPad2D
 
 ```go
@@ -1049,6 +1079,13 @@ RemoveBreakpoint removes a breakpoint for a specific tensor
 func ResetGradientUtilities()
 ```
 ResetGradientUtilities resets all gradient utilities to their initial state
+
+#### func  Reshape
+
+```go
+func Reshape(t *tensor.Tensor, newShape []int) (*tensor.Tensor, error)
+```
+Reshape reshapes a tensor to new dimensions
 
 #### func  Reshape2DTo4D
 
