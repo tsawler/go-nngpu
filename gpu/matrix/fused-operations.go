@@ -136,6 +136,8 @@ func (f *FusedConvBNReLU) GetSpeedup() float32 {
 }
 
 func (f *FusedConvBNReLU) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error) {
+	start := time.Now()
+	
 	config, ok := configInterface.(*FusedConvolutionConfig)
 	if !ok {
 		return nil, fmt.Errorf("invalid config type for FusedConvBNReLU")
@@ -233,6 +235,10 @@ func (f *FusedConvBNReLU) Forward(inputs []*tensor.Tensor, configInterface inter
 		}
 		return nil, fmt.Errorf("fused conv+bn+relu failed (code %d): %s", retCode, errMsg)
 	}
+
+	// Record fusion statistics
+	elapsed := time.Since(start)
+	globalFusionScheduler.RecordFusionResult(f.GetName(), true, f.GetSpeedup(), f.GetMemorySavings(), elapsed)
 
 	return output, nil
 }
@@ -349,6 +355,8 @@ func (f *FusedLinearActivation) GetSpeedup() float32 {
 }
 
 func (f *FusedLinearActivation) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error) {
+	start := time.Now()
+	
 	config, ok := configInterface.(*FusedLinearConfig)
 	if !ok {
 		return nil, fmt.Errorf("invalid config type for FusedLinearActivation")
@@ -425,6 +433,10 @@ func (f *FusedLinearActivation) Forward(inputs []*tensor.Tensor, configInterface
 		}
 		return nil, fmt.Errorf("fused linear+activation failed (code %d): %s", retCode, errMsg)
 	}
+
+	// Record fusion statistics
+	elapsed := time.Since(start)
+	globalFusionScheduler.RecordFusionResult(f.GetName(), true, f.GetSpeedup(), f.GetMemorySavings(), elapsed)
 
 	return output, nil
 }
@@ -558,6 +570,8 @@ func (f *FusedAttention) GetSpeedup() float32 {
 }
 
 func (f *FusedAttention) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error) {
+	start := time.Now()
+	
 	config, ok := configInterface.(*FusedAttentionConfig)
 	if !ok {
 		return nil, fmt.Errorf("invalid config type for FusedAttention")
@@ -623,6 +637,10 @@ func (f *FusedAttention) Forward(inputs []*tensor.Tensor, configInterface interf
 		}
 		return nil, fmt.Errorf("fused attention failed (code %d): %s", retCode, errMsg)
 	}
+
+	// Record fusion statistics
+	elapsed := time.Since(start)
+	globalFusionScheduler.RecordFusionResult(f.GetName(), true, f.GetSpeedup(), f.GetMemorySavings(), elapsed)
 
 	return output, nil
 }
@@ -792,6 +810,8 @@ func (f *FusedGELUDropout) GetSpeedup() float32 {
 }
 
 func (f *FusedGELUDropout) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error) {
+	start := time.Now()
+	
 	if len(inputs) < 1 {
 		return nil, fmt.Errorf("FusedGELUDropout requires input tensor")
 	}
@@ -843,6 +863,10 @@ func (f *FusedGELUDropout) Forward(inputs []*tensor.Tensor, configInterface inte
 		}
 		return nil, fmt.Errorf("fused GELU+dropout failed (code %d): %s", retCode, errMsg)
 	}
+
+	// Record fusion statistics
+	elapsed := time.Since(start)
+	globalFusionScheduler.RecordFusionResult(f.GetName(), true, f.GetSpeedup(), f.GetMemorySavings(), elapsed)
 
 	return output, nil
 }
@@ -938,6 +962,8 @@ func (f *FusedLayerNormLinear) GetSpeedup() float32 {
 }
 
 func (f *FusedLayerNormLinear) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error) {
+	start := time.Now()
+	
 	if len(inputs) < 4 {
 		return nil, fmt.Errorf("FusedLayerNormLinear requires input, gamma, beta, and weight tensors")
 	}
@@ -1012,6 +1038,10 @@ func (f *FusedLayerNormLinear) Forward(inputs []*tensor.Tensor, configInterface 
 		}
 		return nil, fmt.Errorf("fused LayerNorm+Linear failed (code %d): %s", retCode, errMsg)
 	}
+
+	// Record fusion statistics
+	elapsed := time.Since(start)
+	globalFusionScheduler.RecordFusionResult(f.GetName(), true, f.GetSpeedup(), f.GetMemorySavings(), elapsed)
 
 	return output, nil
 }
@@ -1140,6 +1170,8 @@ func (f *FusedResidualBlock) GetSpeedup() float32 {
 }
 
 func (f *FusedResidualBlock) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error) {
+	start := time.Now()
+	
 	if len(inputs) < 7 {
 		return nil, fmt.Errorf("FusedResidualBlock requires input, conv1_weight, bn1_gamma, bn1_beta, conv2_weight, bn2_gamma, bn2_beta")
 	}
@@ -1195,6 +1227,10 @@ func (f *FusedResidualBlock) Forward(inputs []*tensor.Tensor, configInterface in
 		}
 		return nil, fmt.Errorf("fused residual block failed (code %d): %s", retCode, errMsg)
 	}
+
+	// Record fusion statistics
+	elapsed := time.Since(start)
+	globalFusionScheduler.RecordFusionResult(f.GetName(), true, f.GetSpeedup(), f.GetMemorySavings(), elapsed)
 
 	return output, nil
 }
