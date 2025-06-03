@@ -391,6 +391,10 @@ func InitializeMemoryOptimizationSuite(device unsafe.Pointer, config *Optimizati
 
 // GetGlobalMemoryOptimizationSuite returns the global memory optimization suite
 func GetGlobalMemoryOptimizationSuite() *MemoryOptimizationSuite {
+	if globalMemoryOptimizationSuite == nil {
+		// Auto-initialize with nil device for demo purposes
+		InitializePhase8C(nil)
+	}
 	return globalMemoryOptimizationSuite
 }
 
@@ -454,4 +458,70 @@ func Phase8CFeatures() []string {
 		"Unified Memory Optimization Suite",
 		"Performance-Optimized Demo Application",
 	}
+}
+
+// Global initialization functions
+
+// InitializePhase8C initializes all Phase 8C components with a unified interface
+func InitializePhase8C(device unsafe.Pointer) error {
+	memoryOptimizationSuiteOnce.Do(func() {
+		// Initialize global memory optimization suite
+		config := DefaultOptimizationConfig()
+		globalMemoryOptimizationSuite = NewMemoryOptimizationSuite(device, config)
+		
+		// Initialize individual global components that aren't auto-initialized
+		if globalMemoryOptimizationSuite.memoryPool != nil {
+			InitializeGlobalBufferReuseManager(globalMemoryOptimizationSuite.memoryPool)
+		}
+		
+		// Initialize kernel cache (even with nil device for demo purposes)
+		InitializeKernelCache(device)
+		
+		// Mark as initialized
+		if globalMemoryOptimizationSuite != nil {
+			globalMemoryOptimizationSuite.mutex.Lock()
+			globalMemoryOptimizationSuite.isInitialized = true
+			globalMemoryOptimizationSuite.mutex.Unlock()
+		}
+	})
+	
+	if globalMemoryOptimizationSuite == nil {
+		return fmt.Errorf("failed to initialize memory optimization suite")
+	}
+	
+	return nil
+}
+
+// InitializePhase8CWithDefaults initializes Phase 8C with default configuration
+func InitializePhase8CWithDefaults() error {
+	return InitializePhase8C(nil) // Use nil device for demo/testing
+}
+
+// IsPhase8CInitialized returns true if Phase 8C has been initialized
+func IsPhase8CInitialized() bool {
+	suite := GetGlobalMemoryOptimizationSuite()
+	if suite == nil {
+		return false
+	}
+	
+	suite.mutex.RLock()
+	defer suite.mutex.RUnlock()
+	return suite.isInitialized
+}
+
+// ResetPhase8C cleans up and resets all Phase 8C components (for testing)
+func ResetPhase8C() {
+	if globalMemoryOptimizationSuite != nil {
+		globalMemoryOptimizationSuite.Close()
+		globalMemoryOptimizationSuite = nil
+	}
+	
+	// Reset global component singletons
+	globalBufferReuseManager = nil
+	globalKernelCache = nil
+	
+	// Reset the once variables to allow re-initialization
+	memoryOptimizationSuiteOnce = sync.Once{}
+	bufferReuseManagerOnce = sync.Once{}
+	kernelCacheOnce = sync.Once{}
 }

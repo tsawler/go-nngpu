@@ -397,16 +397,21 @@ func InitializeKernelCache(device unsafe.Pointer) {
 
 // GetGlobalKernelCache returns the global kernel cache
 func GetGlobalKernelCache() *KernelCache {
+	if globalKernelCache == nil {
+		// Auto-initialize with nil device for demo purposes
+		InitializeKernelCache(nil)
+	}
 	return globalKernelCache
 }
 
 // CompileOptimizedKernel compiles a kernel using the global cache
 func CompileOptimizedKernel(source string, options *KernelCompilationOptions) (unsafe.Pointer, error) {
-	if globalKernelCache == nil {
+	cache := GetGlobalKernelCache()
+	if cache == nil {
 		return nil, fmt.Errorf("kernel cache not initialized")
 	}
 	
-	return globalKernelCache.GetKernel(source, options)
+	return cache.GetKernel(source, options)
 }
 
 // PrecompileCommonKernels precompiles frequently used kernels

@@ -403,6 +403,12 @@ func InitializeGlobalBufferReuseManager(memoryPool *GPUMemoryPool) {
 
 // GetGlobalBufferReuseManager returns the global buffer reuse manager
 func GetGlobalBufferReuseManager() *BufferReuseManager {
+	if globalBufferReuseManager == nil {
+		// Try to initialize from the global memory optimization suite
+		if suite := GetGlobalMemoryOptimizationSuite(); suite != nil && suite.bufferReuseManager != nil {
+			globalBufferReuseManager = suite.bufferReuseManager
+		}
+	}
 	return globalBufferReuseManager
 }
 
