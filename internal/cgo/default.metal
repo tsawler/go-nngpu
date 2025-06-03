@@ -692,3 +692,429 @@ kernel void fused_attention(device const float* query [[buffer(0)]],
         output[out_idx] = sum;
     }
 }
+
+// ===== PHASE 8B: CUSTOM OPTIMIZED KERNELS =====
+
+// Optimized GEMM kernel with shared memory and tiling
+kernel void optimized_gemm(device const float* A [[buffer(0)]],
+                          device const float* B [[buffer(1)]],
+                          device float* C [[buffer(2)]],
+                          constant long& M [[buffer(3)]],
+                          constant long& N [[buffer(4)]],
+                          constant long& K [[buffer(5)]],
+                          constant float& alpha [[buffer(6)]],
+                          constant float& beta [[buffer(7)]],
+                          threadgroup float* tileA [[threadgroup(0)]],
+                          threadgroup float* tileB [[threadgroup(1)]],
+                          uint2 gid [[thread_position_in_grid]],
+                          uint2 tid [[thread_position_in_threadgroup]],
+                          uint2 tgSize [[threads_per_threadgroup]]) {
+    
+    const uint TILE_SIZE = 16; // Must match threadgroup size
+    
+    const uint row = gid.y;
+    const uint col = gid.x;
+    const uint localRow = tid.y;
+    const uint localCol = tid.x;
+    
+    if (row >= M || col >= N) return;
+    
+    float sum = 0.0f;
+    
+    // Loop over tiles
+    for (uint tileIdx = 0; tileIdx < (K + TILE_SIZE - 1) / TILE_SIZE; tileIdx++) {
+        // Load tile of A into shared memory
+        uint aRow = row;
+        uint aCol = tileIdx * TILE_SIZE + localCol;
+        if (aRow < M && aCol < K) {
+            tileA[localRow * TILE_SIZE + localCol] = A[aRow * K + aCol];
+        } else {
+            tileA[localRow * TILE_SIZE + localCol] = 0.0f;
+        }
+        
+        // Load tile of B into shared memory
+        uint bRow = tileIdx * TILE_SIZE + localRow;
+        uint bCol = col;
+        if (bRow < K && bCol < N) {
+            tileB[localRow * TILE_SIZE + localCol] = B[bRow * N + bCol];
+        } else {
+            tileB[localRow * TILE_SIZE + localCol] = 0.0f;
+        }
+        
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        
+        // Compute partial sum for this tile
+        for (uint k = 0; k < TILE_SIZE; k++) {
+            sum += tileA[localRow * TILE_SIZE + k] * tileB[k * TILE_SIZE + localCol];
+        }
+        
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    
+    // Write result
+    uint idx = row * N + col;
+    if (beta == 0.0f) {
+        C[idx] = alpha * sum;
+    } else {
+        C[idx] = alpha * sum + beta * C[idx];
+    }
+}
+
+// Optimized batch matrix multiply
+kernel void batch_matmul_optimized(device const float* A [[buffer(0)]],
+                                  device const float* B [[buffer(1)]],
+                                  device float* C [[buffer(2)]],
+                                  constant long& batch_size [[buffer(3)]],
+                                  constant long& M [[buffer(4)]],
+                                  constant long& N [[buffer(5)]],
+                                  constant long& K [[buffer(6)]],
+                                  uint3 gid [[thread_position_in_grid]]) {
+    
+    const uint batch = gid.z;
+    const uint row = gid.y;
+    const uint col = gid.x;
+    
+    if (batch >= batch_size || row >= M || col >= N) return;
+    
+    const uint batch_offset_A = batch * M * K;
+    const uint batch_offset_B = batch * K * N;
+    const uint batch_offset_C = batch * M * N;
+    
+    float sum = 0.0f;
+    for (uint k = 0; k < K; k++) {
+        sum += A[batch_offset_A + row * K + k] * B[batch_offset_B + k * N + col];
+    }
+    
+    C[batch_offset_C + row * N + col] = sum;
+}
+
+// Optimized 1x1 convolution (essentially a matrix multiply)
+kernel void conv1x1_optimized(device const float* input [[buffer(0)]],
+                             device const float* weight [[buffer(1)]],
+                             device float* output [[buffer(2)]],
+                             constant long& batch [[buffer(3)]],
+                             constant long& height [[buffer(4)]],
+                             constant long& width [[buffer(5)]],
+                             constant long& in_channels [[buffer(6)]],
+                             constant long& out_channels [[buffer(7)]],
+                             uint3 gid [[thread_position_in_grid]]) {
+    
+    const uint b = gid.z;
+    const uint out_c = gid.y;
+    const uint pixel = gid.x;
+    
+    const uint h = pixel / width;
+    const uint w = pixel % width;
+    
+    if (b >= batch || out_c >= out_channels || h >= height || w >= width) return;
+    
+    float sum = 0.0f;
+    
+    // Input layout: [batch, height, width, channels]
+    // Weight layout: [in_channels, out_channels]
+    // Output layout: [batch, height, width, out_channels]
+    
+    for (uint in_c = 0; in_c < in_channels; in_c++) {
+        uint input_idx = ((b * height + h) * width + w) * in_channels + in_c;
+        uint weight_idx = in_c * out_channels + out_c;
+        sum += input[input_idx] * weight[weight_idx];
+    }
+    
+    uint output_idx = ((b * height + h) * width + w) * out_channels + out_c;
+    output[output_idx] = sum;
+}
+
+// Optimized depthwise convolution
+kernel void depthwise_conv_optimized(device const float* input [[buffer(0)]],
+                                    device const float* kernel [[buffer(1)]],
+                                    device float* output [[buffer(2)]],
+                                    constant long& batch [[buffer(3)]],
+                                    constant long& in_height [[buffer(4)]],
+                                    constant long& in_width [[buffer(5)]],
+                                    constant long& channels [[buffer(6)]],
+                                    constant long& kernel_h [[buffer(7)]],
+                                    constant long& kernel_w [[buffer(8)]],
+                                    constant long& stride_h [[buffer(9)]],
+                                    constant long& stride_w [[buffer(10)]],
+                                    constant long& pad_h [[buffer(11)]],
+                                    constant long& pad_w [[buffer(12)]],
+                                    uint3 gid [[thread_position_in_grid]]) {
+    
+    const uint b = gid.z;
+    const uint c = gid.y;
+    const uint out_pos = gid.x;
+    
+    const uint out_height = (in_height + 2 * pad_h - kernel_h) / stride_h + 1;
+    const uint out_width = (in_width + 2 * pad_w - kernel_w) / stride_w + 1;
+    
+    const uint oh = out_pos / out_width;
+    const uint ow = out_pos % out_width;
+    
+    if (b >= batch || c >= channels || oh >= out_height || ow >= out_width) return;
+    
+    float sum = 0.0f;
+    
+    for (uint kh = 0; kh < kernel_h; kh++) {
+        for (uint kw = 0; kw < kernel_w; kw++) {
+            int ih = oh * stride_h - pad_h + kh;
+            int iw = ow * stride_w - pad_w + kw;
+            
+            if (ih >= 0 && ih < in_height && iw >= 0 && iw < in_width) {
+                uint input_idx = ((b * in_height + ih) * in_width + iw) * channels + c;
+                uint kernel_idx = (kh * kernel_w + kw) * channels + c;
+                sum += input[input_idx] * kernel[kernel_idx];
+            }
+        }
+    }
+    
+    uint output_idx = ((b * out_height + oh) * out_width + ow) * channels + c;
+    output[output_idx] = sum;
+}
+
+// Optimized elementwise operations with broadcasting
+kernel void elementwise_binary_op(device const float* a [[buffer(0)]],
+                                 device const float* b [[buffer(1)]],
+                                 device float* output [[buffer(2)]],
+                                 constant int& op_type [[buffer(3)]],
+                                 constant long& size [[buffer(4)]],
+                                 constant long& a_stride [[buffer(5)]],
+                                 constant long& b_stride [[buffer(6)]],
+                                 uint index [[thread_position_in_grid]]) {
+    
+    if (index >= size) return;
+    
+    // Handle broadcasting
+    uint a_idx = (a_stride == 0) ? 0 : index;
+    uint b_idx = (b_stride == 0) ? 0 : index;
+    
+    float a_val = a[a_idx];
+    float b_val = b[b_idx];
+    
+    switch (op_type) {
+        case 0: // Add
+            output[index] = a_val + b_val;
+            break;
+        case 1: // Subtract
+            output[index] = a_val - b_val;
+            break;
+        case 2: // Multiply
+            output[index] = a_val * b_val;
+            break;
+        case 3: // Divide
+            output[index] = a_val / b_val;
+            break;
+        case 4: // Maximum
+            output[index] = max(a_val, b_val);
+            break;
+        case 5: // Minimum
+            output[index] = min(a_val, b_val);
+            break;
+        case 6: // Power
+            output[index] = pow(a_val, b_val);
+            break;
+    }
+}
+
+// Optimized reduction kernel with warp-level primitives
+kernel void reduce_optimized(device const float* input [[buffer(0)]],
+                            device float* output [[buffer(1)]],
+                            device atomic<float>* partial_sums [[buffer(2)]],
+                            constant long& size [[buffer(3)]],
+                            constant int& op_type [[buffer(4)]],
+                            threadgroup float* shared_data [[threadgroup(0)]],
+                            uint index [[thread_position_in_grid]],
+                            uint tid [[thread_index_in_threadgroup]],
+                            uint tg_size [[threads_per_threadgroup]]) {
+    
+    // Load data and perform first reduction
+    float val = (op_type == 0) ? 0.0f : ((op_type == 1) ? -INFINITY : INFINITY); // sum, max, min
+    
+    for (uint i = index; i < size; i += tg_size * 32768) { // Process multiple elements per thread
+        float elem = input[i];
+        switch (op_type) {
+            case 0: // Sum
+                val += elem;
+                break;
+            case 1: // Max
+                val = max(val, elem);
+                break;
+            case 2: // Min
+                val = min(val, elem);
+                break;
+        }
+    }
+    
+    shared_data[tid] = val;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    
+    // Tree reduction in shared memory
+    for (uint stride = tg_size / 2; stride > 0; stride >>= 1) {
+        if (tid < stride) {
+            switch (op_type) {
+                case 0: // Sum
+                    shared_data[tid] += shared_data[tid + stride];
+                    break;
+                case 1: // Max
+                    shared_data[tid] = max(shared_data[tid], shared_data[tid + stride]);
+                    break;
+                case 2: // Min
+                    shared_data[tid] = min(shared_data[tid], shared_data[tid + stride]);
+                    break;
+            }
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    
+    // Write result
+    if (tid == 0) {
+        switch (op_type) {
+            case 0: // Sum
+                atomic_fetch_add_explicit(partial_sums, shared_data[0], memory_order_relaxed);
+                break;
+            case 1: // Max
+                atomic_fetch_max_explicit(partial_sums, shared_data[0], memory_order_relaxed);
+                break;
+            case 2: // Min
+                atomic_fetch_min_explicit(partial_sums, shared_data[0], memory_order_relaxed);
+                break;
+        }
+    }
+}
+
+// Optimized softmax with numerical stability
+kernel void softmax_optimized(device const float* input [[buffer(0)]],
+                             device float* output [[buffer(1)]],
+                             constant long& batch_size [[buffer(2)]],
+                             constant long& num_classes [[buffer(3)]],
+                             threadgroup float* shared_max [[threadgroup(0)]],
+                             threadgroup float* shared_sum [[threadgroup(1)]],
+                             uint2 gid [[thread_position_in_grid]],
+                             uint tid [[thread_index_in_threadgroup]],
+                             uint tg_size [[threads_per_threadgroup]]) {
+    
+    const uint batch = gid.y;
+    if (batch >= batch_size) return;
+    
+    const uint batch_offset = batch * num_classes;
+    
+    // Step 1: Find maximum value for numerical stability
+    float local_max = -INFINITY;
+    for (uint i = tid; i < num_classes; i += tg_size) {
+        local_max = max(local_max, input[batch_offset + i]);
+    }
+    
+    shared_max[tid] = local_max;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    
+    // Reduce to find global max
+    for (uint stride = tg_size / 2; stride > 0; stride >>= 1) {
+        if (tid < stride) {
+            shared_max[tid] = max(shared_max[tid], shared_max[tid + stride]);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    
+    float max_val = shared_max[0];
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    
+    // Step 2: Compute exp and sum
+    float local_sum = 0.0f;
+    for (uint i = tid; i < num_classes; i += tg_size) {
+        float exp_val = exp(input[batch_offset + i] - max_val);
+        output[batch_offset + i] = exp_val;
+        local_sum += exp_val;
+    }
+    
+    shared_sum[tid] = local_sum;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    
+    // Reduce to find sum
+    for (uint stride = tg_size / 2; stride > 0; stride >>= 1) {
+        if (tid < stride) {
+            shared_sum[tid] += shared_sum[tid + stride];
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    
+    float sum_val = shared_sum[0];
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    
+    // Step 3: Normalize
+    for (uint i = tid; i < num_classes; i += tg_size) {
+        output[batch_offset + i] /= sum_val;
+    }
+}
+
+// Optimized layer normalization
+kernel void layer_norm_optimized(device const float* input [[buffer(0)]],
+                                device const float* gamma [[buffer(1)]],
+                                device const float* beta [[buffer(2)]],
+                                device float* output [[buffer(3)]],
+                                device float* mean_out [[buffer(4)]],
+                                device float* var_out [[buffer(5)]],
+                                constant long& batch_size [[buffer(6)]],
+                                constant long& feature_size [[buffer(7)]],
+                                constant float& epsilon [[buffer(8)]],
+                                threadgroup float* shared_sum [[threadgroup(0)]],
+                                threadgroup float* shared_sum_sq [[threadgroup(1)]],
+                                uint2 gid [[thread_position_in_grid]],
+                                uint tid [[thread_index_in_threadgroup]],
+                                uint tg_size [[threads_per_threadgroup]]) {
+    
+    const uint batch = gid.y;
+    if (batch >= batch_size) return;
+    
+    const uint batch_offset = batch * feature_size;
+    
+    // Step 1: Compute mean
+    float local_sum = 0.0f;
+    for (uint i = tid; i < feature_size; i += tg_size) {
+        local_sum += input[batch_offset + i];
+    }
+    
+    shared_sum[tid] = local_sum;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    
+    for (uint stride = tg_size / 2; stride > 0; stride >>= 1) {
+        if (tid < stride) {
+            shared_sum[tid] += shared_sum[tid + stride];
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    
+    float mean = shared_sum[0] / float(feature_size);
+    if (tid == 0 && mean_out) {
+        mean_out[batch] = mean;
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    
+    // Step 2: Compute variance
+    float local_sum_sq = 0.0f;
+    for (uint i = tid; i < feature_size; i += tg_size) {
+        float diff = input[batch_offset + i] - mean;
+        local_sum_sq += diff * diff;
+    }
+    
+    shared_sum_sq[tid] = local_sum_sq;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    
+    for (uint stride = tg_size / 2; stride > 0; stride >>= 1) {
+        if (tid < stride) {
+            shared_sum_sq[tid] += shared_sum_sq[tid + stride];
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    
+    float variance = shared_sum_sq[0] / float(feature_size);
+    if (tid == 0 && var_out) {
+        var_out[batch] = variance;
+    }
+    float std_dev = sqrt(variance + epsilon);
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    
+    // Step 3: Normalize and apply affine transform
+    for (uint i = tid; i < feature_size; i += tg_size) {
+        float normalized = (input[batch_offset + i] - mean) / std_dev;
+        output[batch_offset + i] = normalized * gamma[i] + beta[i];
+    }
+}

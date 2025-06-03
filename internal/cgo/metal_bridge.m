@@ -6744,4 +6744,595 @@ int perform_fused_residual_block(
     }
 }
 
+// Phase 8B: Custom Optimized Metal Kernels Implementation
+
+// Helper function to create compute pipeline state from default.metal
+id<MTLComputePipelineState> createPipelineState(id<MTLDevice> device, NSString* kernelName, CError* err) {
+    NSError* error = nil;
+    
+    // Get the default Metal library
+    id<MTLLibrary> library = [device newDefaultLibrary];
+    if (!library) {
+        set_c_error_message(err, @"Could not load default Metal library");
+        return nil;
+    }
+    
+    // Get the kernel function
+    id<MTLFunction> kernelFunction = [library newFunctionWithName:kernelName];
+    if (!kernelFunction) {
+        set_c_error_message(err, @"Could not find kernel function: %@", kernelName);
+        return nil;
+    }
+    
+    // Create compute pipeline state
+    id<MTLComputePipelineState> pipelineState = [device newComputePipelineStateWithFunction:kernelFunction error:&error];
+    if (!pipelineState) {
+        set_c_error_message(err, @"Could not create pipeline state for %@: %@", kernelName, error.localizedDescription);
+        return nil;
+    }
+    
+    return pipelineState;
+}
+
+// Optimized GEMM with tiling and shared memory
+int perform_optimized_gemm(
+    GPUPtr aPtr, GPUPtr bPtr, GPUPtr cPtr,
+    long M, long N, long K,
+    float alpha, float beta,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLDevice> device = (__bridge id<MTLDevice>)mtlDevicePtr;
+        id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)_global_mtl_command_queue_ptr;
+        
+        if (!device || !commandQueue) {
+            set_c_error_message(err, @"Metal device or command queue not initialized");
+            return -1;
+        }
+        
+        id<MTLBuffer> bufferA = (__bridge id<MTLBuffer>)aPtr;
+        id<MTLBuffer> bufferB = (__bridge id<MTLBuffer>)bPtr;
+        id<MTLBuffer> bufferC = (__bridge id<MTLBuffer>)cPtr;
+        
+        if (!bufferA || !bufferB || !bufferC) {
+            set_c_error_message(err, @"Invalid buffer pointers");
+            return -2;
+        }
+        
+        // Create pipeline state
+        id<MTLComputePipelineState> pipelineState = createPipelineState(device, @"optimized_gemm", err);
+        if (!pipelineState) {
+            return -3;
+        }
+        
+        // Create command buffer and encoder
+        id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        
+        [encoder setComputePipelineState:pipelineState];
+        [encoder setBuffer:bufferA offset:0 atIndex:0];
+        [encoder setBuffer:bufferB offset:0 atIndex:1];
+        [encoder setBuffer:bufferC offset:0 atIndex:2];
+        [encoder setBytes:&M length:sizeof(long) atIndex:3];
+        [encoder setBytes:&N length:sizeof(long) atIndex:4];
+        [encoder setBytes:&K length:sizeof(long) atIndex:5];
+        [encoder setBytes:&alpha length:sizeof(float) atIndex:6];
+        [encoder setBytes:&beta length:sizeof(float) atIndex:7];
+        
+        // Set threadgroup memory for tiling
+        NSUInteger tileSize = 16;
+        NSUInteger threadgroupMemoryA = tileSize * tileSize * sizeof(float);
+        NSUInteger threadgroupMemoryB = tileSize * tileSize * sizeof(float);
+        [encoder setThreadgroupMemoryLength:threadgroupMemoryA atIndex:0];
+        [encoder setThreadgroupMemoryLength:threadgroupMemoryB atIndex:1];
+        
+        // Configure thread execution
+        MTLSize threadsPerThreadgroup = MTLSizeMake(tileSize, tileSize, 1);
+        MTLSize threadgroupsPerGrid = MTLSizeMake((N + tileSize - 1) / tileSize, (M + tileSize - 1) / tileSize, 1);
+        
+        [encoder dispatchThreadgroups:threadgroupsPerGrid threadsPerThreadgroup:threadsPerThreadgroup];
+        [encoder endEncoding];
+        
+        [commandBuffer commit];
+        [commandBuffer waitUntilCompleted];
+        
+        if (commandBuffer.error) {
+            set_c_error_message(err, @"GEMM kernel execution failed: %@", commandBuffer.error.localizedDescription);
+            return -4;
+        }
+        
+        return 0;
+    }
+}
+
+// Optimized batch matrix multiplication
+int perform_batch_matmul_optimized(
+    GPUPtr aPtr, GPUPtr bPtr, GPUPtr cPtr,
+    long batchSize, long M, long N, long K,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLDevice> device = (__bridge id<MTLDevice>)mtlDevicePtr;
+        id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)_global_mtl_command_queue_ptr;
+        
+        if (!device || !commandQueue) {
+            set_c_error_message(err, @"Metal device or command queue not initialized");
+            return -1;
+        }
+        
+        id<MTLBuffer> bufferA = (__bridge id<MTLBuffer>)aPtr;
+        id<MTLBuffer> bufferB = (__bridge id<MTLBuffer>)bPtr;
+        id<MTLBuffer> bufferC = (__bridge id<MTLBuffer>)cPtr;
+        
+        if (!bufferA || !bufferB || !bufferC) {
+            set_c_error_message(err, @"Invalid buffer pointers");
+            return -2;
+        }
+        
+        id<MTLComputePipelineState> pipelineState = createPipelineState(device, @"batch_matmul_optimized", err);
+        if (!pipelineState) {
+            return -3;
+        }
+        
+        id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        
+        [encoder setComputePipelineState:pipelineState];
+        [encoder setBuffer:bufferA offset:0 atIndex:0];
+        [encoder setBuffer:bufferB offset:0 atIndex:1];
+        [encoder setBuffer:bufferC offset:0 atIndex:2];
+        [encoder setBytes:&batchSize length:sizeof(long) atIndex:3];
+        [encoder setBytes:&M length:sizeof(long) atIndex:4];
+        [encoder setBytes:&N length:sizeof(long) atIndex:5];
+        [encoder setBytes:&K length:sizeof(long) atIndex:6];
+        
+        MTLSize threadsPerThreadgroup = MTLSizeMake(16, 16, 1);
+        MTLSize threadgroupsPerGrid = MTLSizeMake((N + 15) / 16, (M + 15) / 16, batchSize);
+        
+        [encoder dispatchThreadgroups:threadgroupsPerGrid threadsPerThreadgroup:threadsPerThreadgroup];
+        [encoder endEncoding];
+        
+        [commandBuffer commit];
+        [commandBuffer waitUntilCompleted];
+        
+        if (commandBuffer.error) {
+            set_c_error_message(err, @"Batch matmul kernel execution failed: %@", commandBuffer.error.localizedDescription);
+            return -4;
+        }
+        
+        return 0;
+    }
+}
+
+// Optimized 1x1 convolution
+int perform_conv1x1_optimized(
+    GPUPtr inputPtr, GPUPtr weightPtr, GPUPtr outputPtr,
+    long batch, long height, long width,
+    long inChannels, long outChannels,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLDevice> device = (__bridge id<MTLDevice>)mtlDevicePtr;
+        id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)_global_mtl_command_queue_ptr;
+        
+        if (!device || !commandQueue) {
+            set_c_error_message(err, @"Metal device or command queue not initialized");
+            return -1;
+        }
+        
+        id<MTLBuffer> inputBuffer = (__bridge id<MTLBuffer>)inputPtr;
+        id<MTLBuffer> weightBuffer = (__bridge id<MTLBuffer>)weightPtr;
+        id<MTLBuffer> outputBuffer = (__bridge id<MTLBuffer>)outputPtr;
+        
+        if (!inputBuffer || !weightBuffer || !outputBuffer) {
+            set_c_error_message(err, @"Invalid buffer pointers");
+            return -2;
+        }
+        
+        id<MTLComputePipelineState> pipelineState = createPipelineState(device, @"conv1x1_optimized", err);
+        if (!pipelineState) {
+            return -3;
+        }
+        
+        id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        
+        [encoder setComputePipelineState:pipelineState];
+        [encoder setBuffer:inputBuffer offset:0 atIndex:0];
+        [encoder setBuffer:weightBuffer offset:0 atIndex:1];
+        [encoder setBuffer:outputBuffer offset:0 atIndex:2];
+        [encoder setBytes:&batch length:sizeof(long) atIndex:3];
+        [encoder setBytes:&height length:sizeof(long) atIndex:4];
+        [encoder setBytes:&width length:sizeof(long) atIndex:5];
+        [encoder setBytes:&inChannels length:sizeof(long) atIndex:6];
+        [encoder setBytes:&outChannels length:sizeof(long) atIndex:7];
+        
+        long totalPixels = height * width;
+        MTLSize threadsPerThreadgroup = MTLSizeMake(32, 8, 1);
+        MTLSize threadgroupsPerGrid = MTLSizeMake((totalPixels + 31) / 32, (outChannels + 7) / 8, batch);
+        
+        [encoder dispatchThreadgroups:threadgroupsPerGrid threadsPerThreadgroup:threadsPerThreadgroup];
+        [encoder endEncoding];
+        
+        [commandBuffer commit];
+        [commandBuffer waitUntilCompleted];
+        
+        if (commandBuffer.error) {
+            set_c_error_message(err, @"Conv1x1 kernel execution failed: %@", commandBuffer.error.localizedDescription);
+            return -4;
+        }
+        
+        return 0;
+    }
+}
+
+// Optimized depthwise convolution
+int perform_depthwise_conv_optimized(
+    GPUPtr inputPtr, GPUPtr kernelPtr, GPUPtr outputPtr,
+    long batch, long inHeight, long inWidth, long channels,
+    long kernelH, long kernelW,
+    long strideH, long strideW, long padH, long padW,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLDevice> device = (__bridge id<MTLDevice>)mtlDevicePtr;
+        id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)_global_mtl_command_queue_ptr;
+        
+        if (!device || !commandQueue) {
+            set_c_error_message(err, @"Metal device or command queue not initialized");
+            return -1;
+        }
+        
+        id<MTLBuffer> inputBuffer = (__bridge id<MTLBuffer>)inputPtr;
+        id<MTLBuffer> kernelBuffer = (__bridge id<MTLBuffer>)kernelPtr;
+        id<MTLBuffer> outputBuffer = (__bridge id<MTLBuffer>)outputPtr;
+        
+        if (!inputBuffer || !kernelBuffer || !outputBuffer) {
+            set_c_error_message(err, @"Invalid buffer pointers");
+            return -2;
+        }
+        
+        id<MTLComputePipelineState> pipelineState = createPipelineState(device, @"depthwise_conv_optimized", err);
+        if (!pipelineState) {
+            return -3;
+        }
+        
+        id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        
+        [encoder setComputePipelineState:pipelineState];
+        [encoder setBuffer:inputBuffer offset:0 atIndex:0];
+        [encoder setBuffer:kernelBuffer offset:0 atIndex:1];
+        [encoder setBuffer:outputBuffer offset:0 atIndex:2];
+        [encoder setBytes:&batch length:sizeof(long) atIndex:3];
+        [encoder setBytes:&inHeight length:sizeof(long) atIndex:4];
+        [encoder setBytes:&inWidth length:sizeof(long) atIndex:5];
+        [encoder setBytes:&channels length:sizeof(long) atIndex:6];
+        [encoder setBytes:&kernelH length:sizeof(long) atIndex:7];
+        [encoder setBytes:&kernelW length:sizeof(long) atIndex:8];
+        [encoder setBytes:&strideH length:sizeof(long) atIndex:9];
+        [encoder setBytes:&strideW length:sizeof(long) atIndex:10];
+        [encoder setBytes:&padH length:sizeof(long) atIndex:11];
+        [encoder setBytes:&padW length:sizeof(long) atIndex:12];
+        
+        long outHeight = (inHeight + 2 * padH - kernelH) / strideH + 1;
+        long outWidth = (inWidth + 2 * padW - kernelW) / strideW + 1;
+        long totalOutputPositions = outHeight * outWidth;
+        
+        MTLSize threadsPerThreadgroup = MTLSizeMake(32, 8, 1);
+        MTLSize threadgroupsPerGrid = MTLSizeMake((totalOutputPositions + 31) / 32, (channels + 7) / 8, batch);
+        
+        [encoder dispatchThreadgroups:threadgroupsPerGrid threadsPerThreadgroup:threadsPerThreadgroup];
+        [encoder endEncoding];
+        
+        [commandBuffer commit];
+        [commandBuffer waitUntilCompleted];
+        
+        if (commandBuffer.error) {
+            set_c_error_message(err, @"Depthwise conv kernel execution failed: %@", commandBuffer.error.localizedDescription);
+            return -4;
+        }
+        
+        return 0;
+    }
+}
+
+// Optimized elementwise binary operations with broadcasting
+int perform_elementwise_binary_op_optimized(
+    GPUPtr aPtr, GPUPtr bPtr, GPUPtr outputPtr,
+    int opType, long size,
+    long aStride, long bStride,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLDevice> device = (__bridge id<MTLDevice>)mtlDevicePtr;
+        id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)_global_mtl_command_queue_ptr;
+        
+        if (!device || !commandQueue) {
+            set_c_error_message(err, @"Metal device or command queue not initialized");
+            return -1;
+        }
+        
+        id<MTLBuffer> bufferA = (__bridge id<MTLBuffer>)aPtr;
+        id<MTLBuffer> bufferB = (__bridge id<MTLBuffer>)bPtr;
+        id<MTLBuffer> outputBuffer = (__bridge id<MTLBuffer>)outputPtr;
+        
+        if (!bufferA || !bufferB || !outputBuffer) {
+            set_c_error_message(err, @"Invalid buffer pointers");
+            return -2;
+        }
+        
+        id<MTLComputePipelineState> pipelineState = createPipelineState(device, @"elementwise_binary_op", err);
+        if (!pipelineState) {
+            return -3;
+        }
+        
+        id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        
+        [encoder setComputePipelineState:pipelineState];
+        [encoder setBuffer:bufferA offset:0 atIndex:0];
+        [encoder setBuffer:bufferB offset:0 atIndex:1];
+        [encoder setBuffer:outputBuffer offset:0 atIndex:2];
+        [encoder setBytes:&opType length:sizeof(int) atIndex:3];
+        [encoder setBytes:&size length:sizeof(long) atIndex:4];
+        [encoder setBytes:&aStride length:sizeof(long) atIndex:5];
+        [encoder setBytes:&bStride length:sizeof(long) atIndex:6];
+        
+        NSUInteger threadsPerThreadgroup = pipelineState.maxTotalThreadsPerThreadgroup;
+        if (threadsPerThreadgroup > size) {
+            threadsPerThreadgroup = size;
+        }
+        
+        MTLSize threadgroupSize = MTLSizeMake(threadsPerThreadgroup, 1, 1);
+        MTLSize gridSize = MTLSizeMake((size + threadsPerThreadgroup - 1) / threadsPerThreadgroup, 1, 1);
+        
+        [encoder dispatchThreadgroups:gridSize threadsPerThreadgroup:threadgroupSize];
+        [encoder endEncoding];
+        
+        [commandBuffer commit];
+        [commandBuffer waitUntilCompleted];
+        
+        if (commandBuffer.error) {
+            set_c_error_message(err, @"Elementwise binary op kernel execution failed: %@", commandBuffer.error.localizedDescription);
+            return -4;
+        }
+        
+        return 0;
+    }
+}
+
+// Optimized reduction with threadgroup reduction
+int perform_reduce_optimized(
+    GPUPtr inputPtr, GPUPtr outputPtr,
+    long size, int opType,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLDevice> device = (__bridge id<MTLDevice>)mtlDevicePtr;
+        id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)_global_mtl_command_queue_ptr;
+        
+        if (!device || !commandQueue) {
+            set_c_error_message(err, @"Metal device or command queue not initialized");
+            return -1;
+        }
+        
+        id<MTLBuffer> inputBuffer = (__bridge id<MTLBuffer>)inputPtr;
+        id<MTLBuffer> outputBuffer = (__bridge id<MTLBuffer>)outputPtr;
+        
+        if (!inputBuffer || !outputBuffer) {
+            set_c_error_message(err, @"Invalid buffer pointers");
+            return -2;
+        }
+        
+        // Create partial sums buffer for atomic operations
+        id<MTLBuffer> partialSumsBuffer = [device newBufferWithLength:sizeof(float) options:MTLResourceStorageModeShared];
+        if (!partialSumsBuffer) {
+            set_c_error_message(err, @"Failed to create partial sums buffer");
+            return -3;
+        }
+        
+        // Initialize partial sums
+        float* partialSumsPtr = (float*)partialSumsBuffer.contents;
+        if (opType == 0) { // Sum
+            *partialSumsPtr = 0.0f;
+        } else if (opType == 1) { // Max
+            *partialSumsPtr = -INFINITY;
+        } else if (opType == 2) { // Min
+            *partialSumsPtr = INFINITY;
+        }
+        
+        id<MTLComputePipelineState> pipelineState = createPipelineState(device, @"reduce_optimized", err);
+        if (!pipelineState) {
+            return -4;
+        }
+        
+        id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        
+        [encoder setComputePipelineState:pipelineState];
+        [encoder setBuffer:inputBuffer offset:0 atIndex:0];
+        [encoder setBuffer:outputBuffer offset:0 atIndex:1];
+        [encoder setBuffer:partialSumsBuffer offset:0 atIndex:2];
+        [encoder setBytes:&size length:sizeof(long) atIndex:3];
+        [encoder setBytes:&opType length:sizeof(int) atIndex:4];
+        
+        NSUInteger threadsPerThreadgroup = 256; // Optimal for reduction
+        NSUInteger threadgroupMemory = threadsPerThreadgroup * sizeof(float);
+        [encoder setThreadgroupMemoryLength:threadgroupMemory atIndex:0];
+        
+        MTLSize threadgroupSize = MTLSizeMake(threadsPerThreadgroup, 1, 1);
+        MTLSize gridSize = MTLSizeMake((size + threadsPerThreadgroup - 1) / threadsPerThreadgroup, 1, 1);
+        
+        [encoder dispatchThreadgroups:gridSize threadsPerThreadgroup:threadgroupSize];
+        [encoder endEncoding];
+        
+        [commandBuffer commit];
+        [commandBuffer waitUntilCompleted];
+        
+        if (commandBuffer.error) {
+            set_c_error_message(err, @"Reduce kernel execution failed: %@", commandBuffer.error.localizedDescription);
+            return -5;
+        }
+        
+        // Copy result from partial sums to output
+        float* outputPtr_cpu = (float*)outputBuffer.contents;
+        *outputPtr_cpu = *partialSumsPtr;
+        
+        return 0;
+    }
+}
+
+// Optimized softmax with numerical stability
+int perform_softmax_optimized(
+    GPUPtr inputPtr, GPUPtr outputPtr,
+    long batchSize, long numClasses,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLDevice> device = (__bridge id<MTLDevice>)mtlDevicePtr;
+        id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)_global_mtl_command_queue_ptr;
+        
+        if (!device || !commandQueue) {
+            set_c_error_message(err, @"Metal device or command queue not initialized");
+            return -1;
+        }
+        
+        id<MTLBuffer> inputBuffer = (__bridge id<MTLBuffer>)inputPtr;
+        id<MTLBuffer> outputBuffer = (__bridge id<MTLBuffer>)outputPtr;
+        
+        if (!inputBuffer || !outputBuffer) {
+            set_c_error_message(err, @"Invalid buffer pointers");
+            return -2;
+        }
+        
+        id<MTLComputePipelineState> pipelineState = createPipelineState(device, @"softmax_optimized", err);
+        if (!pipelineState) {
+            return -3;
+        }
+        
+        id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        
+        [encoder setComputePipelineState:pipelineState];
+        [encoder setBuffer:inputBuffer offset:0 atIndex:0];
+        [encoder setBuffer:outputBuffer offset:0 atIndex:1];
+        [encoder setBytes:&batchSize length:sizeof(long) atIndex:2];
+        [encoder setBytes:&numClasses length:sizeof(long) atIndex:3];
+        
+        NSUInteger threadsPerThreadgroup = 256;
+        NSUInteger threadgroupMemoryMax = threadsPerThreadgroup * sizeof(float);
+        NSUInteger threadgroupMemorySum = threadsPerThreadgroup * sizeof(float);
+        [encoder setThreadgroupMemoryLength:threadgroupMemoryMax atIndex:0];
+        [encoder setThreadgroupMemoryLength:threadgroupMemorySum atIndex:1];
+        
+        MTLSize threadgroupSize = MTLSizeMake(threadsPerThreadgroup, 1, 1);
+        MTLSize gridSize = MTLSizeMake(1, batchSize, 1);
+        
+        [encoder dispatchThreadgroups:gridSize threadsPerThreadgroup:threadgroupSize];
+        [encoder endEncoding];
+        
+        [commandBuffer commit];
+        [commandBuffer waitUntilCompleted];
+        
+        if (commandBuffer.error) {
+            set_c_error_message(err, @"Softmax kernel execution failed: %@", commandBuffer.error.localizedDescription);
+            return -4;
+        }
+        
+        return 0;
+    }
+}
+
+// Optimized layer normalization
+int perform_layer_norm_optimized(
+    GPUPtr inputPtr, GPUPtr gammaPtr, GPUPtr betaPtr,
+    GPUPtr outputPtr, GPUPtr meanOutPtr, GPUPtr varOutPtr,
+    long batchSize, long featureSize, float epsilon,
+    DevicePtr mtlDevicePtr,
+    CError *err
+) {
+    @autoreleasepool {
+        id<MTLDevice> device = (__bridge id<MTLDevice>)mtlDevicePtr;
+        id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)_global_mtl_command_queue_ptr;
+        
+        if (!device || !commandQueue) {
+            set_c_error_message(err, @"Metal device or command queue not initialized");
+            return -1;
+        }
+        
+        id<MTLBuffer> inputBuffer = (__bridge id<MTLBuffer>)inputPtr;
+        id<MTLBuffer> gammaBuffer = (__bridge id<MTLBuffer>)gammaPtr;
+        id<MTLBuffer> betaBuffer = (__bridge id<MTLBuffer>)betaPtr;
+        id<MTLBuffer> outputBuffer = (__bridge id<MTLBuffer>)outputPtr;
+        id<MTLBuffer> meanOutBuffer = (__bridge id<MTLBuffer>)meanOutPtr;
+        id<MTLBuffer> varOutBuffer = (__bridge id<MTLBuffer>)varOutPtr;
+        
+        if (!inputBuffer || !gammaBuffer || !betaBuffer || !outputBuffer) {
+            set_c_error_message(err, @"Invalid buffer pointers");
+            return -2;
+        }
+        
+        id<MTLComputePipelineState> pipelineState = createPipelineState(device, @"layer_norm_optimized", err);
+        if (!pipelineState) {
+            return -3;
+        }
+        
+        id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+        
+        [encoder setComputePipelineState:pipelineState];
+        [encoder setBuffer:inputBuffer offset:0 atIndex:0];
+        [encoder setBuffer:gammaBuffer offset:0 atIndex:1];
+        [encoder setBuffer:betaBuffer offset:0 atIndex:2];
+        [encoder setBuffer:outputBuffer offset:0 atIndex:3];
+        
+        // Optional mean and variance output buffers
+        if (meanOutBuffer) {
+            [encoder setBuffer:meanOutBuffer offset:0 atIndex:4];
+        } else {
+            [encoder setBuffer:inputBuffer offset:0 atIndex:4]; // Dummy buffer
+        }
+        
+        if (varOutBuffer) {
+            [encoder setBuffer:varOutBuffer offset:0 atIndex:5];
+        } else {
+            [encoder setBuffer:inputBuffer offset:0 atIndex:5]; // Dummy buffer
+        }
+        
+        [encoder setBytes:&batchSize length:sizeof(long) atIndex:6];
+        [encoder setBytes:&featureSize length:sizeof(long) atIndex:7];
+        [encoder setBytes:&epsilon length:sizeof(float) atIndex:8];
+        
+        NSUInteger threadsPerThreadgroup = 256;
+        NSUInteger threadgroupMemorySum = threadsPerThreadgroup * sizeof(float);
+        NSUInteger threadgroupMemorySumSq = threadsPerThreadgroup * sizeof(float);
+        [encoder setThreadgroupMemoryLength:threadgroupMemorySum atIndex:0];
+        [encoder setThreadgroupMemoryLength:threadgroupMemorySumSq atIndex:1];
+        
+        MTLSize threadgroupSize = MTLSizeMake(threadsPerThreadgroup, 1, 1);
+        MTLSize gridSize = MTLSizeMake(1, batchSize, 1);
+        
+        [encoder dispatchThreadgroups:gridSize threadsPerThreadgroup:threadgroupSize];
+        [encoder endEncoding];
+        
+        [commandBuffer commit];
+        [commandBuffer waitUntilCompleted];
+        
+        if (commandBuffer.error) {
+            set_c_error_message(err, @"Layer norm kernel execution failed: %@", commandBuffer.error.localizedDescription);
+            return -4;
+        }
+        
+        return 0;
+    }
+}
+
 #pragma clang diagnostic pop

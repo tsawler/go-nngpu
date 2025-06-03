@@ -5,6 +5,28 @@
 
 ## Usage
 
+```go
+const (
+	OptimizedOpAdd = iota
+	OptimizedOpSubtract
+	OptimizedOpMultiply
+	OptimizedOpDivide
+	OptimizedOpMaximum
+	OptimizedOpMinimum
+	OptimizedOpPower
+)
+```
+Optimized elementwise operation types
+
+```go
+const (
+	OptimizedOpSum = iota
+	OptimizedOpMax
+	OptimizedOpMin
+)
+```
+Optimized reduction operation types
+
 #### func  AccumulateGradient
 
 ```go
@@ -953,6 +975,114 @@ OptimizeComputationGraph applies advanced optimizations to a computation graph
 func OptimizeMemoryUsage() error
 ```
 OptimizeMemoryUsage performs global memory optimization
+
+#### func  OptimizedAdd
+
+```go
+func OptimizedAdd(a, b *tensor.Tensor) (*tensor.Tensor, error)
+```
+OptimizedAdd performs optimized element-wise addition with broadcasting
+
+#### func  OptimizedBatchMatMul
+
+```go
+func OptimizedBatchMatMul(A, B *tensor.Tensor) (*tensor.Tensor, error)
+```
+OptimizedBatchMatMul performs optimized batch matrix multiplication
+
+#### func  OptimizedConv1x1
+
+```go
+func OptimizedConv1x1(input, weight *tensor.Tensor) (*tensor.Tensor, error)
+```
+OptimizedConv1x1 performs optimized 1x1 convolution (pointwise convolution)
+
+#### func  OptimizedDepthwiseConv
+
+```go
+func OptimizedDepthwiseConv(input, kernel *tensor.Tensor, strideH, strideW, padH, padW int) (*tensor.Tensor, error)
+```
+OptimizedDepthwiseConv performs optimized depthwise convolution
+
+#### func  OptimizedDivide
+
+```go
+func OptimizedDivide(a, b *tensor.Tensor) (*tensor.Tensor, error)
+```
+OptimizedDivide performs optimized element-wise division with broadcasting
+
+#### func  OptimizedElementwiseBinaryOp
+
+```go
+func OptimizedElementwiseBinaryOp(a, b *tensor.Tensor, opType int) (*tensor.Tensor, error)
+```
+OptimizedElementwiseBinaryOp performs optimized elementwise binary operations
+with broadcasting
+
+#### func  OptimizedGEMM
+
+```go
+func OptimizedGEMM(A, B *tensor.Tensor, alpha, beta float32) (*tensor.Tensor, error)
+```
+OptimizedGEMM performs optimized General Matrix Multiplication with tiling and
+shared memory
+
+#### func  OptimizedLayerNorm
+
+```go
+func OptimizedLayerNorm(input, gamma, beta *tensor.Tensor, epsilon float32) (*tensor.Tensor, *tensor.Tensor, *tensor.Tensor, error)
+```
+OptimizedLayerNorm performs optimized layer normalization
+
+#### func  OptimizedMax
+
+```go
+func OptimizedMax(input *tensor.Tensor) (*tensor.Tensor, error)
+```
+OptimizedMax performs optimized maximum reduction
+
+#### func  OptimizedMin
+
+```go
+func OptimizedMin(input *tensor.Tensor) (*tensor.Tensor, error)
+```
+OptimizedMin performs optimized minimum reduction
+
+#### func  OptimizedMultiply
+
+```go
+func OptimizedMultiply(a, b *tensor.Tensor) (*tensor.Tensor, error)
+```
+OptimizedMultiply performs optimized element-wise multiplication with
+broadcasting
+
+#### func  OptimizedReduce
+
+```go
+func OptimizedReduce(input *tensor.Tensor, opType int) (*tensor.Tensor, error)
+```
+OptimizedReduce performs optimized reduction operations
+
+#### func  OptimizedSoftmax
+
+```go
+func OptimizedSoftmax(input *tensor.Tensor) (*tensor.Tensor, error)
+```
+OptimizedSoftmax performs numerically stable optimized softmax
+
+#### func  OptimizedSubtract
+
+```go
+func OptimizedSubtract(a, b *tensor.Tensor) (*tensor.Tensor, error)
+```
+OptimizedSubtract performs optimized element-wise subtraction with broadcasting
+
+#### func  OptimizedSum
+
+```go
+func OptimizedSum(input *tensor.Tensor) (*tensor.Tensor, error)
+```
+OptimizedSum performs optimized sum reduction
 
 #### func  Pad2D
 

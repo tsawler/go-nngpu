@@ -50,7 +50,7 @@ The development of go-nngpu follows an incremental strategy. The current status 
 - [x] Phase 7C: Memory-efficient training loop
 - [x] Phase 7D: Automatic differentiation helpers
 - [x] Phase 8A: Fused operations (activation + gradient, conv + activation)
-- [ ] Phase 8B: Custom Metal kernels for specific operations
+- [x] Phase 8B: Custom Metal kernels for specific operations
 - [ ] Phase 8C: Memory bandwidth optimization
 - [ ] Phase 9A: Mixed precision training (float16/float32)
 - [ ] Phase 9B: Distributed training support

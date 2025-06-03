@@ -1409,4 +1409,76 @@ int perform_dropout_backward(
     GPUPtr grad_input, DevicePtr device, CError* error
 );
 
+// Phase 8B: Custom Optimized Metal Kernels
+
+// Optimized GEMM with tiling and shared memory
+int perform_optimized_gemm(
+    GPUPtr aPtr, GPUPtr bPtr, GPUPtr cPtr,
+    long M, long N, long K,
+    float alpha, float beta,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Optimized batch matrix multiplication
+int perform_batch_matmul_optimized(
+    GPUPtr aPtr, GPUPtr bPtr, GPUPtr cPtr,
+    long batchSize, long M, long N, long K,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Optimized 1x1 convolution
+int perform_conv1x1_optimized(
+    GPUPtr inputPtr, GPUPtr weightPtr, GPUPtr outputPtr,
+    long batch, long height, long width,
+    long inChannels, long outChannels,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Optimized depthwise convolution
+int perform_depthwise_conv_optimized(
+    GPUPtr inputPtr, GPUPtr kernelPtr, GPUPtr outputPtr,
+    long batch, long inHeight, long inWidth, long channels,
+    long kernelH, long kernelW,
+    long strideH, long strideW, long padH, long padW,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Optimized elementwise binary operations with broadcasting
+int perform_elementwise_binary_op_optimized(
+    GPUPtr aPtr, GPUPtr bPtr, GPUPtr outputPtr,
+    int opType, long size,
+    long aStride, long bStride,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Optimized reduction with threadgroup reduction
+int perform_reduce_optimized(
+    GPUPtr inputPtr, GPUPtr outputPtr,
+    long size, int opType,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Optimized softmax with numerical stability
+int perform_softmax_optimized(
+    GPUPtr inputPtr, GPUPtr outputPtr,
+    long batchSize, long numClasses,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
+// Optimized layer normalization
+int perform_layer_norm_optimized(
+    GPUPtr inputPtr, GPUPtr gammaPtr, GPUPtr betaPtr,
+    GPUPtr outputPtr, GPUPtr meanOutPtr, GPUPtr varOutPtr,
+    long batchSize, long featureSize, float epsilon,
+    DevicePtr mtlDevicePtr,
+    CError *err
+);
+
 #endif // METAL_BRIDGE_H
