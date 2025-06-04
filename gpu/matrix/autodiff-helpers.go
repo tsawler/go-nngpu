@@ -1031,7 +1031,7 @@ func InspectGradientTensor(tensor *GradientTensor) string {
 	}
 
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("GradientTensor Inspection:\n"))
+	builder.WriteString("GradientTensor Inspection:\n")
 	builder.WriteString(fmt.Sprintf("  RequiresGrad: %t\n", tensor.RequiresGrad))
 	builder.WriteString(fmt.Sprintf("  IsLeaf: %t\n", tensor.IsLeaf))
 
