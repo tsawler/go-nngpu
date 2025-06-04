@@ -58,7 +58,7 @@ The development of go-nngpu follows an incremental strategy. The current status 
 
 ## Installation
 
-To install go-nngpu, you need Go (version 1.18 or higher recommended) and a macOS environment with Metal support.
+To install go-nngpu, you need Go (version 1.23 or higher recommended) and a macOS environment with Metal support.
 
 ```bash
 go get github.com/tsawler/go-nngpu

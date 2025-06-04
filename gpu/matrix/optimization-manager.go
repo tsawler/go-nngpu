@@ -314,7 +314,7 @@ func (mos *MemoryOptimizationSuite) GetSuiteStats() map[string]interface{} {
 	}
 	
 	// Memory pool statistics - use suite instance only (no global fallback since none exists)
-	var poolStats MemoryStats
+	var poolStats PoolMemoryStats
 	var currentUsage int64
 	var hasPoolStats bool
 	if mos.memoryPool != nil {

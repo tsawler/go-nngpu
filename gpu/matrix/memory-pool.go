@@ -24,7 +24,7 @@ type GPUMemoryPool struct {
 	allocatedPtrs map[unsafe.Pointer]*MemoryBlock
 	freeBlocks    map[int64][]*MemoryBlock // Size -> list of free blocks
 	mutex         sync.RWMutex
-	stats         MemoryStats
+	stats         PoolMemoryStats
 }
 
 // MemoryBlock represents a block of GPU memory
@@ -37,8 +37,8 @@ type MemoryBlock struct {
 	refCount  int
 }
 
-// MemoryStats tracks memory pool statistics
-type MemoryStats struct {
+// PoolMemoryStats tracks memory pool statistics
+type PoolMemoryStats struct {
 	TotalAllocated     int64
 	TotalFreed        int64
 	PeakUsage         int64
@@ -331,7 +331,7 @@ func (p *GPUMemoryPool) GetUsage() int64 {
 }
 
 // GetStats returns memory pool statistics
-func (p *GPUMemoryPool) GetStats() MemoryStats {
+func (p *GPUMemoryPool) GetStats() PoolMemoryStats {
 	p.mutex.RLock()
 	defer p.mutex.RUnlock()
 	return p.stats
