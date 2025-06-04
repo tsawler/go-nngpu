@@ -271,7 +271,7 @@ func (mp *ModelParallelism) PipelineForward(stages []*PipelineStage, input *tens
 	// Execute pipeline
 	outputs := make([]*tensor.Tensor, numMicroBatches)
 	
-	// For demo purposes, create mock outputs directly
+	// TODO: For demo purposes, create mock outputs directly
 	// In a real implementation, this would execute the actual pipeline
 	for i := 0; i < numMicroBatches; i++ {
 		outputSize := 1000 // Mock output size
@@ -657,9 +657,9 @@ func (met *MemoryEfficientTraining) splitIntoMicroBatches(input *tensor.Tensor) 
 	numMicroBatches := int(math.Ceil(float64(rows) / float64(met.mp.microBatchSize)))
 	batches := make([]*tensor.Tensor, numMicroBatches)
 	
-	for i := 0; i < numMicroBatches; i++ {
+	for i := range numMicroBatches {
 		start := i * met.mp.microBatchSize
-		end := minInt(start+met.mp.microBatchSize, rows)
+		end := min(start+met.mp.microBatchSize, rows)
 		batchRows := end - start
 		
 		batchData := make([]float32, batchRows*cols)
@@ -668,11 +668,4 @@ func (met *MemoryEfficientTraining) splitIntoMicroBatches(input *tensor.Tensor) 
 	}
 	
 	return batches
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

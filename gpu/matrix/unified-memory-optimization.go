@@ -436,7 +436,7 @@ func (apo *AccessPatternOptimizer) GetHint(bufferName string) int {
 // Helper functions (would be implemented in C/Metal bridge)
 
 func allocateSharedMemory(size int) unsafe.Pointer {
-	// Placeholder - simulate successful allocation for demo
+	// TODO: Placeholder - simulate successful allocation for demo
 	// In a real implementation, this would call Metal unified memory APIs
 	return unsafe.Pointer(uintptr(0x2000)) // Return non-nil pointer for demo
 }

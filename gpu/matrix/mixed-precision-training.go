@@ -29,7 +29,7 @@ func (s *LearningRateScheduler) Step() {
 
 // ClearGPUCache clears GPU cache (placeholder for demo)
 func ClearGPUCache() {
-	// In real implementation, would clear GPU cache
+	// TODO: In real implementation, would clear GPU cache
 }
 
 // MixedPrecisionTrainingConfig extends TrainingConfig with mixed precision settings
@@ -90,7 +90,7 @@ func NewMixedPrecisionTrainingLoop(config *MixedPrecisionTrainingConfig, opt opt
 	// Create learning rate scheduler if configured
 	var scheduler *LearningRateScheduler
 	if config.SchedulerType != NoScheduler {
-		// Note: In real implementation, would create scheduler based on config
+		// TODO: Note: In real implementation, would create scheduler based on config
 		// For demo purposes, keeping simple
 		scheduler = nil
 	}

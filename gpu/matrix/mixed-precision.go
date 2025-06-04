@@ -94,7 +94,7 @@ func (mp *MixedPrecisionTrainer) initializeGPUBuffers() error {
 	}
 	
 	// Store tensor instead of raw GPU pointer for compatibility
-	// In a real implementation, we'd store the tensor reference
+	// TODO: In a real implementation, we'd store the tensor reference
 	
 	return nil
 }
@@ -284,7 +284,7 @@ func (mp *MixedPrecisionTrainer) UpdateLossScale() {
 		}
 	}
 
-	// Update loss scale (in a real implementation, would update GPU buffer)
+	// TODO: Update loss scale (in a real implementation, would update GPU buffer)
 }
 
 // ShouldSkipStep returns true if the optimizer step should be skipped due to overflow
@@ -304,7 +304,7 @@ func (mp *MixedPrecisionTrainer) GetOverflowStatus() bool {
 
 // Cleanup releases GPU resources
 func (mp *MixedPrecisionTrainer) Cleanup() {
-	// In a real implementation, would clean up GPU buffers
+	// TODO: In a real implementation, would clean up GPU buffers
 	// For now, just reset state
 	mp.scaleBuffer = nil
 	mp.overflowBuffer = nil

@@ -658,7 +658,7 @@ func (pp *PerformanceProfiler) getGPUCounters() map[string]int64 {
 }
 
 func (pp *PerformanceProfiler) collectKernelMetrics() {
-	// Collect real-time kernel metrics
+	// TODO: Collect real-time kernel metrics
 	// Placeholder implementation
 }
 

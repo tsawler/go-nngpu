@@ -169,7 +169,7 @@ func (layer *GPUBatchNormLayer) Backward(gradOutput *tensor.Tensor) (*tensor.Ten
 	defer gradients.ReleaseGPU()
 
 	// Update gamma and beta gradients (in a real implementation, you'd pass these to an optimizer)
-	// For now, we'll apply a simple gradient descent update
+	// TODO: For now, we'll apply a simple gradient descent update
 	learningRate := float32(0.001)
 
 	if err := gradients.GradGamma.RetrieveCPU(); err != nil {

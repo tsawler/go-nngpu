@@ -140,7 +140,7 @@ func (layer *GPUConvLayer) Backward(gradOutput *tensor.Tensor) (*tensor.Tensor, 
 	defer gradKernel.ReleaseGPU()
 
 	// Update weights (simple gradient descent - in practice you'd use an optimizer)
-	// This is a simplified update - real implementations would use proper optimizers
+	// TODO: This is a simplified update - real implementations would use proper optimizers
 	learningRate := float32(0.001)
 	if err := gradKernel.RetrieveCPU(); err != nil {
 		defer gradInput.ReleaseGPU()

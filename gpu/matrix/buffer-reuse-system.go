@@ -321,7 +321,7 @@ func (itm *IntermediateTensorManager) CreateIntermediateTensor(shape []int, oper
 		return nil, err
 	}
 	
-	// Note: In a real implementation, we would associate the GPU buffer with the tensor
+	// TODO: Note: In a real implementation, we would associate the GPU buffer with the tensor
 	// For now, we'll just track the association
 	
 	// Track the tensor and buffer

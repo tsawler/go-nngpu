@@ -143,7 +143,7 @@ func (kc *KernelCache) compileKernel(source string, options *KernelCompilationOp
 	// The actual implementation would compile the Metal kernel using Metal APIs
 	
 	// Simulate compilation by creating a dummy pointer
-	// In real implementation, this would be a compiled MTLComputePipelineState
+	// TODO: In real implementation, this would be a compiled MTLComputePipelineState
 	kernelSize := int64(len(source)) // Approximate size
 	
 	// For demo purposes, just return a dummy pointer
@@ -151,7 +151,7 @@ func (kc *KernelCache) compileKernel(source string, options *KernelCompilationOp
 	compiledKernel := unsafe.Pointer(uintptr(kernelSize))
 	
 	// Note: This is a placeholder implementation
-	// Real implementation would:
+	// TODO:  implementation would:
 	// 1. Create MTLLibrary from source
 	// 2. Create MTLComputePipelineState
 	// 3. Cache the compiled state

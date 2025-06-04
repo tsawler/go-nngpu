@@ -122,7 +122,7 @@ func (opt *GPUCPUTransferOptimizer) OptimizeTransfer(t *tensor.Tensor, toGPU boo
 
 // transferToGPU performs optimized CPU to GPU transfer
 func (opt *GPUCPUTransferOptimizer) transferToGPU(t *tensor.Tensor, entry *TransferCacheEntry) error {
-	// In a real implementation, this would:
+	// TODO: In a real implementation, this would:
 	// 1. Use pinned memory for faster transfers
 	// 2. Use async transfers when possible
 	// 3. Batch small transfers together
@@ -138,7 +138,7 @@ func (opt *GPUCPUTransferOptimizer) transferToGPU(t *tensor.Tensor, entry *Trans
 
 // transferToCPU performs optimized GPU to CPU transfer
 func (opt *GPUCPUTransferOptimizer) transferToCPU(t *tensor.Tensor, entry *TransferCacheEntry) error {
-	// In a real implementation, this would optimize the transfer
+	// TODO: In a real implementation, this would optimize the transfer
 	// For now, mark as CPU valid (tensor data is already in CPU memory)
 	entry.CPUValid = true
 	return nil
@@ -308,7 +308,7 @@ type BatchedTransfer struct {
 
 // OptimizeBatchTransfer optimizes a batch of tensor transfers
 func (opt *GPUCPUTransferOptimizer) OptimizeBatchTransfer(batch *BatchedTransfer) error {
-	// In a real implementation, this would:
+	// TODO: In a real implementation, this would:
 	// 1. Sort tensors by size for optimal packing
 	// 2. Use a single large transfer when possible
 	// 3. Pipeline transfers with computation
