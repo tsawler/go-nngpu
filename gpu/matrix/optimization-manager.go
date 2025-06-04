@@ -313,58 +313,175 @@ func (mos *MemoryOptimizationSuite) GetSuiteStats() map[string]interface{} {
 		"initialized": mos.isInitialized,
 	}
 	
-	// Memory pool statistics
+	// Memory pool statistics - use suite instance only (no global fallback since none exists)
+	var poolStats MemoryStats
+	var currentUsage int64
+	var hasPoolStats bool
 	if mos.memoryPool != nil {
-		poolStats := mos.memoryPool.GetStats()
+		poolStats = mos.memoryPool.GetStats()
+		currentUsage = mos.memoryPool.GetUsage()
+		hasPoolStats = true
+	}
+	
+	if hasPoolStats {
+		
+		// Calculate derived statistics for compatibility with demo expectations
+		inUseCount := int64(0)
+		availableCount := int64(0)
+		totalSize := poolStats.TotalAllocated // Use total allocated as a proxy for pool size
+		
+		// Estimate in-use and available counts based on allocation patterns
+		if poolStats.AllocationCount > 0 {
+			if poolStats.TotalFreed > 0 {
+				// Some memory has been freed, so we have reusable blocks
+				reuseRatio := float64(poolStats.CacheHits) / float64(poolStats.AllocationCount)
+				if reuseRatio > 0 {
+					availableCount = int64(reuseRatio * float64(poolStats.AllocationCount))
+				}
+			}
+			inUseCount = poolStats.AllocationCount - poolStats.FreeCount
+			if inUseCount < 0 {
+				inUseCount = 0
+			}
+		}
+		
 		stats["memory_pool"] = map[string]interface{}{
+			// Original fields for backward compatibility
 			"total_allocated":    poolStats.TotalAllocated,
 			"total_freed":       poolStats.TotalFreed,
 			"peak_usage":        poolStats.PeakUsage,
 			"allocation_count":  poolStats.AllocationCount,
 			"cache_hits":        poolStats.CacheHits,
 			"cache_misses":      poolStats.CacheMisses,
-			"current_usage":     mos.memoryPool.GetUsage(),
+			"current_usage":     currentUsage,
+			"fragmentation_ratio": poolStats.FragmentationRatio,
+			
+			// Additional fields expected by demo
+			"total_size":        totalSize,
+			"in_use_count":      inUseCount,
+			"available_count":   availableCount,
+			"free_count":        poolStats.FreeCount,
+		}
+	} else {
+		// Provide default values when memory pool is not available
+		stats["memory_pool"] = map[string]interface{}{
+			"total_allocated":    int64(0),
+			"total_freed":       int64(0),
+			"peak_usage":        int64(0),
+			"allocation_count":  int64(0),
+			"cache_hits":        int64(0),
+			"cache_misses":      int64(0),
+			"current_usage":     int64(0),
+			"fragmentation_ratio": float32(0.0),
+			"total_size":        int64(0),
+			"in_use_count":      int64(0),
+			"available_count":   int64(0),
+			"free_count":        int64(0),
 		}
 	}
 	
-	// Buffer reuse statistics
+	// Buffer reuse statistics - use global instance if suite instance is not available
+	bufferStats := map[string]*BufferStats{}
 	if mos.bufferReuseManager != nil {
-		bufferStats := mos.bufferReuseManager.GetStats()
+		bufferStats = mos.bufferReuseManager.GetStats()
+	} else if globalManager := GetGlobalBufferReuseManager(); globalManager != nil {
+		// Fall back to global instance
+		bufferStats = globalManager.GetStats()
+	}
+	
+	if bufferStats != nil && len(bufferStats) > 0 {
 		stats["buffer_reuse"] = bufferStats
+	} else {
+		stats["buffer_reuse"] = map[string]*BufferStats{}
 	}
 	
 	// Transfer optimization statistics
 	if mos.transferOptimizer != nil {
 		stats["transfer_optimization"] = map[string]interface{}{
 			"enabled": true,
+			"optimizations_applied": 0, // Could track this if needed
+		}
+	} else {
+		stats["transfer_optimization"] = map[string]interface{}{
+			"enabled": false,
+			"optimizations_applied": 0,
 		}
 	}
 	
 	// Bandwidth monitoring statistics
 	if mos.bandwidthMonitor != nil {
 		avgBW, peakBW, totalTransfers := mos.bandwidthMonitor.GetBandwidthStats()
+		// Ensure we don't divide by zero and provide sensible defaults
+		avgBandwidthMbps := float64(0)
+		peakBandwidthMbps := float64(0)
+		
+		if avgBW > 0 {
+			avgBandwidthMbps = avgBW / (1024 * 1024)
+		}
+		if peakBW > 0 {
+			peakBandwidthMbps = peakBW / (1024 * 1024)
+		}
+		
 		stats["bandwidth_monitoring"] = map[string]interface{}{
-			"average_bandwidth_mbps": avgBW / (1024 * 1024),
-			"peak_bandwidth_mbps":    peakBW / (1024 * 1024),
+			"average_bandwidth_mbps": avgBandwidthMbps,
+			"peak_bandwidth_mbps":    peakBandwidthMbps,
 			"total_transfers":        totalTransfers,
+			"monitoring_active":      true,
+		}
+	} else {
+		stats["bandwidth_monitoring"] = map[string]interface{}{
+			"average_bandwidth_mbps": float64(0),
+			"peak_bandwidth_mbps":    float64(0),
+			"total_transfers":        int64(0),
+			"monitoring_active":      false,
 		}
 	}
 	
-	// Kernel cache statistics
+	// Kernel cache statistics - use global instance if suite instance is not available
+	var hitRate float64
+	var entries int
+	var sizeBytes, hitCount, missCount int64
+	var cacheEnabled bool
+	
 	if mos.kernelCache != nil {
-		hitRate, entries, sizeBytes, hitCount, missCount := mos.kernelCache.GetCacheStats()
-		stats["kernel_cache"] = map[string]interface{}{
-			"hit_rate":    hitRate,
-			"entries":     entries,
-			"size_bytes":  sizeBytes,
-			"hit_count":   hitCount,
-			"miss_count":  missCount,
-		}
+		hitRate, entries, sizeBytes, hitCount, missCount = mos.kernelCache.GetCacheStats()
+		cacheEnabled = true
+	} else {
+		// Fall back to global kernel cache function
+		globalHitRate, globalEntries, globalSizeBytes, globalHitCount, globalMissCount := GetKernelCacheStats()
+		hitRate, entries, sizeBytes, hitCount, missCount = globalHitRate, globalEntries, globalSizeBytes, globalHitCount, globalMissCount
+		cacheEnabled = globalEntries > 0 || globalHitCount > 0 || globalMissCount > 0
+	}
+	
+	stats["kernel_cache"] = map[string]interface{}{
+		"hit_rate":      hitRate,
+		"entries":       int64(entries),
+		"size_bytes":    sizeBytes,
+		"hit_count":     hitCount,
+		"miss_count":    missCount,
+		"cache_enabled": cacheEnabled,
 	}
 	
 	// Shared memory optimization statistics
 	if mos.sharedMemOptimizer != nil {
-		stats["shared_memory_optimization"] = GetSharedMemoryUsageStats()
+		sharedMemStats := GetSharedMemoryUsageStats()
+		if sharedMemStats != nil {
+			stats["shared_memory_optimization"] = sharedMemStats
+		} else {
+			stats["shared_memory_optimization"] = map[string]interface{}{
+				"total_optimizations": int(0),
+				"cache_size":         int(0),
+				"max_shared_memory":  int(0),
+				"optimization_enabled": true,
+			}
+		}
+	} else {
+		stats["shared_memory_optimization"] = map[string]interface{}{
+			"total_optimizations": int(0),
+			"cache_size":         int(0),
+			"max_shared_memory":  int(0),
+			"optimization_enabled": false,
+		}
 	}
 	
 	return stats
