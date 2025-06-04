@@ -306,16 +306,19 @@ func (bs *BenchmarkSuite) BenchmarkBufferReuse() {
 	// Check buffer reuse statistics
 	if bufferManager := GetGlobalBufferReuseManager(); bufferManager != nil {
 		stats := bufferManager.GetStats()
+		totalHits := int64(0)
+		totalMisses := int64(0)
 		totalReuses := int64(0)
-		totalAllocations := int64(0)
 		for _, stat := range stats {
+			totalHits += stat.TotalHits
+			totalMisses += stat.TotalMisses
 			totalReuses += stat.TotalReuses
-			totalAllocations += stat.TotalAllocations
 		}
 		
-		if totalAllocations > 0 {
-			reuseRate := float64(totalReuses) / float64(totalAllocations) * 100
-			result.Notes = append(result.Notes, fmt.Sprintf("Buffer reuse rate: %.1f%%", reuseRate))
+		if totalHits+totalMisses > 0 {
+			hitRate := float64(totalHits) / float64(totalHits+totalMisses) * 100
+			result.Notes = append(result.Notes, fmt.Sprintf("Buffer hit rate: %.1f%%", hitRate))
+			result.Notes = append(result.Notes, fmt.Sprintf("Total reuses: %d", totalReuses))
 		}
 	}
 	
@@ -586,16 +589,16 @@ func (bs *BenchmarkSuite) PrintResults() {
 	// Memory optimization effectiveness
 	if manager := GetGlobalBufferReuseManager(); manager != nil {
 		stats := manager.GetStats()
-		totalReuses := int64(0)
-		totalAllocations := int64(0)
+		totalHits := int64(0)
+		totalMisses := int64(0)
 		for _, stat := range stats {
-			totalReuses += stat.TotalReuses
-			totalAllocations += stat.TotalAllocations
+			totalHits += stat.TotalHits
+			totalMisses += stat.TotalMisses
 		}
 		
-		if totalAllocations > 0 {
-			reuseEfficiency := float64(totalReuses) / float64(totalAllocations) * 100
-			fmt.Printf("Buffer Reuse Efficiency:   %.1f%%\n", reuseEfficiency)
+		if totalHits+totalMisses > 0 {
+			hitRate := float64(totalHits) / float64(totalHits+totalMisses) * 100
+			fmt.Printf("Buffer Reuse Hit Rate:     %.1f%%\n", hitRate)
 		}
 	}
 	

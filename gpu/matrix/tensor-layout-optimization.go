@@ -136,18 +136,41 @@ func (tlo *TensorLayoutOptimizer) optimizeForConvolution(shape []int) *TensorLay
 	
 	batch, height, width, channels := shape[0], shape[1], shape[2], shape[3]
 	
-	// For GPU efficiency, prefer NHWC with channel padding
-	// Pad channels to multiple of 16 for vectorized operations
-	paddedChannels := ((channels + 15) / 16) * 16
+	// Calculate memory overhead before optimization
+	originalSize := batch * height * width * channels
+	
+	// For GPU efficiency, pad channels to multiple of 4 or 8 (not 16)
+	// Use smaller alignment to reduce memory waste
+	var paddedChannels int
+	if channels <= 4 {
+		paddedChannels = ((channels + 3) / 4) * 4  // Align to 4 for small channel counts
+	} else {
+		paddedChannels = ((channels + 7) / 8) * 8  // Align to 8 for larger channel counts
+	}
 	channelPadding := paddedChannels - channels
 	
-	// Also consider spatial padding for convolution boundary handling
-	spatialPadding := 2 // Common padding for 3x3 convolutions
-	paddedHeight := height + 2*spatialPadding
-	paddedWidth := width + 2*spatialPadding
+	// Don't add spatial padding here - let the convolution operation handle it
+	// This avoids unnecessary memory overhead for operations that don't need it
+	paddedHeight := height
+	paddedWidth := width
+	
+	// Calculate optimized size and check if overhead is reasonable
+	optimizedSize := batch * paddedHeight * paddedWidth * paddedChannels
+	overheadRatio := float64(optimizedSize) / float64(originalSize)
+	
+	// If overhead is too high (>50%), don't optimize
+	if overheadRatio > 1.5 {
+		return &TensorLayoutInfo{
+			OriginalShape:  shape,
+			OptimizedShape: shape,
+			Layout:         LayoutNHWC,
+			Padding:        []int{0, 0, 0, 0},
+			Stride:         []int{height * width * channels, width * channels, channels, 1},
+		}
+	}
 	
 	optimizedShape := []int{batch, paddedHeight, paddedWidth, paddedChannels}
-	padding := []int{0, spatialPadding, spatialPadding, channelPadding}
+	padding := []int{0, 0, 0, channelPadding}
 	stride := []int{paddedHeight * paddedWidth * paddedChannels, paddedWidth * paddedChannels, paddedChannels, 1}
 	
 	return &TensorLayoutInfo{
@@ -585,12 +608,7 @@ func calculateTotalSize(shape []int) int {
 	return size
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
+// min function removed to avoid conflict - using the one from memory-coalescing-optimizer.go
 
 // Global layout optimizer
 var globalLayoutOptimizer *TensorLayoutOptimizer

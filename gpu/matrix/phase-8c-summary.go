@@ -14,44 +14,47 @@ import (
 
 // MemoryOptimizationSuite combines all Phase 8C optimization components
 type MemoryOptimizationSuite struct {
-	memoryPool          *GPUMemoryPool
-	bufferReuseManager  *BufferReuseManager
-	layoutOptimizer     *TensorLayoutOptimizer
-	transferOptimizer   *TransferOptimizer
-	bandwidthMonitor    *MemoryBandwidthMonitor
-	kernelCache         *KernelCache
-	sharedMemOptimizer  *SharedMemoryOptimizer
-	isInitialized       bool
-	mutex               sync.RWMutex
+	memoryPool           *GPUMemoryPool
+	bufferReuseManager   *BufferReuseManager
+	layoutOptimizer      *TensorLayoutOptimizer
+	transferOptimizer    *GPUCPUTransferOptimizer
+	memoryOptimizer      *MemoryCoalescingOptimizer
+	bandwidthMonitor     *MemoryBandwidthMonitor
+	kernelCache          *KernelCache
+	sharedMemOptimizer   *SharedMemoryOptimizer
+	isInitialized        bool
+	mutex                sync.RWMutex
 }
 
 // OptimizationConfig configures the memory optimization suite
 type OptimizationConfig struct {
-	MaxMemoryPoolSize    int64 // Maximum GPU memory pool size
-	MaxBufferCacheSize   int64 // Maximum buffer cache size
-	MaxKernelCacheSize   int64 // Maximum kernel cache size
-	MaxSharedMemory      int   // Maximum shared memory per threadgroup
-	EnableTransferOpt    bool  // Enable CPU-GPU transfer optimization
-	EnableLayoutOpt      bool  // Enable tensor layout optimization
-	EnableBufferReuse    bool  // Enable buffer reuse optimization
-	EnableKernelCache    bool  // Enable kernel compilation caching
-	EnableSharedMemOpt   bool  // Enable shared memory optimization
-	BandwidthMonitoring  bool  // Enable bandwidth monitoring
+	MaxMemoryPoolSize     int64 // Maximum GPU memory pool size
+	MaxBufferCacheSize    int64 // Maximum buffer cache size
+	MaxKernelCacheSize    int64 // Maximum kernel cache size
+	MaxSharedMemory       int   // Maximum shared memory per threadgroup
+	EnableTransferOpt     bool  // Enable CPU-GPU transfer optimization
+	EnableMemoryCoalescing bool  // Enable memory coalescing optimization
+	EnableLayoutOpt       bool  // Enable tensor layout optimization
+	EnableBufferReuse     bool  // Enable buffer reuse optimization
+	EnableKernelCache     bool  // Enable kernel compilation caching
+	EnableSharedMemOpt    bool  // Enable shared memory optimization
+	BandwidthMonitoring   bool  // Enable bandwidth monitoring
 }
 
 // DefaultOptimizationConfig returns a default configuration for memory optimization
 func DefaultOptimizationConfig() *OptimizationConfig {
 	return &OptimizationConfig{
-		MaxMemoryPoolSize:   1024 * 1024 * 1024, // 1GB
-		MaxBufferCacheSize:  256 * 1024 * 1024,  // 256MB
-		MaxKernelCacheSize:  64 * 1024 * 1024,   // 64MB
-		MaxSharedMemory:     32768,               // 32KB
-		EnableTransferOpt:   true,
-		EnableLayoutOpt:     true,
-		EnableBufferReuse:   true,
-		EnableKernelCache:   true,
-		EnableSharedMemOpt:  true,
-		BandwidthMonitoring: true,
+		MaxMemoryPoolSize:     1024 * 1024 * 1024, // 1GB
+		MaxBufferCacheSize:    256 * 1024 * 1024,  // 256MB
+		MaxKernelCacheSize:    64 * 1024 * 1024,   // 64MB
+		MaxSharedMemory:       32768,               // 32KB
+		EnableTransferOpt:     true,
+		EnableMemoryCoalescing: true,
+		EnableLayoutOpt:       true,
+		EnableBufferReuse:     true,
+		EnableKernelCache:     true,
+		EnableSharedMemOpt:    true,
+		BandwidthMonitoring:   true,
 	}
 }
 
@@ -83,7 +86,12 @@ func NewMemoryOptimizationSuite(device unsafe.Pointer, config *OptimizationConfi
 	
 	// Initialize transfer optimizer
 	if config.EnableTransferOpt {
-		suite.transferOptimizer = NewTransferOptimizer()
+		suite.transferOptimizer = NewGPUCPUTransferOptimizer()
+	}
+	
+	// Initialize memory coalescing optimizer
+	if config.EnableMemoryCoalescing {
+		suite.memoryOptimizer = NewMemoryCoalescingOptimizer()
 	}
 	
 	// Initialize bandwidth monitor

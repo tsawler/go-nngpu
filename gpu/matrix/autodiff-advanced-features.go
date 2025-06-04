@@ -410,7 +410,7 @@ type MemoryAllocation struct {
 	deallocatedAt *time.Time
 	purpose       string
 	tensor        *tensor.Tensor
-	accessPattern *AccessPattern
+	accessPattern *MemoryAccessPattern
 }
 
 // AllocationEvent represents an allocation event
@@ -431,8 +431,8 @@ const (
 	MigrationEvent
 )
 
-// AccessPattern tracks how memory is accessed
-type AccessPattern struct {
+// MemoryAccessPattern tracks how memory is accessed
+type MemoryAccessPattern struct {
 	accessTimes []time.Time
 	accessTypes []AccessType
 	sequential  bool
@@ -1465,7 +1465,7 @@ func TrackMemoryAllocation(ptr unsafe.Pointer, size int64, purpose string, tenso
 		allocatedAt: time.Now(),
 		purpose:     purpose,
 		tensor:      tensor,
-		accessPattern: &AccessPattern{
+		accessPattern: &MemoryAccessPattern{
 			accessTimes: make([]time.Time, 0),
 			accessTypes: make([]AccessType, 0),
 		},
@@ -1544,7 +1544,7 @@ func TrackMemoryAccess(ptr unsafe.Pointer, accessType AccessType) {
 }
 
 // analyzeAccessPattern analyzes memory access patterns
-func analyzeAccessPattern(pattern *AccessPattern) {
+func analyzeAccessPattern(pattern *MemoryAccessPattern) {
 	if len(pattern.accessTimes) < 2 {
 		return
 	}

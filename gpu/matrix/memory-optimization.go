@@ -189,22 +189,23 @@ func (otb *OptimizedTensorBuffer) ReleaseAll() {
 	}
 }
 
-// MemoryCoalescingOptimizer optimizes memory access patterns for GPU efficiency
-type MemoryCoalescingOptimizer struct {
+// SimpleMemoryCoalescingOptimizer optimizes memory access patterns for GPU efficiency
+// Note: A more advanced version is available in memory-coalescing-optimizer.go
+type SimpleMemoryCoalescingOptimizer struct {
 	preferredAlignment int // Preferred memory alignment in bytes
 	cacheLineSize     int // GPU cache line size
 }
 
-// NewMemoryCoalescingOptimizer creates a new memory coalescing optimizer
-func NewMemoryCoalescingOptimizer() *MemoryCoalescingOptimizer {
-	return &MemoryCoalescingOptimizer{
+// NewSimpleMemoryCoalescingOptimizer creates a new simple memory coalescing optimizer
+func NewSimpleMemoryCoalescingOptimizer() *SimpleMemoryCoalescingOptimizer {
+	return &SimpleMemoryCoalescingOptimizer{
 		preferredAlignment: 128, // 128-byte alignment for optimal coalescing
 		cacheLineSize:     64,  // Common GPU cache line size
 	}
 }
 
 // OptimizeTensorLayout reorganizes tensor data for optimal GPU access patterns
-func (mco *MemoryCoalescingOptimizer) OptimizeTensorLayout(tensor *tensor.Tensor, operation string) (*tensor.Tensor, error) {
+func (mco *SimpleMemoryCoalescingOptimizer) OptimizeTensorLayout(tensor *tensor.Tensor, operation string) (*tensor.Tensor, error) {
 	switch operation {
 	case "conv2d":
 		return mco.optimizeForConvolution(tensor)
@@ -218,7 +219,7 @@ func (mco *MemoryCoalescingOptimizer) OptimizeTensorLayout(tensor *tensor.Tensor
 }
 
 // optimizeForConvolution reorganizes data for convolution operations
-func (mco *MemoryCoalescingOptimizer) optimizeForConvolution(t *tensor.Tensor) (*tensor.Tensor, error) {
+func (mco *SimpleMemoryCoalescingOptimizer) optimizeForConvolution(t *tensor.Tensor) (*tensor.Tensor, error) {
 	// For convolution, we want NHWC layout with channel padding for alignment
 	if len(t.Shape) != 4 {
 		return t, nil
@@ -254,7 +255,7 @@ func (mco *MemoryCoalescingOptimizer) optimizeForConvolution(t *tensor.Tensor) (
 }
 
 // optimizeForMatrixMultiplication reorganizes data for matrix operations
-func (mco *MemoryCoalescingOptimizer) optimizeForMatrixMultiplication(t *tensor.Tensor) (*tensor.Tensor, error) {
+func (mco *SimpleMemoryCoalescingOptimizer) optimizeForMatrixMultiplication(t *tensor.Tensor) (*tensor.Tensor, error) {
 	if len(t.Shape) != 2 {
 		return t, nil
 	}
@@ -284,7 +285,7 @@ func (mco *MemoryCoalescingOptimizer) optimizeForMatrixMultiplication(t *tensor.
 }
 
 // optimizeForElementwise ensures data is aligned for vectorized operations
-func (mco *MemoryCoalescingOptimizer) optimizeForElementwise(t *tensor.Tensor) (*tensor.Tensor, error) {
+func (mco *SimpleMemoryCoalescingOptimizer) optimizeForElementwise(t *tensor.Tensor) (*tensor.Tensor, error) {
 	totalSize := len(t.Data)
 	
 	// Pad to multiple of 16 for SIMD operations
@@ -304,16 +305,17 @@ func (mco *MemoryCoalescingOptimizer) optimizeForElementwise(t *tensor.Tensor) (
 }
 
 // GPU-CPU Transfer Optimizer reduces unnecessary memory transfers
-type TransferOptimizer struct {
+// Note: A more advanced version is available in gpu-cpu-transfer-optimizer.go
+type SimpleTransferOptimizer struct {
 	gpuDataCache   map[*tensor.Tensor]bool // Tracks which tensors have valid GPU data
 	cpuDataCache   map[*tensor.Tensor]bool // Tracks which tensors have valid CPU data
 	lastOperation  map[*tensor.Tensor]string // Last operation on each tensor
 	mutex          sync.RWMutex
 }
 
-// NewTransferOptimizer creates a new transfer optimizer
-func NewTransferOptimizer() *TransferOptimizer {
-	return &TransferOptimizer{
+// NewSimpleTransferOptimizer creates a new simple transfer optimizer
+func NewSimpleTransferOptimizer() *SimpleTransferOptimizer {
+	return &SimpleTransferOptimizer{
 		gpuDataCache:  make(map[*tensor.Tensor]bool),
 		cpuDataCache:  make(map[*tensor.Tensor]bool),
 		lastOperation: make(map[*tensor.Tensor]string),
@@ -321,7 +323,7 @@ func NewTransferOptimizer() *TransferOptimizer {
 }
 
 // MarkGPUValid marks a tensor as having valid GPU data
-func (to *TransferOptimizer) MarkGPUValid(tensor *tensor.Tensor, operation string) {
+func (to *SimpleTransferOptimizer) MarkGPUValid(tensor *tensor.Tensor, operation string) {
 	to.mutex.Lock()
 	defer to.mutex.Unlock()
 	
@@ -330,7 +332,7 @@ func (to *TransferOptimizer) MarkGPUValid(tensor *tensor.Tensor, operation strin
 }
 
 // MarkCPUValid marks a tensor as having valid CPU data
-func (to *TransferOptimizer) MarkCPUValid(tensor *tensor.Tensor) {
+func (to *SimpleTransferOptimizer) MarkCPUValid(tensor *tensor.Tensor) {
 	to.mutex.Lock()
 	defer to.mutex.Unlock()
 	
@@ -338,7 +340,7 @@ func (to *TransferOptimizer) MarkCPUValid(tensor *tensor.Tensor) {
 }
 
 // MarkGPUInvalid marks a tensor's GPU data as invalid
-func (to *TransferOptimizer) MarkGPUInvalid(tensor *tensor.Tensor) {
+func (to *SimpleTransferOptimizer) MarkGPUInvalid(tensor *tensor.Tensor) {
 	to.mutex.Lock()
 	defer to.mutex.Unlock()
 	
@@ -346,7 +348,7 @@ func (to *TransferOptimizer) MarkGPUInvalid(tensor *tensor.Tensor) {
 }
 
 // MarkCPUInvalid marks a tensor's CPU data as invalid
-func (to *TransferOptimizer) MarkCPUInvalid(tensor *tensor.Tensor) {
+func (to *SimpleTransferOptimizer) MarkCPUInvalid(tensor *tensor.Tensor) {
 	to.mutex.Lock()
 	defer to.mutex.Unlock()
 	
@@ -354,7 +356,7 @@ func (to *TransferOptimizer) MarkCPUInvalid(tensor *tensor.Tensor) {
 }
 
 // ShouldTransferToGPU determines if a tensor needs to be transferred to GPU
-func (to *TransferOptimizer) ShouldTransferToGPU(tensor *tensor.Tensor) bool {
+func (to *SimpleTransferOptimizer) ShouldTransferToGPU(tensor *tensor.Tensor) bool {
 	to.mutex.RLock()
 	defer to.mutex.RUnlock()
 	
@@ -363,7 +365,7 @@ func (to *TransferOptimizer) ShouldTransferToGPU(tensor *tensor.Tensor) bool {
 }
 
 // ShouldTransferToCPU determines if a tensor needs to be transferred to CPU
-func (to *TransferOptimizer) ShouldTransferToCPU(tensor *tensor.Tensor) bool {
+func (to *SimpleTransferOptimizer) ShouldTransferToCPU(tensor *tensor.Tensor) bool {
 	to.mutex.RLock()
 	defer to.mutex.RUnlock()
 	
@@ -372,7 +374,7 @@ func (to *TransferOptimizer) ShouldTransferToCPU(tensor *tensor.Tensor) bool {
 }
 
 // CleanupTensor removes tracking for a tensor
-func (to *TransferOptimizer) CleanupTensor(tensor *tensor.Tensor) {
+func (to *SimpleTransferOptimizer) CleanupTensor(tensor *tensor.Tensor) {
 	to.mutex.Lock()
 	defer to.mutex.Unlock()
 	
@@ -381,27 +383,27 @@ func (to *TransferOptimizer) CleanupTensor(tensor *tensor.Tensor) {
 	delete(to.lastOperation, tensor)
 }
 
-// Global instances
-var globalMemoryOptimizer *MemoryCoalescingOptimizer
-var globalTransferOptimizer *TransferOptimizer
-var memoryOptimizerOnce sync.Once
+// Global instances for simple optimizers (fallback versions)
+var globalSimpleMemoryOptimizer *SimpleMemoryCoalescingOptimizer
+var globalSimpleTransferOptimizer *SimpleTransferOptimizer
+var simpleMemoryOptimizerOnce sync.Once
 
 // InitializeMemoryOptimizers initializes global memory optimizers
 func InitializeMemoryOptimizers() {
-	memoryOptimizerOnce.Do(func() {
-		globalMemoryOptimizer = NewMemoryCoalescingOptimizer()
-		globalTransferOptimizer = NewTransferOptimizer()
+	simpleMemoryOptimizerOnce.Do(func() {
+		globalSimpleMemoryOptimizer = NewSimpleMemoryCoalescingOptimizer()
+		globalSimpleTransferOptimizer = NewSimpleTransferOptimizer()
 	})
 }
 
-// GetGlobalMemoryOptimizer returns the global memory coalescing optimizer
-func GetGlobalMemoryOptimizer() *MemoryCoalescingOptimizer {
-	return globalMemoryOptimizer
+// GetGlobalSimpleMemoryOptimizer returns the global simple memory coalescing optimizer
+func GetGlobalSimpleMemoryOptimizer() *SimpleMemoryCoalescingOptimizer {
+	return globalSimpleMemoryOptimizer
 }
 
-// GetGlobalTransferOptimizer returns the global transfer optimizer
-func GetGlobalTransferOptimizer() *TransferOptimizer {
-	return globalTransferOptimizer
+// GetGlobalSimpleTransferOptimizer returns the global simple transfer optimizer
+func GetGlobalSimpleTransferOptimizer() *SimpleTransferOptimizer {
+	return globalSimpleTransferOptimizer
 }
 
 // Utility functions
@@ -441,8 +443,8 @@ func OptimizedTensorAlloc(shape []int, operation string) (*tensor.Tensor, error)
 	}
 	
 	// Optimize layout if beneficial
-	if globalMemoryOptimizer != nil {
-		optimized, err := globalMemoryOptimizer.OptimizeTensorLayout(tensor, operation)
+	if globalSimpleMemoryOptimizer != nil {
+		optimized, err := globalSimpleMemoryOptimizer.OptimizeTensorLayout(tensor, operation)
 		if err != nil {
 			return tensor, nil // Fall back to original if optimization fails
 		}
