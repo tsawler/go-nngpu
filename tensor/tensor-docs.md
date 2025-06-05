@@ -183,7 +183,7 @@ NewTensor creates a new CPU-backed Tensor.
 func (t *Tensor) DevicePtr() unsafe.Pointer
 ```
 DevicePtr returns the unsafe.Pointer to the Metal device. This is an internal
-helper for CGO calls within the go-nngpu module.
+helper for CGO calls within the gometal module.
 
 #### func (*Tensor) EnsureGPU
 
@@ -199,7 +199,7 @@ does nothing. If on CPU, it transfers it.
 func (t *Tensor) GPUPtr() unsafe.Pointer
 ```
 GPUPtr returns the unsafe.Pointer to the GPU buffer. This is an internal helper
-for CGO calls within the go-nngpu module.
+for CGO calls within the gometal module.
 
 #### func (*Tensor) ReleaseGPU
 

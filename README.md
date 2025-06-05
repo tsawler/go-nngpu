@@ -12,7 +12,7 @@
 
 ## Features
 
-go-nngpu provides GPU-accelerated implementations for various matrix and tensor operations, offering both direct gonum replacements and native GPU-backed types.
+gometal provides GPU-accelerated implementations for various matrix and tensor operations, offering both direct gonum replacements and native GPU-backed types.
 
 Key features include:
 
@@ -27,7 +27,7 @@ Key features include:
 
 ## Current Implementation Status
 
-The development of go-nngpu follows an incremental strategy. The current status is:
+The development of gometal follows an incremental strategy. The current status is:
 
 - [x] Phase 1: MatMul + Transpose (working now)
 - [x] Phase 2: Add element-wise operations (Add, Sub, Mul, Div)
