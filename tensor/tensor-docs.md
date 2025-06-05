@@ -5,6 +5,29 @@
 
 ## Usage
 
+#### func  GetGlobalMemoryStats
+
+```go
+func GetGlobalMemoryStats() (currentUsage, peakUsage int64, numAllocations int)
+```
+GetGlobalMemoryStats returns global memory statistics for all tensors
+
+#### type GlobalMemoryPool
+
+```go
+type GlobalMemoryPool struct {
+}
+```
+
+GlobalMemoryPool tracks all GPU memory allocations made by tensors
+
+#### func (*GlobalMemoryPool) GetStats
+
+```go
+func (p *GlobalMemoryPool) GetStats() (currentUsage, peakUsage int64, numAllocations int)
+```
+GetStats returns current memory usage statistics
+
 #### type SparseFormat
 
 ```go
@@ -183,7 +206,7 @@ NewTensor creates a new CPU-backed Tensor.
 func (t *Tensor) DevicePtr() unsafe.Pointer
 ```
 DevicePtr returns the unsafe.Pointer to the Metal device. This is an internal
-helper for CGO calls within the gometal module.
+helper for CGO calls within the go-nngpu module.
 
 #### func (*Tensor) EnsureGPU
 
@@ -199,7 +222,7 @@ does nothing. If on CPU, it transfers it.
 func (t *Tensor) GPUPtr() unsafe.Pointer
 ```
 GPUPtr returns the unsafe.Pointer to the GPU buffer. This is an internal helper
-for CGO calls within the gometal module.
+for CGO calls within the go-nngpu module.
 
 #### func (*Tensor) ReleaseGPU
 

@@ -76,6 +76,14 @@ func AddToAutodiffWatchList(tensor *GradientTensor)
 ```
 AddToWatchList adds a tensor to the watch list
 
+#### func  AllocateAlignedBuffer
+
+```go
+func AllocateAlignedBuffer(device unsafe.Pointer, size int, alignment int) (unsafe.Pointer, error)
+```
+AllocateAlignedBuffer allocates an aligned GPU buffer using the optimized C
+functions
+
 #### func  ApplyAutodiffConfig
 
 ```go
@@ -275,6 +283,13 @@ func ClearAutodiffDebugLog()
 ```
 ClearDebugLog clears the debug log buffer
 
+#### func  ClearGPUCache
+
+```go
+func ClearGPUCache()
+```
+ClearGPUCache clears GPU cache (placeholder for demo)
+
 #### func  ClearGraph
 
 ```go
@@ -296,12 +311,26 @@ func ClipGradientsAdaptive(gradients []*GradientTensor, targetNorm float32, adap
 ```
 ClipGradientsAdaptive performs adaptive gradient clipping
 
+#### func  CoalescedMemoryCopy
+
+```go
+func CoalescedMemoryCopy(device unsafe.Pointer, srcPtr, dstPtr unsafe.Pointer, size int, srcStride, dstStride int) error
+```
+CoalescedMemoryCopy performs optimized memory copy with coalescing
+
 #### func  Col2Im
 
 ```go
 func Col2Im(input *tensor.Tensor, outputShape []int, kernelH, kernelW, strideH, strideW, padH, padW int) (*tensor.Tensor, error)
 ```
 Col2Im performs the col2im operation (inverse of im2col)
+
+#### func  CompileOptimizedKernel
+
+```go
+func CompileOptimizedKernel(source string, options *KernelCompilationOptions) (unsafe.Pointer, error)
+```
+CompileOptimizedKernel compiles a kernel using the global cache
 
 #### func  CompressGradients
 
@@ -346,6 +375,13 @@ func CreateLayerNormParams(features int) (gamma, beta *mat.Dense)
 ```
 CreateLayerNormParams creates initialized gamma and beta parameters for layer
 normalization
+
+#### func  CreateOptimizedIntermediateTensor
+
+```go
+func CreateOptimizedIntermediateTensor(shape []int, operation string) (*tensor.Tensor, error)
+```
+CreateOptimizedIntermediateTensor creates an optimized intermediate tensor
 
 #### func  DecompressGradient
 
@@ -578,6 +614,20 @@ func Flatten4DTo2D(t *tensor.Tensor) (*tensor.Tensor, error)
 ```
 Flatten4DTo2D flattens a 4D tensor to 2D for compatibility with Gonum operations
 
+#### func  FloatMP16ToFloat32
+
+```go
+func FloatMP16ToFloat32(h FloatMP16) float32
+```
+FloatMP16ToFloat32 converts float16 to float32
+
+#### func  FlushGPUCache
+
+```go
+func FlushGPUCache(device unsafe.Pointer) error
+```
+FlushGPUCache flushes GPU cache to ensure optimal access patterns
+
 #### func  GELUBackward
 
 ```go
@@ -705,6 +755,14 @@ func GetAutodiffStats() map[string]interface{}
 ```
 GetAutodiffStats returns comprehensive statistics about the autodiff system
 
+#### func  GetCombinedMemoryStats
+
+```go
+func GetCombinedMemoryStats(state *TrainingState) (poolUsage, tensorUsage, peakUsage int64)
+```
+GetCombinedMemoryStats returns memory statistics from both the memory pool and
+tensor tracking
+
 #### func  GetGlobalFusionStats
 
 ```go
@@ -726,6 +784,13 @@ func GetGradientUtilitiesStats() map[string]interface{}
 ```
 GetGradientUtilitiesStats returns comprehensive statistics
 
+#### func  GetKernelCacheStats
+
+```go
+func GetKernelCacheStats() (hitRate float64, entries int, sizeBytes int64, hitCount int64, missCount int64)
+```
+GetKernelCacheStats returns global kernel cache statistics
+
 #### func  GetMemoryEfficientStats
 
 ```go
@@ -739,6 +804,20 @@ GetMemoryEfficientStats returns comprehensive statistics
 func GetMemoryOptimizationStats() map[string]interface{}
 ```
 GetMemoryOptimizationStats returns memory optimization statistics
+
+#### func  GetPhase8CStatus
+
+```go
+func GetPhase8CStatus() map[string]bool
+```
+GetPhase8CStatus returns the implementation status of Phase 8C
+
+#### func  GetSharedMemoryUsageStats
+
+```go
+func GetSharedMemoryUsageStats() map[string]interface{}
+```
+GetSharedMemoryUsageStats returns statistics about shared memory usage
 
 #### func  GonumToTensor
 
@@ -811,6 +890,49 @@ func InPlaceOperation(tensor *GradientTensor, operation func(*tensor.Tensor) err
 ```
 InPlaceOperation performs an operation in-place to save memory
 
+#### func  InitializeGlobalBufferReuseManager
+
+```go
+func InitializeGlobalBufferReuseManager(memoryPool *GPUMemoryPool)
+```
+InitializeGlobalBufferReuseManager initializes the global buffer reuse manager
+
+#### func  InitializeKernelCache
+
+```go
+func InitializeKernelCache(device unsafe.Pointer)
+```
+InitializeKernelCache initializes the global kernel cache
+
+#### func  InitializeMemoryOptimizationSuite
+
+```go
+func InitializeMemoryOptimizationSuite(device unsafe.Pointer, config *OptimizationConfig)
+```
+InitializeMemoryOptimizationSuite initializes the global memory optimization
+suite
+
+#### func  InitializeMemoryOptimizers
+
+```go
+func InitializeMemoryOptimizers()
+```
+InitializeMemoryOptimizers initializes global memory optimizers
+
+#### func  InitializePhase8C
+
+```go
+func InitializePhase8C(device unsafe.Pointer) error
+```
+InitializePhase8C initializes all Phase 8C components with a unified interface
+
+#### func  InitializePhase8CWithDefaults
+
+```go
+func InitializePhase8CWithDefaults() error
+```
+InitializePhase8CWithDefaults initializes Phase 8C with default configuration
+
 #### func  InitializeRunningStats
 
 ```go
@@ -846,6 +968,13 @@ InstanceNormForward performs instance normalization forward pass
 func Inverse(A *tensor.Tensor) (*tensor.Tensor, error)
 ```
 Inverse computes the matrix inverse using the Accelerate framework
+
+#### func  IsPhase8CInitialized
+
+```go
+func IsPhase8CInitialized() bool
+```
+IsPhase8CInitialized returns true if Phase 8C has been initialized
 
 #### func  IsSparseWorthwhile
 
@@ -962,6 +1091,14 @@ func NoGradContext(fn func())
 ```
 NoGradContext temporarily disables gradient computation
 
+#### func  OptimizeBatchedTransfer
+
+```go
+func OptimizeBatchedTransfer(tensors []*tensor.Tensor, toGPU bool, operation string) error
+```
+OptimizeBatchedTransfer optimizes a batch of tensor transfers using the global
+optimizer
+
 #### func  OptimizeComputationGraph
 
 ```go
@@ -975,6 +1112,14 @@ OptimizeComputationGraph applies advanced optimizations to a computation graph
 func OptimizeMemoryUsage() error
 ```
 OptimizeMemoryUsage performs global memory optimization
+
+#### func  OptimizeTensorTransfer
+
+```go
+func OptimizeTensorTransfer(t *tensor.Tensor, toGPU bool, operation string) error
+```
+OptimizeTensorTransfer optimizes a single tensor transfer using the global
+optimizer
 
 #### func  OptimizedAdd
 
@@ -1084,12 +1229,47 @@ func OptimizedSum(input *tensor.Tensor) (*tensor.Tensor, error)
 ```
 OptimizedSum performs optimized sum reduction
 
+#### func  OptimizedTensorAlloc
+
+```go
+func OptimizedTensorAlloc(shape []int, operation string) (*tensor.Tensor, error)
+```
+OptimizedTensorAlloc allocates a tensor using the optimized memory pool
+
 #### func  Pad2D
 
 ```go
 func Pad2D(input *tensor.Tensor, padTop, padBottom, padLeft, padRight int, padValue float32) (*tensor.Tensor, error)
 ```
 Pad2D adds padding to a 2D tensor
+
+#### func  Phase8CComplete
+
+```go
+func Phase8CComplete() bool
+```
+Phase8CComplete returns true if all Phase 8C components are implemented
+
+#### func  Phase8CFeatures
+
+```go
+func Phase8CFeatures() []string
+```
+Phase8CFeatures returns a list of all Phase 8C features
+
+#### func  PrecompileCommonKernels
+
+```go
+func PrecompileCommonKernels() error
+```
+PrecompileCommonKernels precompiles frequently used kernels
+
+#### func  PrefetchGPUData
+
+```go
+func PrefetchGPUData(device unsafe.Pointer, bufferPtr unsafe.Pointer, size, offset int) error
+```
+PrefetchGPUData prefetches data to GPU cache for optimal access patterns
 
 #### func  PrintAdvancedOptimizationStats
 
@@ -1196,6 +1376,13 @@ func RegisterOptimizationTechnique(technique OptimizationTechnique)
 ```
 RegisterOptimizationTechnique registers a new optimization technique
 
+#### func  ReleaseOptimizedBuffer
+
+```go
+func ReleaseOptimizedBuffer(buffer unsafe.Pointer) error
+```
+ReleaseOptimizedBuffer releases a GPU buffer using optimized C functions
+
 #### func  RemoveAutodiffBreakpoint
 
 ```go
@@ -1209,6 +1396,13 @@ RemoveBreakpoint removes a breakpoint for a specific tensor
 func ResetGradientUtilities()
 ```
 ResetGradientUtilities resets all gradient utilities to their initial state
+
+#### func  ResetPhase8C
+
+```go
+func ResetPhase8C()
+```
+ResetPhase8C cleans up and resets all Phase 8C components (for testing)
 
 #### func  Reshape
 
@@ -1260,6 +1454,13 @@ func SetGlobalFusionPerformanceThreshold(threshold float32)
 SetGlobalFusionPerformanceThreshold sets the global performance threshold for
 fusion
 
+#### func  SetGlobalMatrixDevice
+
+```go
+func SetGlobalMatrixDevice(device unsafe.Pointer)
+```
+SetGlobalMatrixDevice sets the global device for matrix operations
+
 #### func  SetGradientMode
 
 ```go
@@ -1273,6 +1474,13 @@ SetGradientMode sets the global gradient computation mode
 func SetLayerPriority(layerName string, priority float32)
 ```
 SetLayerPriority sets the priority weight for a specific layer
+
+#### func  SetSharedMemoryLimits
+
+```go
+func SetSharedMemoryLimits(maxSharedMemory, bankSize, warpSize int)
+```
+SetSharedMemoryLimits configures shared memory limits for optimization
 
 #### func  SigmoidBackward
 
@@ -1508,6 +1716,14 @@ func ValidateGradients(model func(*tensor.Tensor) (*tensor.Tensor, error), input
 ```
 ValidateGradients performs gradient validation using finite differences
 
+#### func  ValidatePhase8CImplementation
+
+```go
+func ValidatePhase8CImplementation() bool
+```
+ValidatePhase8CImplementation validates that all Phase 8C features are working
+correctly
+
 #### func  WithMemoryEfficientContext
 
 ```go
@@ -1543,14 +1759,89 @@ ZeroPad2D adds zero padding to a tensor
 func ZeroTensorGPU(t *tensor.Tensor) error
 ```
 
+#### type AccessOrder
+
+```go
+type AccessOrder int
+```
+
+AccessOrder defines how tensor elements are accessed
+
+```go
+const (
+	AccessOrderRowMajor AccessOrder = iota
+	AccessOrderColumnMajor
+	AccessOrderTiled
+	AccessOrderBlocked
+	AccessOrderStrided
+	AccessOrderRandom
+)
+```
+
 #### type AccessPattern
 
 ```go
 type AccessPattern struct {
+	OperationType   string
+	TensorShapes    [][]int
+	AccessOrder     AccessOrder
+	StridePattern   []int
+	AccessFrequency int64
+	LastAccess      time.Time
+	IsCoalesced     bool
+	BankConflicts   int
 }
 ```
 
-AccessPattern tracks how memory is accessed
+AccessPattern describes how memory is accessed during an operation
+
+#### func  AnalyzeMemoryAccessPattern
+
+```go
+func AnalyzeMemoryAccessPattern(
+	operationType string,
+	tensors []*tensor.Tensor,
+	params map[string]interface{},
+) (*AccessPattern, error)
+```
+AnalyzeMemoryAccessPattern analyzes memory access patterns using the global
+optimizer
+
+#### type AccessPatternOptimizer
+
+```go
+type AccessPatternOptimizer struct {
+}
+```
+
+AccessPatternOptimizer optimizes based on access patterns
+
+#### func (*AccessPatternOptimizer) GetHint
+
+```go
+func (apo *AccessPatternOptimizer) GetHint(bufferName string) int
+```
+GetHint returns optimization hint based on patterns
+
+#### func (*AccessPatternOptimizer) UpdatePattern
+
+```go
+func (apo *AccessPatternOptimizer) UpdatePattern(bufferName string, accessType int)
+```
+UpdatePattern updates access pattern statistics
+
+#### type AccessRecord
+
+```go
+type AccessRecord struct {
+	BufferName string
+	AccessType int // 0: CPU read, 1: CPU write, 2: GPU read, 3: GPU write
+	Timestamp  int64
+	Size       int
+}
+```
+
+AccessRecord tracks memory access patterns
 
 #### type AccessType
 
@@ -1591,6 +1882,22 @@ const (
 	WeightedAccumulation
 	AdaptiveAccumulation
 	PriorityAccumulation
+)
+```
+
+#### type AcquisitionFunction
+
+```go
+type AcquisitionFunction int
+```
+
+AcquisitionFunction defines acquisition function types
+
+```go
+const (
+	ExpectedImprovement AcquisitionFunction = iota
+	UpperConfidenceBound
+	ProbabilityOfImprovement
 )
 ```
 
@@ -1659,6 +1966,87 @@ RecordMemoryUsage records current memory usage
 func (amm *AdaptiveMemoryManager) RecordPerformance(performance float32)
 ```
 RecordPerformance records performance metric
+
+#### type AdaptivePrecisionManager
+
+```go
+type AdaptivePrecisionManager struct {
+}
+```
+
+AdaptivePrecisionManager automatically selects optimal precision based on
+operation characteristics
+
+#### func  NewAdaptivePrecisionManager
+
+```go
+func NewAdaptivePrecisionManager(config *MixedPrecisionConfig) (*AdaptivePrecisionManager, error)
+```
+NewAdaptivePrecisionManager creates an adaptive precision manager
+
+#### func (*AdaptivePrecisionManager) Cleanup
+
+```go
+func (apm *AdaptivePrecisionManager) Cleanup()
+```
+Cleanup releases resources
+
+#### func (*AdaptivePrecisionManager) GetRecommendation
+
+```go
+func (apm *AdaptivePrecisionManager) GetRecommendation(matrixSize int) string
+```
+GetRecommendation provides a recommendation for a given matrix size
+
+#### func (*AdaptivePrecisionManager) LearnFromBenchmark
+
+```go
+func (apm *AdaptivePrecisionManager) LearnFromBenchmark(benchmark *PrecisionBenchmark)
+```
+LearnFromBenchmark updates thresholds based on benchmark results
+
+#### func (*AdaptivePrecisionManager) OptimalMatMul
+
+```go
+func (apm *AdaptivePrecisionManager) OptimalMatMul(A, B *tensor.Tensor) (*tensor.Tensor, error)
+```
+OptimalMatMul automatically chooses the best precision strategy
+
+#### type AdaptivePrecisionSelector
+
+```go
+type AdaptivePrecisionSelector struct {
+	// Thresholds for automatic precision selection
+	SmallMatrixThreshold int     // Use mixed precision for matrices smaller than this
+	AccuracyThreshold    float64 // Minimum acceptable accuracy
+	PerformanceThreshold float64 // Minimum speedup required for mixed precision
+}
+```
+
+AdaptivePrecisionSelector automatically chooses the best precision based on
+operation characteristics
+
+#### func  NewAdaptivePrecisionSelector
+
+```go
+func NewAdaptivePrecisionSelector() *AdaptivePrecisionSelector
+```
+NewAdaptivePrecisionSelector creates a new adaptive precision selector
+
+#### func (*AdaptivePrecisionSelector) ShouldUseMixedPrecision
+
+```go
+func (aps *AdaptivePrecisionSelector) ShouldUseMixedPrecision(matrixSize int, operationType string) bool
+```
+ShouldUseMixedPrecision determines if mixed precision should be used for a given
+operation
+
+#### func (*AdaptivePrecisionSelector) UpdatePerformanceHistory
+
+```go
+func (aps *AdaptivePrecisionSelector) UpdatePerformanceHistory(matrixSize int, speedup, accuracy float64)
+```
+UpdatePerformanceHistory updates the performance history with new measurements
 
 #### type AdvancedMemoryOptimizer
 
@@ -1822,6 +2210,82 @@ Start begins asynchronous data loading
 func (adl *AsyncDataLoader) Stop()
 ```
 Stop stops the asynchronous data loading
+
+#### type AutoKernelSelector
+
+```go
+type AutoKernelSelector struct {
+}
+```
+
+AutoKernelSelector selects optimal kernels based on input characteristics
+
+#### func  NewAutoKernelSelector
+
+```go
+func NewAutoKernelSelector(mgm *MPSGraphManager) *AutoKernelSelector
+```
+NewAutoKernelSelector creates a kernel selector
+
+#### func (*AutoKernelSelector) SelectKernel
+
+```go
+func (aks *AutoKernelSelector) SelectKernel(op Operation, inputShapes [][]int) string
+```
+SelectKernel chooses the optimal kernel for an operation
+
+#### type AutoTuner
+
+```go
+type AutoTuner struct {
+}
+```
+
+AutoTuner automatically optimizes performance parameters
+
+#### func  NewAutoTuner
+
+```go
+func NewAutoTuner(profiler *PerformanceProfiler) *AutoTuner
+```
+NewAutoTuner creates a new auto-tuner
+
+#### func (*AutoTuner) ProcessMetric
+
+```go
+func (at *AutoTuner) ProcessMetric(metric Metric)
+```
+ProcessMetric processes a performance metric for auto-tuning
+
+#### func (*AutoTuner) RegisterParameter
+
+```go
+func (at *AutoTuner) RegisterParameter(param *TuningParameter)
+```
+RegisterParameter adds a tuning parameter
+
+#### func (*AutoTuner) TuneParameters
+
+```go
+func (at *AutoTuner) TuneParameters(maxTrials int) PerformanceMetrics
+```
+TuneParameters optimizes all registered parameters
+
+#### type AutocastMode
+
+```go
+type AutocastMode int
+```
+
+AutocastMode defines when to use float16 vs float32
+
+```go
+const (
+	AutocastDisabled AutocastMode = iota
+	AutocastForward               // Use float16 for forward pass only
+	AutocastFull                  // Use float16 for forward and backward (with scaling)
+)
+```
 
 #### type AutodiffConfig
 
@@ -2048,6 +2512,205 @@ func (bnt BatchNormType) String() string
 ```
 String returns string representation of batch norm type
 
+#### type BatchOptimizer
+
+```go
+type BatchOptimizer struct {
+}
+```
+
+BatchOptimizer optimizes memory usage for batch processing
+
+#### func (*BatchOptimizer) GetBatchBuffer
+
+```go
+func (bo *BatchOptimizer) GetBatchBuffer() (*SharedBuffer, error)
+```
+GetBatchBuffer gets or creates an optimized buffer for batch processing
+
+#### func (*BatchOptimizer) ReturnBatchBuffer
+
+```go
+func (bo *BatchOptimizer) ReturnBatchBuffer(buf *SharedBuffer)
+```
+ReturnBatchBuffer returns a buffer to the pool
+
+#### type BatchRecord
+
+```go
+type BatchRecord struct {
+	Size       int
+	Latency    time.Duration
+	Throughput float64
+	Timestamp  time.Time
+}
+```
+
+BatchRecord stores batch execution history
+
+#### type BatchSizePredictor
+
+```go
+type BatchSizePredictor struct {
+}
+```
+
+BatchSizePredictor predicts optimal batch sizes
+
+#### func  NewBatchSizePredictor
+
+```go
+func NewBatchSizePredictor() *BatchSizePredictor
+```
+NewBatchSizePredictor creates a batch size predictor
+
+#### func (*BatchSizePredictor) PredictOptimalSize
+
+```go
+func (bsp *BatchSizePredictor) PredictOptimalSize() int
+```
+PredictOptimalSize predicts the optimal batch size
+
+#### func (*BatchSizePredictor) RecordBatch
+
+```go
+func (bsp *BatchSizePredictor) RecordBatch(size int, latency time.Duration, throughput float64)
+```
+RecordBatch adds a batch execution record
+
+#### type BatchedTransfer
+
+```go
+type BatchedTransfer struct {
+	Tensors   []*tensor.Tensor
+	ToGPU     bool
+	Operation string
+}
+```
+
+BatchedTransfer represents a batch of tensor transfers
+
+#### type BayesianOptimizer
+
+```go
+type BayesianOptimizer struct {
+}
+```
+
+BayesianOptimizer implements Bayesian optimization
+
+#### func  NewBayesianOptimizer
+
+```go
+func NewBayesianOptimizer() *BayesianOptimizer
+```
+NewBayesianOptimizer creates a Bayesian optimizer
+
+#### func (*BayesianOptimizer) SuggestConfiguration
+
+```go
+func (bo *BayesianOptimizer) SuggestConfiguration(params map[string]*TuningParameter) map[string]interface{}
+```
+SuggestConfiguration suggests next configuration to try
+
+#### func (*BayesianOptimizer) UpdateTrial
+
+```go
+func (bo *BayesianOptimizer) UpdateTrial(config map[string]interface{}, score float64)
+```
+UpdateTrial updates the optimizer with trial results
+
+#### type BenchmarkResult
+
+```go
+type BenchmarkResult struct {
+	Name                string
+	BaselineTime        time.Duration
+	OptimizedTime       time.Duration
+	Speedup             float64
+	MemoryBaseline      int64
+	MemoryOptimized     int64
+	MemorySavings       float64
+	ThroughputBaseline  float64 // Operations per second
+	ThroughputOptimized float64
+	Notes               []string
+}
+```
+
+BenchmarkResult stores the results of a benchmark
+
+#### type BenchmarkSuite
+
+```go
+type BenchmarkSuite struct {
+}
+```
+
+BenchmarkSuite runs comprehensive benchmarks for Phase 8C optimizations
+
+#### func  NewBenchmarkSuite
+
+```go
+func NewBenchmarkSuite() *BenchmarkSuite
+```
+NewBenchmarkSuite creates a new benchmark suite
+
+#### func  RunPhase8CBenchmarks
+
+```go
+func RunPhase8CBenchmarks() *BenchmarkSuite
+```
+RunPhase8CBenchmarks runs a complete benchmark suite for Phase 8C
+
+#### func (*BenchmarkSuite) BenchmarkBufferReuse
+
+```go
+func (bs *BenchmarkSuite) BenchmarkBufferReuse()
+```
+BenchmarkBufferReuse benchmarks buffer reuse system performance
+
+#### func (*BenchmarkSuite) BenchmarkConvolution
+
+```go
+func (bs *BenchmarkSuite) BenchmarkConvolution()
+```
+BenchmarkConvolution benchmarks convolution optimizations
+
+#### func (*BenchmarkSuite) BenchmarkKernelCache
+
+```go
+func (bs *BenchmarkSuite) BenchmarkKernelCache()
+```
+BenchmarkKernelCache benchmarks kernel compilation caching
+
+#### func (*BenchmarkSuite) BenchmarkMatrixMultiplication
+
+```go
+func (bs *BenchmarkSuite) BenchmarkMatrixMultiplication(sizes []int)
+```
+BenchmarkMatrixMultiplication benchmarks matrix multiplication optimizations
+
+#### func (*BenchmarkSuite) BenchmarkMemoryTransfer
+
+```go
+func (bs *BenchmarkSuite) BenchmarkMemoryTransfer()
+```
+BenchmarkMemoryTransfer benchmarks CPU-GPU transfer optimization
+
+#### func (*BenchmarkSuite) PrintResults
+
+```go
+func (bs *BenchmarkSuite) PrintResults()
+```
+PrintResults prints a detailed report of all benchmark results
+
+#### func (*BenchmarkSuite) RunAllBenchmarks
+
+```go
+func (bs *BenchmarkSuite) RunAllBenchmarks()
+```
+RunAllBenchmarks runs the complete benchmark suite
+
 #### type BufferPool
 
 ```go
@@ -2077,6 +2740,87 @@ GetBuffer retrieves a buffer from the pool or creates a new one
 func (bp *BufferPool) ReturnBuffer(buffer *tensor.Tensor)
 ```
 ReturnBuffer returns a buffer to the pool
+
+#### type BufferReuseManager
+
+```go
+type BufferReuseManager struct {
+}
+```
+
+BufferReuseManager manages reusable buffers for intermediate tensor operations
+
+#### func  GetGlobalBufferReuseManager
+
+```go
+func GetGlobalBufferReuseManager() *BufferReuseManager
+```
+GetGlobalBufferReuseManager returns the global buffer reuse manager
+
+#### func  NewBufferReuseManager
+
+```go
+func NewBufferReuseManager(memoryPool *GPUMemoryPool) *BufferReuseManager
+```
+NewBufferReuseManager creates a new buffer reuse manager
+
+#### func (*BufferReuseManager) Close
+
+```go
+func (brm *BufferReuseManager) Close()
+```
+Close stops the buffer reuse manager and releases all resources
+
+#### func (*BufferReuseManager) GetBuffer
+
+```go
+func (brm *BufferReuseManager) GetBuffer(shape []int, operation string) (*ReusableBuffer, error)
+```
+GetBuffer gets a reusable buffer for a tensor operation
+
+#### func (*BufferReuseManager) GetStats
+
+```go
+func (brm *BufferReuseManager) GetStats() map[string]*BufferStats
+```
+GetStats returns buffer reuse statistics
+
+#### func (*BufferReuseManager) GetTensorBuffer
+
+```go
+func (brm *BufferReuseManager) GetTensorBuffer(tensor *tensor.Tensor, operation string) (*ReusableBuffer, error)
+```
+GetTensorBuffer gets a buffer specifically for a tensor and tracks it
+
+#### func (*BufferReuseManager) ReleaseTensorBuffer
+
+```go
+func (brm *BufferReuseManager) ReleaseTensorBuffer(tensor *tensor.Tensor)
+```
+ReleaseTensorBuffer releases a buffer associated with a tensor
+
+#### func (*BufferReuseManager) ReturnBuffer
+
+```go
+func (brm *BufferReuseManager) ReturnBuffer(buffer *ReusableBuffer)
+```
+ReturnBuffer returns a buffer to the pool for reuse
+
+#### type BufferStats
+
+```go
+type BufferStats struct {
+	TotalAllocations int64         // Total allocations in this category
+	TotalReuses      int64         // Total reuses
+	TotalHits        int64         // Cache hits
+	TotalMisses      int64         // Cache misses
+	AverageLifetime  time.Duration // Average buffer lifetime
+	PeakUsage        int           // Peak number of buffers in use
+	CurrentUsage     int           // Current number of buffers in use
+}
+```
+
+BufferStats tracks usage statistics for buffer categories
 
 #### type CPUGPUSwapManager
 
@@ -2282,6 +3026,50 @@ type ClippingEvent struct {
 
 ClippingEvent records a gradient clipping event
 
+#### type CoalescingStatistics
+
+```go
+type CoalescingStatistics struct {
+	TotalOptimizations   int64
+	SuccessfulCoalescing int64
+	BankConflictsReduced int64
+	AverageSpeedup       float64
+	TotalMemoryAccesses  int64
+	CoalescedAccesses    int64
+}
+```
+
+CoalescingStatistics tracks memory coalescing performance
+
+#### type CoalescingStrategy
+
+```go
+type CoalescingStrategy struct {
+	OperationType     string
+	RecommendedLayout TensorLayout
+	RecommendedStride []int
+	TileSize          []int
+	BlockSize         []int
+	PaddingRequired   []int
+	ExpectedSpeedup   float64
+	MemoryOverhead    float64
+}
+```
+
+CoalescingStrategy defines how to optimize memory access for coalescing
+
+#### func  OptimizeMemoryCoalescing
+
+```go
+func OptimizeMemoryCoalescing(
+	operationType string,
+	tensors []*tensor.Tensor,
+	params map[string]interface{},
+) (*CoalescingStrategy, error)
+```
+OptimizeMemoryCoalescing optimizes memory coalescing for an operation using the
+global optimizer
+
 #### type CodeTemplate
 
 ```go
@@ -2295,6 +3083,71 @@ type CodeTemplate struct {
 ```
 
 CodeTemplate defines how to generate code for an operation
+
+#### type CommandQueuePool
+
+```go
+type CommandQueuePool struct {
+}
+```
+
+CommandQueuePool manages a pool of reusable Metal command queues
+
+#### func  GetGlobalCommandQueuePool
+
+```go
+func GetGlobalCommandQueuePool(device unsafe.Pointer) *CommandQueuePool
+```
+GetGlobalCommandQueuePool returns the singleton command queue pool
+
+#### func  NewCommandQueuePool
+
+```go
+func NewCommandQueuePool(device unsafe.Pointer, poolSize int) *CommandQueuePool
+```
+NewCommandQueuePool creates a new pool of command queues
+
+#### func (*CommandQueuePool) Available
+
+```go
+func (p *CommandQueuePool) Available() int
+```
+Available returns the number of available queues
+
+#### func (*CommandQueuePool) GetQueue
+
+```go
+func (p *CommandQueuePool) GetQueue() unsafe.Pointer
+```
+GetQueue gets a command queue from the pool (blocks if none available)
+
+#### func (*CommandQueuePool) GetQueueNonBlocking
+
+```go
+func (p *CommandQueuePool) GetQueueNonBlocking() unsafe.Pointer
+```
+GetQueueNonBlocking tries to get a queue without blocking
+
+#### func (*CommandQueuePool) InUse
+
+```go
+func (p *CommandQueuePool) InUse() int
+```
+InUse returns the number of queues currently in use
+
+#### func (*CommandQueuePool) ReturnQueue
+
+```go
+func (p *CommandQueuePool) ReturnQueue(queue unsafe.Pointer)
+```
+ReturnQueue returns a command queue to the pool
+
+#### func (*CommandQueuePool) Size
+
+```go
+func (p *CommandQueuePool) Size() int
+```
+Size returns the total number of queues in the pool
 
 #### type CommunicationCost
 
@@ -2316,6 +3169,20 @@ type CompilationCache struct {
 ```
 
 CompilationCache caches compiled functions
+
+#### type CompiledOperation
+
+```go
+type CompiledOperation struct {
+	Graph       unsafe.Pointer
+	Executable  unsafe.Pointer
+	InputShapes [][]int
+	OutputShape []int
+	CacheKey    string
+}
+```
+
+CompiledOperation represents a compiled MPS graph operation
 
 #### type CompressedTensor
 
@@ -2422,6 +3289,21 @@ func NewComputationGraph() *ComputationGraph
 ```
 NewComputationGraph creates a new computation graph
 
+#### type ComputeNode
+
+```go
+type ComputeNode struct {
+	ID        string
+	Operation func(*tensor.Tensor) *tensor.Tensor
+	Input     *tensor.Tensor
+	Output    *tensor.Tensor
+	StreamID  StreamID
+	Status    int32 // 0: pending, 1: running, 2: complete
+}
+```
+
+ComputeNode represents a node in the computation graph
+
 #### type ConstantFolding
 
 ```go
@@ -2459,6 +3341,64 @@ func (cf *ConstantFolding) GetName() string
 ```go
 func (cf *ConstantFolding) IsApplicable(graph *ComputationGraph) bool
 ```
+
+#### type Conv2DLayer
+
+```go
+type Conv2DLayer struct {
+	// Parameters
+	Weight *tensor.Tensor
+	Bias   *tensor.Tensor
+
+	// Gradients
+	WeightGrad *tensor.Tensor
+	BiasGrad   *tensor.Tensor
+
+	// Configuration
+	InChannels  int
+	OutChannels int
+	KernelSize  int
+	Stride      int
+	Padding     int
+}
+```
+
+Conv2DLayer represents a 2D convolution layer
+
+#### func  NewConv2DLayer
+
+```go
+func NewConv2DLayer(inChannels, outChannels, kernelSize, stride, padding int) *Conv2DLayer
+```
+NewConv2DLayer creates a new Conv2D layer
+
+#### func (*Conv2DLayer) Backward
+
+```go
+func (c *Conv2DLayer) Backward(gradOutput *tensor.Tensor) *tensor.Tensor
+```
+Backward performs the backward pass
+
+#### func (*Conv2DLayer) Forward
+
+```go
+func (c *Conv2DLayer) Forward(input *tensor.Tensor) *tensor.Tensor
+```
+Forward performs the forward pass
+
+#### func (*Conv2DLayer) GetGradients
+
+```go
+func (c *Conv2DLayer) GetGradients() []*tensor.Tensor
+```
+GetGradients returns the layer gradients
+
+#### func (*Conv2DLayer) GetParameters
+
+```go
+func (c *Conv2DLayer) GetParameters() []*tensor.Tensor
+```
+GetParameters returns the layer parameters
 
 #### type Conv2DParams
 
@@ -2687,6 +3627,89 @@ type DerivativeCache struct {
 
 DerivativeCache caches computed derivatives for efficiency
 
+#### type DetailedProfile
+
+```go
+type DetailedProfile struct {
+	MatrixSize         int
+	TotalOperationTime time.Duration
+
+	// Detailed timing breakdown
+	ConversionToFP16Time   time.Duration
+	ComputeTime            time.Duration
+	ConversionFromFP16Time time.Duration
+	CGOOverheadTime        time.Duration
+	MemoryTransferTime     time.Duration
+	TensorAllocationTime   time.Duration
+
+	// Comparison baseline
+	Float32BaselineTime time.Duration
+
+	// Performance metrics
+	ConversionOverheadRatio float64 // Conversion time / Total time
+	CGOOverheadRatio        float64 // CGO time / Total time
+	MemoryOverheadRatio     float64 // Memory transfer time / Total time
+
+	// Bottleneck identification
+	PrimaryBottleneck    string
+	BottleneckPercentage float64
+}
+```
+
+DetailedProfile provides granular timing breakdown
+
+#### type DetailedProfiler
+
+```go
+type DetailedProfiler struct {
+}
+```
+
+DetailedProfiler provides comprehensive performance analysis
+
+#### func  NewDetailedProfiler
+
+```go
+func NewDetailedProfiler() (*DetailedProfiler, error)
+```
+NewDetailedProfiler creates a new detailed profiler
+
+#### func (*DetailedProfiler) Cleanup
+
+```go
+func (dp *DetailedProfiler) Cleanup()
+```
+Cleanup releases resources
+
+#### func (*DetailedProfiler) GenerateOptimizationReport
+
+```go
+func (dp *DetailedProfiler) GenerateOptimizationReport(sizes []int, iterations int) error
+```
+GenerateOptimizationReport creates a comprehensive optimization report
+
+#### func (*DetailedProfiler) IdentifyOptimizationOpportunities
+
+```go
+func (dp *DetailedProfiler) IdentifyOptimizationOpportunities(profile *DetailedProfile) []string
+```
+IdentifyOptimizationOpportunities provides specific recommendations
+
+#### func (*DetailedProfiler) ProfileConversionOverhead
+
+```go
+func (dp *DetailedProfiler) ProfileConversionOverhead(sizes []int, iterations int) error
+```
+ProfileConversionOverhead specifically analyzes the conversion process
+
+#### func (*DetailedProfiler) ProfileMatrixOperation
+
+```go
+func (dp *DetailedProfiler) ProfileMatrixOperation(A, B *tensor.Tensor, iterations int) (*DetailedProfile, error)
+```
+ProfileMatrixOperation provides detailed breakdown of matrix operation
+performance
+
 #### type DirectionalStats
 
 ```go
@@ -2740,6 +3763,105 @@ func (ddl *DistributedDataLoader) GetLocalBatchCount() int
 ```
 GetLocalBatchCount returns the number of batches for this node
 
+#### type DynamicBatchScheduler
+
+```go
+type DynamicBatchScheduler struct {
+}
+```
+
+DynamicBatchScheduler manages dynamic batching and scheduling
+
+#### func  NewDynamicBatchScheduler
+
+```go
+func NewDynamicBatchScheduler(memMgr *UnifiedMemoryManager, streamMgr *StreamManager) *DynamicBatchScheduler
+```
+NewDynamicBatchScheduler creates a dynamic batch scheduler
+
+#### func (*DynamicBatchScheduler) SubmitRequest
+
+```go
+func (dbs *DynamicBatchScheduler) SubmitRequest(req *Request)
+```
+SubmitRequest adds a request to the scheduler
+
+#### type DynamicComputationGraph
+
+```go
+type DynamicComputationGraph struct {
+}
+```
+
+DynamicComputationGraph represents a dynamic computation graph
+
+#### func  NewDynamicComputationGraph
+
+```go
+func NewDynamicComputationGraph() *DynamicComputationGraph
+```
+NewDynamicComputationGraph creates a dynamic computation graph
+
+#### func (*DynamicComputationGraph) AddEdge
+
+```go
+func (cg *DynamicComputationGraph) AddEdge(from, to string)
+```
+AddEdge adds a dependency edge
+
+#### func (*DynamicComputationGraph) AddNode
+
+```go
+func (cg *DynamicComputationGraph) AddNode(node *ComputeNode)
+```
+AddNode adds a computation node
+
+#### func (*DynamicComputationGraph) Execute
+
+```go
+func (cg *DynamicComputationGraph) Execute(executor *ParallelExecutor)
+```
+Execute runs the computation graph
+
+#### func (*DynamicComputationGraph) Schedule
+
+```go
+func (cg *DynamicComputationGraph) Schedule() []string
+```
+Schedule creates an execution schedule
+
+#### type EfficientMixedPrecisionTrainer
+
+```go
+type EfficientMixedPrecisionTrainer struct {
+}
+```
+
+EfficientMixedPrecisionTrainer provides optimized mixed precision operations
+that minimize GPU↔CPU transfers and unnecessary conversions
+
+#### func  NewEfficientMixedPrecisionTrainer
+
+```go
+func NewEfficientMixedPrecisionTrainer(config *MixedPrecisionConfig) (*EfficientMixedPrecisionTrainer, error)
+```
+NewEfficientMixedPrecisionTrainer creates an optimized mixed precision trainer
+
+#### func (*EfficientMixedPrecisionTrainer) Cleanup
+
+```go
+func (mp *EfficientMixedPrecisionTrainer) Cleanup()
+```
+Cleanup releases resources
+
+#### func (*EfficientMixedPrecisionTrainer) EfficientMatMul
+
+```go
+func (mp *EfficientMixedPrecisionTrainer) EfficientMatMul(A, B *tensor.Tensor) (*tensor.Tensor, error)
+```
+EfficientMatMul performs matrix multiplication with minimal overhead mixed
+precision
+
 #### type EigenDecomposition
 
 ```go
@@ -2765,6 +3887,60 @@ Accelerate framework
 func (eigen *EigenDecomposition) ReleaseGPU()
 ```
 ReleaseGPU releases GPU resources for the eigenvalue decomposition
+
+#### type FixedMixedPrecisionTrainer
+
+```go
+type FixedMixedPrecisionTrainer struct {
+}
+```
+
+FixedMixedPrecisionTrainer eliminates the conversion bottleneck entirely
+
+#### func  NewFixedMixedPrecisionTrainer
+
+```go
+func NewFixedMixedPrecisionTrainer(config *MixedPrecisionConfig) (*FixedMixedPrecisionTrainer, error)
+```
+NewFixedMixedPrecisionTrainer creates a trainer that eliminates conversion
+overhead
+
+#### func (*FixedMixedPrecisionTrainer) BenchmarkPrecisionStrategies
+
+```go
+func (fmp *FixedMixedPrecisionTrainer) BenchmarkPrecisionStrategies(A, B *tensor.Tensor, iterations int) (*PrecisionBenchmark, error)
+```
+BenchmarkPrecisionStrategies compares different precision strategies
+
+#### func (*FixedMixedPrecisionTrainer) Cleanup
+
+```go
+func (fmp *FixedMixedPrecisionTrainer) Cleanup()
+```
+Cleanup releases resources
+
+#### func (*FixedMixedPrecisionTrainer) OptimalMatMul
+
+```go
+func (fmp *FixedMixedPrecisionTrainer) OptimalMatMul(A, B *tensor.Tensor) (*tensor.Tensor, error)
+```
+OptimalMatMul implements intelligent precision selection with ZERO conversion
+overhead
+
+#### type FloatMP16
+
+```go
+type FloatMP16 uint16
+```
+
+FloatMP16 represents a 16-bit floating point number
+
+#### func  Float32ToFloatMP16
+
+```go
+func Float32ToFloatMP16(f float32) FloatMP16
+```
+Float32ToFloatMP16 converts float32 to float16
 
 #### type FragmentationDetector
 
@@ -3102,6 +4278,49 @@ func (f *FusedResidualBlock) GetName() string
 func (f *FusedResidualBlock) GetSpeedup() float32
 ```
 
+#### type FusionOptimizer
+
+```go
+type FusionOptimizer struct {
+}
+```
+
+FusionOptimizer identifies and fuses operations
+
+#### func  NewFusionOptimizer
+
+```go
+func NewFusionOptimizer() *FusionOptimizer
+```
+NewFusionOptimizer creates a fusion optimizer
+
+#### func (*FusionOptimizer) OptimizeOperations
+
+```go
+func (fo *FusionOptimizer) OptimizeOperations(ops []Operation) []Operation
+```
+OptimizeOperations applies fusion optimizations
+
+#### func (*FusionOptimizer) RegisterPattern
+
+```go
+func (fo *FusionOptimizer) RegisterPattern(pattern FusionPattern)
+```
+RegisterPattern registers a fusion pattern
+
+#### type FusionPattern
+
+```go
+type FusionPattern struct {
+	Name        string
+	Operations  []string
+	CanFuse     func([]Operation) bool
+	CreateFused func(*MPSGraphManager, []Operation) *CompiledOperation
+}
+```
+
+FusionPattern represents a pattern of operations that can be fused
+
 #### type FusionRegistry
 
 ```go
@@ -3264,6 +4483,113 @@ ReleaseGPU releases GPU resources
 func (layer *GPUBatchNormLayer) SetTraining(training bool)
 ```
 SetTraining sets the layer to training or inference mode
+
+#### type GPUCPUTransferOptimizer
+
+```go
+type GPUCPUTransferOptimizer struct {
+}
+```
+
+GPUCPUTransferOptimizer manages efficient data transfers between CPU and GPU
+
+#### func  GetGlobalTransferOptimizer
+
+```go
+func GetGlobalTransferOptimizer() *GPUCPUTransferOptimizer
+```
+GetGlobalTransferOptimizer returns the global transfer optimizer instance
+
+#### func  NewGPUCPUTransferOptimizer
+
+```go
+func NewGPUCPUTransferOptimizer() *GPUCPUTransferOptimizer
+```
+NewGPUCPUTransferOptimizer creates a new transfer optimizer
+
+#### func (*GPUCPUTransferOptimizer) ClearCache
+
+```go
+func (opt *GPUCPUTransferOptimizer) ClearCache()
+```
+ClearCache clears the tensor transfer cache
+
+#### func (*GPUCPUTransferOptimizer) EnableCaching
+
+```go
+func (opt *GPUCPUTransferOptimizer) EnableCaching(enable bool)
+```
+EnableCaching enables or disables transfer caching
+
+#### func (*GPUCPUTransferOptimizer) GetCacheInfo
+
+```go
+func (opt *GPUCPUTransferOptimizer) GetCacheInfo() map[string]interface{}
+```
+GetCacheInfo returns information about cached tensors
+
+#### func (*GPUCPUTransferOptimizer) GetTransferStats
+
+```go
+func (opt *GPUCPUTransferOptimizer) GetTransferStats() TransferStatistics
+```
+GetTransferStats returns current transfer statistics
+
+#### func (*GPUCPUTransferOptimizer) InvalidateCPU
+
+```go
+func (opt *GPUCPUTransferOptimizer) InvalidateCPU(t *tensor.Tensor)
+```
+InvalidateCPU marks CPU data as invalid (e.g., after GPU computation)
+
+#### func (*GPUCPUTransferOptimizer) InvalidateGPU
+
+```go
+func (opt *GPUCPUTransferOptimizer) InvalidateGPU(t *tensor.Tensor)
+```
+InvalidateGPU marks GPU data as invalid (e.g., after CPU modification)
+
+#### func (*GPUCPUTransferOptimizer) MarkCPUValid
+
+```go
+func (opt *GPUCPUTransferOptimizer) MarkCPUValid(t *tensor.Tensor, operation string)
+```
+MarkCPUValid marks a tensor as having valid data on CPU
+
+#### func (*GPUCPUTransferOptimizer) MarkGPUValid
+
+```go
+func (opt *GPUCPUTransferOptimizer) MarkGPUValid(t *tensor.Tensor, operation string)
+```
+MarkGPUValid marks a tensor as having valid data on GPU
+
+#### func (*GPUCPUTransferOptimizer) OptimizeBatchTransfer
+
+```go
+func (opt *GPUCPUTransferOptimizer) OptimizeBatchTransfer(batch *BatchedTransfer) error
+```
+OptimizeBatchTransfer optimizes a batch of tensor transfers
+
+#### func (*GPUCPUTransferOptimizer) OptimizeTransfer
+
+```go
+func (opt *GPUCPUTransferOptimizer) OptimizeTransfer(t *tensor.Tensor, toGPU bool, operation string) error
+```
+OptimizeTransfer optimizes a tensor transfer between CPU and GPU
+
+#### func (*GPUCPUTransferOptimizer) SetBatchSize
+
+```go
+func (opt *GPUCPUTransferOptimizer) SetBatchSize(size int)
+```
+SetBatchSize sets the batch size for batched transfers
+
+#### func (*GPUCPUTransferOptimizer) ShouldTransferToGPU
+
+```go
+func (opt *GPUCPUTransferOptimizer) ShouldTransferToGPU(t *tensor.Tensor) bool
+```
+ShouldTransferToGPU determines if a tensor should be transferred to GPU
 
 #### type GPUConvLayer
 
@@ -3607,7 +4933,7 @@ Free returns memory to the pool for reuse
 #### func (*GPUMemoryPool) GetStats
 
 ```go
-func (p *GPUMemoryPool) GetStats() MemoryStats
+func (p *GPUMemoryPool) GetStats() PoolMemoryStats
 ```
 GetStats returns memory pool statistics
 
@@ -3890,6 +5216,17 @@ func (gs *GPUSparse) ToDense() *mat.Dense
 ```
 ToDense converts the sparse matrix to a dense gonum matrix
 
+#### type GaussianProcess
+
+```go
+type GaussianProcess struct {
+	X [][]float64
+	Y []float64
+}
+```
+
+GaussianProcess implements a simple Gaussian process
+
 #### type GeneratedFunction
 
 ```go
@@ -4007,6 +5344,36 @@ const (
 	GradientSpike
 )
 ```
+
+#### type GradientCheckpointing
+
+```go
+type GradientCheckpointing struct {
+}
+```
+
+GradientCheckpointing implements gradient checkpointing for memory efficiency
+
+#### func  NewGradientCheckpointing
+
+```go
+func NewGradientCheckpointing(mp *ModelParallelism, checkpointEvery int) *GradientCheckpointing
+```
+NewGradientCheckpointing creates a gradient checkpointing manager
+
+#### func (*GradientCheckpointing) CheckpointBackward
+
+```go
+func (gc *GradientCheckpointing) CheckpointBackward(layers []Layer, gradOutput *tensor.Tensor)
+```
+CheckpointBackward runs backward pass with recomputation
+
+#### func (*GradientCheckpointing) CheckpointForward
+
+```go
+func (gc *GradientCheckpointing) CheckpointForward(layers []Layer, input *tensor.Tensor) *tensor.Tensor
+```
+CheckpointForward runs forward pass with checkpointing
 
 #### type GradientCompressionMethod
 
@@ -4531,6 +5898,178 @@ type IntermediateRepresentation struct {
 
 IntermediateRepresentation represents code in IR form
 
+#### type IntermediateTensorManager
+
+```go
+type IntermediateTensorManager struct {
+}
+```
+
+IntermediateTensorManager manages intermediate tensors used in complex
+operations
+
+#### func  NewIntermediateTensorManager
+
+```go
+func NewIntermediateTensorManager(bufferManager *BufferReuseManager) *IntermediateTensorManager
+```
+NewIntermediateTensorManager creates a new intermediate tensor manager
+
+#### func (*IntermediateTensorManager) CreateIntermediateTensor
+
+```go
+func (itm *IntermediateTensorManager) CreateIntermediateTensor(shape []int, operation string) (*tensor.Tensor, error)
+```
+CreateIntermediateTensor creates a temporary tensor for intermediate
+computations
+
+#### func (*IntermediateTensorManager) GetIntermediateTensorCount
+
+```go
+func (itm *IntermediateTensorManager) GetIntermediateTensorCount() int
+```
+GetIntermediateTensorCount returns the number of active intermediate tensors
+
+#### func (*IntermediateTensorManager) ReleaseAllIntermediateTensors
+
+```go
+func (itm *IntermediateTensorManager) ReleaseAllIntermediateTensors()
+```
+ReleaseAllIntermediateTensors releases all intermediate tensors
+
+#### type KernelCache
+
+```go
+type KernelCache struct {
+}
+```
+
+KernelCache manages compiled Metal kernels with intelligent caching
+
+#### func  GetGlobalKernelCache
+
+```go
+func GetGlobalKernelCache() *KernelCache
+```
+GetGlobalKernelCache returns the global kernel cache
+
+#### func  NewKernelCache
+
+```go
+func NewKernelCache(device unsafe.Pointer) *KernelCache
+```
+NewKernelCache creates a new Metal kernel cache
+
+#### func (*KernelCache) Close
+
+```go
+func (kc *KernelCache) Close()
+```
+Close shuts down the kernel cache
+
+#### func (*KernelCache) GetCacheStats
+
+```go
+func (kc *KernelCache) GetCacheStats() (hitRate float64, entries int, sizeBytes int64, hitCount int64, missCount int64)
+```
+GetCacheStats returns cache performance statistics
+
+#### func (*KernelCache) GetKernel
+
+```go
+func (kc *KernelCache) GetKernel(kernelSource string, options *KernelCompilationOptions) (unsafe.Pointer, error)
+```
+GetKernel retrieves a compiled kernel from cache or compiles it if needed
+
+#### func (*KernelCache) InvalidateCache
+
+```go
+func (kc *KernelCache) InvalidateCache()
+```
+InvalidateCache clears all cached kernels
+
+#### func (*KernelCache) SetCacheParams
+
+```go
+func (kc *KernelCache) SetCacheParams(maxSize int64, maxAge time.Duration)
+```
+SetCacheParams configures cache parameters
+
+#### type KernelCacheEntry
+
+```go
+type KernelCacheEntry struct {
+	CompiledKernel unsafe.Pointer         // Pointer to compiled Metal kernel
+	CompileTime    time.Time              // When the kernel was compiled
+	AccessCount    int64                  // Number of times accessed
+	LastAccess     time.Time              // Last access time
+	KernelSource   string                 // Source code of the kernel
+	CompileOptions map[string]interface{} // Compilation options used
+	FileSize       int64                  // Size of compiled kernel
+}
+```
+
+KernelCacheEntry represents a cached compiled kernel
+
+#### type KernelCompilationOptions
+
+```go
+type KernelCompilationOptions struct {
+	OptimizationLevel int                    // 0=none, 1=basic, 2=aggressive
+	FastMath          bool                   // Enable fast math optimizations
+	Constants         map[string]interface{} // Compile-time constants
+	MacroDefinitions  map[string]string      // Preprocessor macros
+	DebugInfo         bool                   // Include debug information
+}
+```
+
+KernelCompilationOptions represents options for kernel compilation
+
+#### type KernelFunction
+
+```go
+type KernelFunction int
+```
+
+KernelFunction defines kernel function types
+
+```go
+const (
+	RBFKernel KernelFunction = iota
+	MaternKernel
+)
+```
+
+#### type KernelStats
+
+```go
+type KernelStats struct {
+	Name      string
+	CallCount int64
+	TotalTime time.Duration
+	MinTime   time.Duration
+	MaxTime   time.Duration
+	AvgTime   time.Duration
+
+	// Detailed metrics
+	Instructions int64
+	MemoryAccess int64
+	CacheHits    int64
+	CacheMisses  int64
+
+	// Efficiency metrics
+	Occupancy       float64
+	Throughput      float64
+	PowerEfficiency float64
+
+	// Input characteristics
+	InputSizes     [][]int
+	ParameterCount int64
+}
+```
+
+KernelStats tracks performance statistics for GPU kernels
+
 #### type LRUList
 
 ```go
@@ -4610,6 +6149,19 @@ func (lu *LUDecomposition) ReleaseGPU()
 ```
 ReleaseGPU releases GPU resources for the LU decomposition
 
+#### type Layer
+
+```go
+type Layer interface {
+	Forward(input *tensor.Tensor) *tensor.Tensor
+	Backward(gradOutput *tensor.Tensor) *tensor.Tensor
+	GetParameters() []*tensor.Tensor
+	GetGradients() []*tensor.Tensor
+}
+```
+
+Layer interface for model layers
+
 #### type LayerGradientReport
 
 ```go
@@ -4629,6 +6181,78 @@ type LayerGradientReport struct {
 ```
 
 LayerGradientReport contains analysis for a single layer
+
+#### type LearningRateScheduler
+
+```go
+type LearningRateScheduler struct {
+}
+```
+
+LearningRateScheduler is a placeholder for demo purposes
+
+#### func (*LearningRateScheduler) Step
+
+```go
+func (s *LearningRateScheduler) Step()
+```
+Step updates the learning rate scheduler
+
+#### type LinearLayer
+
+```go
+type LinearLayer struct {
+	// Parameters
+	Weight *tensor.Tensor
+	Bias   *tensor.Tensor
+
+	// Gradients
+	WeightGrad *tensor.Tensor
+	BiasGrad   *tensor.Tensor
+
+	// Configuration
+	InputSize  int
+	OutputSize int
+	UseBias    bool
+}
+```
+
+LinearLayer represents a fully connected layer
+
+#### func  NewLinearLayer
+
+```go
+func NewLinearLayer(inputSize, outputSize int, useBias bool) *LinearLayer
+```
+NewLinearLayer creates a new linear layer
+
+#### func (*LinearLayer) Backward
+
+```go
+func (l *LinearLayer) Backward(gradOutput *tensor.Tensor) *tensor.Tensor
+```
+Backward performs the backward pass
+
+#### func (*LinearLayer) Forward
+
+```go
+func (l *LinearLayer) Forward(input *tensor.Tensor) *tensor.Tensor
+```
+Forward performs the forward pass
+
+#### func (*LinearLayer) GetGradients
+
+```go
+func (l *LinearLayer) GetGradients() []*tensor.Tensor
+```
+GetGradients returns the layer gradients
+
+#### func (*LinearLayer) GetParameters
+
+```go
+func (l *LinearLayer) GetParameters() []*tensor.Tensor
+```
+GetParameters returns the layer parameters
 
 #### type LoadBalancer
 
@@ -4698,6 +6322,53 @@ func (lr *LossResult) ReleaseGPU()
 ```
 ReleaseGPU releases GPU resources for the loss result
 
+#### type LossScaleStressTest
+
+```go
+type LossScaleStressTest struct {
+}
+```
+
+LossScaleStressTest provides comprehensive testing of loss scaling mechanisms
+
+#### func  NewLossScaleStressTest
+
+```go
+func NewLossScaleStressTest() *LossScaleStressTest
+```
+NewLossScaleStressTest creates a new stress test instance
+
+#### func (*LossScaleStressTest) GenerateExtremePrecisionTestCases
+
+```go
+func (test *LossScaleStressTest) GenerateExtremePrecisionTestCases() ([]*tensor.Tensor, []string, error)
+```
+GenerateExtremePrecisionTestCases creates test cases for extreme precision
+scenarios
+
+#### func (*LossScaleStressTest) RecommendOptimalScale
+
+```go
+func (test *LossScaleStressTest) RecommendOptimalScale(results []StressTestResult) *MixedPrecisionConfig
+```
+RecommendOptimalScale analyzes test results and recommends optimal scaling
+strategy
+
+#### func (*LossScaleStressTest) TestOverflowScenarios
+
+```go
+func (test *LossScaleStressTest) TestOverflowScenarios() ([]StressTestResult, error)
+```
+TestOverflowScenarios tests various overflow scenarios to verify adaptive
+scaling
+
+#### func (*LossScaleStressTest) TestPrecisionLimits
+
+```go
+func (test *LossScaleStressTest) TestPrecisionLimits() (map[string]PrecisionTestResult, error)
+```
+TestPrecisionLimits tests the precision limits of float16 conversion
+
 #### type LossType
 
 ```go
@@ -4724,6 +6395,91 @@ const (
 func (lt LossType) String() string
 ```
 String returns string representation of loss type
+
+#### type MMapRegion
+
+```go
+type MMapRegion struct {
+}
+```
+
+MMapRegion represents a memory-mapped file region
+
+#### type MPSGraphManager
+
+```go
+type MPSGraphManager struct {
+}
+```
+
+MPSGraphManager manages Metal Performance Shaders Graph operations
+
+#### func  NewMPSGraphManager
+
+```go
+func NewMPSGraphManager(device unsafe.Pointer) *MPSGraphManager
+```
+NewMPSGraphManager creates a new MPS Graph manager
+
+#### func (*MPSGraphManager) ActivationOp
+
+```go
+func (mgm *MPSGraphManager) ActivationOp(input string, activationType string) string
+```
+ActivationOp creates an activation operation
+
+#### func (*MPSGraphManager) CompileGraph
+
+```go
+func (mgm *MPSGraphManager) CompileGraph(inputs []string, outputs []string) *CompiledOperation
+```
+CompileGraph compiles a subgraph for execution
+
+#### func (*MPSGraphManager) Conv2DOp
+
+```go
+func (mgm *MPSGraphManager) Conv2DOp(input, weights string, stride, padding []int) string
+```
+Conv2DOp creates a 2D convolution operation
+
+#### func (*MPSGraphManager) CreateTensor
+
+```go
+func (mgm *MPSGraphManager) CreateTensor(name string, shape []int, dataType string) unsafe.Pointer
+```
+CreateTensor creates an MPS graph tensor
+
+#### func (*MPSGraphManager) Execute
+
+```go
+func (mgm *MPSGraphManager) Execute(compiled *CompiledOperation, inputs map[string]*tensor.Tensor) map[string]*tensor.Tensor
+```
+Execute runs a compiled graph operation
+
+#### func (*MPSGraphManager) MatMulOp
+
+```go
+func (mgm *MPSGraphManager) MatMulOp(a, b string, transposeA, transposeB bool) string
+```
+MatMulOp creates a matrix multiplication operation
+
+#### func (*MPSGraphManager) OptimizeGraph
+
+```go
+func (mgm *MPSGraphManager) OptimizeGraph(operations []Operation) []Operation
+```
+OptimizeGraph applies fusion and optimization passes
+
+#### type MatMulOperation
+
+```go
+type MatMulOperation struct {
+	A *tensor.Tensor
+	B *tensor.Tensor
+}
+```
+
+MatMulOperation represents a matrix multiplication operation
 
 #### type MaxPool2DResult
 
@@ -4764,6 +6520,15 @@ func (mpr *MaxPool2DResult) ReleaseGPU()
 ```
 ReleaseGPU releases GPU resources for the max pooling result
 
+#### type MemoryAccessPattern
+
+```go
+type MemoryAccessPattern struct {
+}
+```
+
+MemoryAccessPattern tracks how memory is accessed
+
 #### type MemoryAllocation
 
 ```go
@@ -4773,6 +6538,43 @@ type MemoryAllocation struct {
 
 MemoryAllocation represents a memory allocation
 
+#### type MemoryBandwidthMonitor
+
+```go
+type MemoryBandwidthMonitor struct {
+}
+```
+
+Memory bandwidth monitoring and optimization hints
+
+#### func  GetGlobalBandwidthMonitor
+
+```go
+func GetGlobalBandwidthMonitor() *MemoryBandwidthMonitor
+```
+GetGlobalBandwidthMonitor returns the global bandwidth monitor
+
+#### func  NewMemoryBandwidthMonitor
+
+```go
+func NewMemoryBandwidthMonitor() *MemoryBandwidthMonitor
+```
+NewMemoryBandwidthMonitor creates a new bandwidth monitor
+
+#### func (*MemoryBandwidthMonitor) GetBandwidthStats
+
+```go
+func (mbm *MemoryBandwidthMonitor) GetBandwidthStats() (avgBandwidth float64, peakBandwidth float64, totalTransfers int64)
+```
+GetBandwidthStats returns current bandwidth statistics
+
+#### func (*MemoryBandwidthMonitor) RecordTransfer
+
+```go
+func (mbm *MemoryBandwidthMonitor) RecordTransfer(bytes int64, duration time.Duration)
+```
+RecordTransfer records a memory transfer for bandwidth analysis
+
 #### type MemoryBlock
 
 ```go
@@ -4781,6 +6583,79 @@ type MemoryBlock struct {
 ```
 
 MemoryBlock represents a block of GPU memory
+
+#### type MemoryCoalescingOptimizer
+
+```go
+type MemoryCoalescingOptimizer struct {
+}
+```
+
+MemoryCoalescingOptimizer manages memory access pattern optimization
+
+#### func  GetGlobalMemoryOptimizer
+
+```go
+func GetGlobalMemoryOptimizer() *MemoryCoalescingOptimizer
+```
+GetGlobalMemoryOptimizer returns the global memory coalescing optimizer
+
+#### func  NewMemoryCoalescingOptimizer
+
+```go
+func NewMemoryCoalescingOptimizer() *MemoryCoalescingOptimizer
+```
+NewMemoryCoalescingOptimizer creates a new memory coalescing optimizer
+
+#### func (*MemoryCoalescingOptimizer) AnalyzeAccessPattern
+
+```go
+func (mco *MemoryCoalescingOptimizer) AnalyzeAccessPattern(
+	operationType string,
+	tensors []*tensor.Tensor,
+	params map[string]interface{},
+) (*AccessPattern, error)
+```
+AnalyzeAccessPattern analyzes the memory access pattern for an operation
+
+#### func (*MemoryCoalescingOptimizer) ClearCache
+
+```go
+func (mco *MemoryCoalescingOptimizer) ClearCache()
+```
+ClearCache clears the optimization cache
+
+#### func (*MemoryCoalescingOptimizer) Enable
+
+```go
+func (mco *MemoryCoalescingOptimizer) Enable(enable bool)
+```
+Enable enables or disables the memory coalescing optimizer
+
+#### func (*MemoryCoalescingOptimizer) GetStatistics
+
+```go
+func (mco *MemoryCoalescingOptimizer) GetStatistics() CoalescingStatistics
+```
+GetStatistics returns current coalescing statistics
+
+#### func (*MemoryCoalescingOptimizer) IsEnabled
+
+```go
+func (mco *MemoryCoalescingOptimizer) IsEnabled() bool
+```
+IsEnabled returns whether the optimizer is enabled
+
+#### func (*MemoryCoalescingOptimizer) OptimizeCoalescing
+
+```go
+func (mco *MemoryCoalescingOptimizer) OptimizeCoalescing(
+	operationType string,
+	tensors []*tensor.Tensor,
+	params map[string]interface{},
+) (*CoalescingStrategy, error)
+```
+OptimizeCoalescing optimizes memory access patterns for better coalescing
 
 #### type MemoryConstraints
 
@@ -4793,6 +6668,22 @@ type MemoryConstraints struct {
 ```
 
 MemoryConstraints defines memory constraints
+
+#### type MemoryCoordinator
+
+```go
+type MemoryCoordinator struct {
+}
+```
+
+MemoryCoordinator coordinates memory access between CPU and GPU
+
+#### func (*MemoryCoordinator) OptimizeAccess
+
+```go
+func (mc *MemoryCoordinator) OptimizeAccess(bufferName string, accessType int)
+```
+OptimizeAccess optimizes memory access based on patterns
 
 #### type MemoryCost
 
@@ -4852,6 +6743,29 @@ type MemoryEfficientGradContext struct {
 MemoryEfficientGradContext provides a context for memory-efficient gradient
 computation
 
+#### type MemoryEfficientTraining
+
+```go
+type MemoryEfficientTraining struct {
+}
+```
+
+MemoryEfficientTraining coordinates memory-efficient training techniques
+
+#### func  NewMemoryEfficientTraining
+
+```go
+func NewMemoryEfficientTraining(mp *ModelParallelism) *MemoryEfficientTraining
+```
+NewMemoryEfficientTraining creates a memory-efficient training coordinator
+
+#### func (*MemoryEfficientTraining) TrainStep
+
+```go
+func (met *MemoryEfficientTraining) TrainStep(model []Layer, input, target *tensor.Tensor, loss func(*tensor.Tensor, *tensor.Tensor) float32) float32
+```
+TrainStep performs a memory-efficient training step
+
 #### type MemoryLayout
 
 ```go
@@ -4880,6 +6794,55 @@ type MemoryOptimizationBenefit struct {
 ```
 
 MemoryOptimizationBenefit quantifies memory optimization benefits
+
+#### type MemoryOptimizationSuite
+
+```go
+type MemoryOptimizationSuite struct {
+}
+```
+
+MemoryOptimizationSuite combines all Phase 8C optimization components
+
+#### func  GetGlobalMemoryOptimizationSuite
+
+```go
+func GetGlobalMemoryOptimizationSuite() *MemoryOptimizationSuite
+```
+GetGlobalMemoryOptimizationSuite returns the global memory optimization suite
+
+#### func  NewMemoryOptimizationSuite
+
+```go
+func NewMemoryOptimizationSuite(device unsafe.Pointer, config *OptimizationConfig) *MemoryOptimizationSuite
+```
+NewMemoryOptimizationSuite creates a new memory optimization suite
+
+#### func (*MemoryOptimizationSuite) Close
+
+```go
+func (mos *MemoryOptimizationSuite) Close()
+```
+Close releases all resources associated with the optimization suite
+
+#### func (*MemoryOptimizationSuite) GetSuiteStats
+
+```go
+func (mos *MemoryOptimizationSuite) GetSuiteStats() map[string]interface{}
+```
+GetSuiteStats returns comprehensive statistics for the entire optimization suite
+
+#### func (*MemoryOptimizationSuite) OptimizeTensorOperation
+
+```go
+func (mos *MemoryOptimizationSuite) OptimizeTensorOperation(
+	operationType string,
+	tensors []*tensor.Tensor,
+	params map[string]interface{},
+) (*OptimizedOperation, error)
+```
+OptimizeTensorOperation performs comprehensive optimization for a tensor
+operation
 
 #### type MemoryOptimizationTechnique
 
@@ -4960,22 +6923,111 @@ type MemorySample struct {
 
 MemorySample represents a memory usage sample
 
+#### type MemoryStatistics
+
+```go
+type MemoryStatistics struct {
+	ZeroCopyHits  int64
+	Allocations   int64
+	Deallocations int64
+}
+```
+
+MemoryStatistics represents unified memory statistics
+
 #### type MemoryStats
 
 ```go
 type MemoryStats struct {
-	TotalAllocated     int64
-	TotalFreed         int64
-	PeakUsage          int64
-	AllocationCount    int64
-	FreeCount          int64
-	CacheHits          int64
-	CacheMisses        int64
-	FragmentationRatio float32
+	TotalMemory int64
+	UsedMemory  int64
+	FreeMemory  int64
+
+	// Allocation tracking
+	AllocCount    int64
+	DeallocCount  int64
+	FragmentCount int64
+
+	// Bandwidth metrics
+	ReadBandwidth  float64
+	WriteBandwidth float64
+	PeakBandwidth  float64
+
+	// Usage patterns
+	AllocationSizes []int
+	LifetimeHist    map[time.Duration]int
 }
 ```
 
-MemoryStats tracks memory pool statistics
+MemoryStats tracks GPU memory usage
+
+#### type Metric
+
+```go
+type Metric struct {
+	Timestamp  time.Time
+	Type       string
+	Name       string
+	Value      float64
+	Attributes map[string]interface{}
+}
+```
+
+Metric represents a performance measurement
+
+#### type MicroBatchAccumulator
+
+```go
+type MicroBatchAccumulator struct {
+}
+```
+
+MicroBatchAccumulator handles gradient accumulation for micro-batching
+
+#### func  NewMicroBatchAccumulator
+
+```go
+func NewMicroBatchAccumulator(targetSteps int) *MicroBatchAccumulator
+```
+NewMicroBatchAccumulator creates a gradient accumulator
+
+#### func (*MicroBatchAccumulator) AccumulateGradients
+
+```go
+func (mba *MicroBatchAccumulator) AccumulateGradients(layerID string, grads *tensor.Tensor) bool
+```
+AccumulateGradients adds gradients from a micro-batch
+
+#### func (*MicroBatchAccumulator) GetAccumulatedGradients
+
+```go
+func (mba *MicroBatchAccumulator) GetAccumulatedGradients() map[string]*tensor.Tensor
+```
+GetAccumulatedGradients returns the accumulated gradients
+
+#### type MixedPrecisionConfig
+
+```go
+type MixedPrecisionConfig struct {
+	Enabled              bool    // Enable mixed precision training
+	LossScale            float32 // Initial loss scale factor
+	LossScaleGrowthRate  float32 // Factor to increase loss scale when no overflow
+	LossScaleBackoffRate float32 // Factor to decrease loss scale on overflow
+	GrowthInterval       int     // Number of steps between loss scale growth attempts
+	MaxLossScale         float32 // Maximum allowed loss scale
+	MinLossScale         float32 // Minimum allowed loss scale
+	SkipOverflowSteps    bool    // Skip optimizer step on gradient overflow
+}
+```
+
+MixedPrecisionConfig configures mixed precision training behavior
+
+#### func  DefaultMixedPrecisionConfig
+
+```go
+func DefaultMixedPrecisionConfig() *MixedPrecisionConfig
+```
+DefaultMixedPrecisionConfig returns default mixed precision configuration
 
 #### type MixedPrecisionContext
 
@@ -4985,6 +7037,173 @@ type MixedPrecisionContext struct {
 ```
 
 MixedPrecisionContext provides mixed precision training context
+
+#### type MixedPrecisionTrainer
+
+```go
+type MixedPrecisionTrainer struct {
+}
+```
+
+MixedPrecisionTrainer manages mixed precision training state
+
+#### func  NewMixedPrecisionTrainer
+
+```go
+func NewMixedPrecisionTrainer(config *MixedPrecisionConfig) (*MixedPrecisionTrainer, error)
+```
+NewMixedPrecisionTrainer creates a new mixed precision trainer
+
+#### func (*MixedPrecisionTrainer) Cleanup
+
+```go
+func (mp *MixedPrecisionTrainer) Cleanup()
+```
+Cleanup releases GPU resources
+
+#### func (*MixedPrecisionTrainer) ConvertTensorToFloat16
+
+```go
+func (mp *MixedPrecisionTrainer) ConvertTensorToFloat16(input *tensor.Tensor) (*tensor.Tensor, error)
+```
+ConvertTensorToFloat16 converts a float32 tensor to float16 representation
+
+#### func (*MixedPrecisionTrainer) ForwardFloat16
+
+```go
+func (mp *MixedPrecisionTrainer) ForwardFloat16(input *tensor.Tensor, weights *tensor.Tensor, bias *tensor.Tensor) (*tensor.Tensor, error)
+```
+ForwardFloat16 performs forward pass with automatic mixed precision
+
+#### func (*MixedPrecisionTrainer) GetCurrentLossScale
+
+```go
+func (mp *MixedPrecisionTrainer) GetCurrentLossScale() float32
+```
+GetCurrentLossScale returns the current loss scale value
+
+#### func (*MixedPrecisionTrainer) GetOverflowStatus
+
+```go
+func (mp *MixedPrecisionTrainer) GetOverflowStatus() bool
+```
+GetOverflowStatus returns whether overflow was detected in the last gradient
+computation
+
+#### func (*MixedPrecisionTrainer) ScaleGradients
+
+```go
+func (mp *MixedPrecisionTrainer) ScaleGradients(gradients *tensor.Tensor) (*tensor.Tensor, error)
+```
+ScaleGradients applies loss scaling to gradients
+
+#### func (*MixedPrecisionTrainer) ShouldSkipStep
+
+```go
+func (mp *MixedPrecisionTrainer) ShouldSkipStep() bool
+```
+ShouldSkipStep returns true if the optimizer step should be skipped due to
+overflow
+
+#### func (*MixedPrecisionTrainer) UnscaleGradients
+
+```go
+func (mp *MixedPrecisionTrainer) UnscaleGradients(scaledGradients *tensor.Tensor) (*tensor.Tensor, error)
+```
+UnscaleGradients removes loss scaling from gradients
+
+#### func (*MixedPrecisionTrainer) UpdateLossScale
+
+```go
+func (mp *MixedPrecisionTrainer) UpdateLossScale()
+```
+UpdateLossScale updates the loss scale based on overflow detection
+
+#### type MixedPrecisionTrainingConfig
+
+```go
+type MixedPrecisionTrainingConfig struct {
+	TrainingConfig
+	MixedPrecision *MixedPrecisionConfig
+}
+```
+
+MixedPrecisionTrainingConfig extends TrainingConfig with mixed precision
+settings
+
+#### type MixedPrecisionTrainingLoop
+
+```go
+type MixedPrecisionTrainingLoop struct {
+}
+```
+
+MixedPrecisionTrainingLoop implements automatic mixed precision training
+
+#### func  NewMixedPrecisionTrainingLoop
+
+```go
+func NewMixedPrecisionTrainingLoop(config *MixedPrecisionTrainingConfig, opt optimizer.Optimizer) (*MixedPrecisionTrainingLoop, error)
+```
+NewMixedPrecisionTrainingLoop creates a new mixed precision training loop
+
+#### func (*MixedPrecisionTrainingLoop) Cleanup
+
+```go
+func (loop *MixedPrecisionTrainingLoop) Cleanup()
+```
+Cleanup releases resources
+
+#### func (*MixedPrecisionTrainingLoop) GetTrainingStats
+
+```go
+func (loop *MixedPrecisionTrainingLoop) GetTrainingStats() map[string]interface{}
+```
+GetTrainingStats returns comprehensive training statistics
+
+#### func (*MixedPrecisionTrainingLoop) TrainEpoch
+
+```go
+func (loop *MixedPrecisionTrainingLoop) TrainEpoch(
+	inputs []*tensor.Tensor,
+	targets []*tensor.Tensor,
+	weights []*tensor.Tensor,
+	forwardFunc func(*tensor.Tensor, []*tensor.Tensor) (*tensor.Tensor, error),
+	lossFunc func(*tensor.Tensor, *tensor.Tensor) (*tensor.Tensor, error),
+	backwardFunc func(*tensor.Tensor, []*tensor.Tensor) ([]*tensor.Tensor, error),
+) error
+```
+TrainEpoch trains for one epoch with mixed precision
+
+#### type ModelParallelism
+
+```go
+type ModelParallelism struct {
+}
+```
+
+ModelParallelism implements model parallelism on a single device
+
+#### func  NewModelParallelism
+
+```go
+func NewModelParallelism(streamMgr *StreamManager, memMgr *UnifiedMemoryManager) *ModelParallelism
+```
+NewModelParallelism creates a model parallelism manager
+
+#### func (*ModelParallelism) PipelineForward
+
+```go
+func (mp *ModelParallelism) PipelineForward(stages []*PipelineStage, input *tensor.Tensor) *tensor.Tensor
+```
+PipelineForward executes forward pass with pipeline parallelism
+
+#### func (*ModelParallelism) SplitModel
+
+```go
+func (mp *ModelParallelism) SplitModel(layers []Layer, strategy string) ([]*PipelineStage, error)
+```
+SplitModel splits a model into pipeline stages
 
 #### type NodeInfo
 
@@ -5118,6 +7337,19 @@ const (
 )
 ```
 
+#### type Operation
+
+```go
+type Operation struct {
+	Type       string
+	Inputs     []string
+	Output     string
+	Attributes map[string]interface{}
+}
+```
+
+Operation represents a graph operation
+
 #### type OperationCost
 
 ```go
@@ -5130,6 +7362,52 @@ type OperationCost struct {
 ```
 
 OperationCost represents the cost of an operation
+
+#### type OperationScope
+
+```go
+type OperationScope struct {
+}
+```
+
+OperationScope represents a scope for managing intermediate tensors in an
+operation
+
+#### func  NewOperationScope
+
+```go
+func NewOperationScope(operation string) *OperationScope
+```
+NewOperationScope creates a new operation scope for managing intermediate
+tensors
+
+#### func (*OperationScope) Close
+
+```go
+func (os *OperationScope) Close()
+```
+Close releases all intermediate tensors in this scope
+
+#### func (*OperationScope) CreateTensor
+
+```go
+func (os *OperationScope) CreateTensor(shape []int) (*tensor.Tensor, error)
+```
+CreateTensor creates an intermediate tensor within this scope
+
+#### func (*OperationScope) GetDuration
+
+```go
+func (os *OperationScope) GetDuration() time.Duration
+```
+GetDuration returns the duration this scope has been active
+
+#### func (*OperationScope) GetTensorCount
+
+```go
+func (os *OperationScope) GetTensorCount() int
+```
+GetTensorCount returns the number of active intermediate tensors in this scope
 
 #### type OperationStats
 
@@ -5161,6 +7439,34 @@ type OptimizationBenefit struct {
 
 OptimizationBenefit quantifies the benefit of an optimization
 
+#### type OptimizationConfig
+
+```go
+type OptimizationConfig struct {
+	MaxMemoryPoolSize      int64 // Maximum GPU memory pool size
+	MaxBufferCacheSize     int64 // Maximum buffer cache size
+	MaxKernelCacheSize     int64 // Maximum kernel cache size
+	MaxSharedMemory        int   // Maximum shared memory per threadgroup
+	EnableTransferOpt      bool  // Enable CPU-GPU transfer optimization
+	EnableMemoryCoalescing bool  // Enable memory coalescing optimization
+	EnableLayoutOpt        bool  // Enable tensor layout optimization
+	EnableBufferReuse      bool  // Enable buffer reuse optimization
+	EnableKernelCache      bool  // Enable kernel compilation caching
+	EnableSharedMemOpt     bool  // Enable shared memory optimization
+	BandwidthMonitoring    bool  // Enable bandwidth monitoring
+}
+```
+
+OptimizationConfig configures the memory optimization suite
+
+#### func  DefaultOptimizationConfig
+
+```go
+func DefaultOptimizationConfig() *OptimizationConfig
+```
+DefaultOptimizationConfig returns a default configuration for memory
+optimization
+
 #### type OptimizationPass
 
 ```go
@@ -5188,6 +7494,158 @@ type OptimizationTechnique interface {
 
 OptimizationTechnique represents an optimization technique
 
+#### type OptimizedMixedPrecisionOps
+
+```go
+type OptimizedMixedPrecisionOps struct {
+}
+```
+
+OptimizedMixedPrecisionOps provides optimized mixed precision operations
+
+#### func  NewOptimizedMixedPrecisionOps
+
+```go
+func NewOptimizedMixedPrecisionOps(config *MixedPrecisionConfig) (*OptimizedMixedPrecisionOps, error)
+```
+NewOptimizedMixedPrecisionOps creates optimized mixed precision operations
+
+#### func (*OptimizedMixedPrecisionOps) BatchedMatMulOptimized
+
+```go
+func (opt *OptimizedMixedPrecisionOps) BatchedMatMulOptimized(matrices [][]*tensor.Tensor) ([]*tensor.Tensor, error)
+```
+BatchedMatMulOptimized performs batched matrix operations with optimal precision
+selection
+
+#### func (*OptimizedMixedPrecisionOps) BenchmarkMatrixOperation
+
+```go
+func (opt *OptimizedMixedPrecisionOps) BenchmarkMatrixOperation(size int, iterations int) (*PerformanceBenchmark, error)
+```
+BenchmarkMatrixOperation provides detailed performance analysis
+
+#### func (*OptimizedMixedPrecisionOps) Cleanup
+
+```go
+func (opt *OptimizedMixedPrecisionOps) Cleanup()
+```
+Cleanup releases resources
+
+#### func (*OptimizedMixedPrecisionOps) MatMulOptimized
+
+```go
+func (opt *OptimizedMixedPrecisionOps) MatMulOptimized(A, B *tensor.Tensor) (*tensor.Tensor, error)
+```
+MatMulOptimized performs optimized matrix multiplication with minimal overhead
+
+#### type OptimizedOperation
+
+```go
+type OptimizedOperation struct {
+	OperationType        string
+	Tensors              []*OptimizedTensor
+	SharedMemoryLayout   *SharedMemoryLayout
+	BufferScope          *OperationScope
+	StartTime            time.Time
+	OptimizationTime     time.Duration
+	ExecutionTime        time.Duration
+	TotalMemoryUsed      int64
+	BandwidthUtilization float64
+}
+```
+
+OptimizedOperation represents a fully optimized tensor operation
+
+#### func  OptimizeOperation
+
+```go
+func OptimizeOperation(operationType string, tensors []*tensor.Tensor, params map[string]interface{}) (*OptimizedOperation, error)
+```
+OptimizeOperation provides a high-level interface for optimizing tensor
+operations
+
+#### func (*OptimizedOperation) Cleanup
+
+```go
+func (oo *OptimizedOperation) Cleanup()
+```
+Cleanup releases resources associated with the optimized operation
+
+#### func (*OptimizedOperation) Execute
+
+```go
+func (oo *OptimizedOperation) Execute(kernelSource string, additionalParams map[string]interface{}) error
+```
+Execute executes the optimized operation
+
+#### func (*OptimizedOperation) GetOptimizationStats
+
+```go
+func (oo *OptimizedOperation) GetOptimizationStats() map[string]interface{}
+```
+GetOptimizationStats returns detailed statistics about the optimization
+
+#### type OptimizedTensor
+
+```go
+type OptimizedTensor struct {
+	Original   *tensor.Tensor
+	Optimized  *tensor.Tensor
+	LayoutInfo *TensorLayoutInfo
+}
+```
+
+OptimizedTensor represents an optimized tensor with layout information
+
+#### type OptimizedTensorBuffer
+
+```go
+type OptimizedTensorBuffer struct {
+}
+```
+
+OptimizedTensorBuffer manages efficient buffer allocation for tensors
+
+#### func  NewOptimizedTensorBuffer
+
+```go
+func NewOptimizedTensorBuffer(device unsafe.Pointer) *OptimizedTensorBuffer
+```
+NewOptimizedTensorBuffer creates a new optimized tensor buffer manager
+
+#### func (*OptimizedTensorBuffer) GetTempBuffer
+
+```go
+func (otb *OptimizedTensorBuffer) GetTempBuffer(size int) (unsafe.Pointer, error)
+```
+GetTempBuffer allocates a temporary buffer for intermediate computations
+
+#### func (*OptimizedTensorBuffer) ReleaseAll
+
+```go
+func (otb *OptimizedTensorBuffer) ReleaseAll()
+```
+ReleaseAll releases all temporary buffers
+
+#### func (*OptimizedTensorBuffer) ReturnTempBuffer
+
+```go
+func (otb *OptimizedTensorBuffer) ReturnTempBuffer(buffer unsafe.Pointer)
+```
+ReturnTempBuffer returns a temporary buffer for reuse
+
+#### type OptimizerTrial
+
+```go
+type OptimizerTrial struct {
+	Parameters map[string]interface{}
+	Score      float64
+}
+```
+
+OptimizerTrial represents a trial in the optimizer
+
 #### type OptimizerType
 
 ```go
@@ -5205,6 +7663,43 @@ const (
 )
 ```
 
+#### type ParallelExecutor
+
+```go
+type ParallelExecutor struct {
+}
+```
+
+ParallelExecutor manages parallel kernel execution
+
+#### func  NewParallelExecutor
+
+```go
+func NewParallelExecutor(streamMgr *StreamManager) *ParallelExecutor
+```
+NewParallelExecutor creates a new parallel execution manager
+
+#### func (*ParallelExecutor) Shutdown
+
+```go
+func (pe *ParallelExecutor) Shutdown()
+```
+Shutdown gracefully shuts down the executor
+
+#### func (*ParallelExecutor) Submit
+
+```go
+func (pe *ParallelExecutor) Submit(task StreamTask)
+```
+Submit adds a task to the execution queue
+
+#### func (*ParallelExecutor) SubmitBatch
+
+```go
+func (pe *ParallelExecutor) SubmitBatch(tasks []StreamTask)
+```
+SubmitBatch submits multiple tasks for potential fusion
+
 #### type ParallelizationEngine
 
 ```go
@@ -5221,6 +7716,144 @@ func NewParallelizationEngine() *ParallelizationEngine
 ```
 NewParallelizationEngine creates a new parallelization engine
 
+#### type PerformanceBenchmark
+
+```go
+type PerformanceBenchmark struct {
+	MatrixSize         int
+	Float32Time        time.Duration
+	MixedPrecisionTime time.Duration
+	OptimizedTime      time.Duration
+	ConversionTime     time.Duration
+	ActualComputeTime  time.Duration
+	MemoryUsage        int64
+	Accuracy           float64
+	Speedup            float64
+	EffectiveSpeedup   float64
+}
+```
+
+PerformanceBenchmark provides comprehensive performance analysis
+
+#### type PerformanceMetrics
+
+```go
+type PerformanceMetrics struct {
+	Latency     time.Duration
+	Throughput  float64
+	PowerUsage  float64
+	MemoryUsage int64
+	Accuracy    float64
+}
+```
+
+PerformanceMetrics summarizes performance results
+
+#### type PerformanceProfile
+
+```go
+type PerformanceProfile struct {
+	MatrixSize           int
+	Float32Time          int64   // nanoseconds
+	MixedPrecisionTime   int64   // nanoseconds
+	OptimalTime          int64   // nanoseconds
+	MemoryBandwidthUsage float64 // GB/s
+	ComputeIntensity     float64
+	RecommendedPrecision string
+	SpeedupAchieved      float64
+	AccuracyLoss         float64
+}
+```
+
+PerformanceProfile provides detailed performance characteristics
+
+#### type PerformanceProfiler
+
+```go
+type PerformanceProfiler struct {
+
+	// Auto-tuning integration
+	AutoTuner *AutoTuner
+}
+```
+
+PerformanceProfiler profiles GPU operations and system performance
+
+#### func  NewPerformanceProfiler
+
+```go
+func NewPerformanceProfiler(device unsafe.Pointer) *PerformanceProfiler
+```
+NewPerformanceProfiler creates a new performance profiler
+
+#### func (*PerformanceProfiler) ExportProfile
+
+```go
+func (pp *PerformanceProfiler) ExportProfile(filename string) error
+```
+ExportProfile exports profiling data to file
+
+#### func (*PerformanceProfiler) GetAllStats
+
+```go
+func (pp *PerformanceProfiler) GetAllStats() map[string]*KernelStats
+```
+GetAllStats returns all performance statistics
+
+#### func (*PerformanceProfiler) GetKernelStats
+
+```go
+func (pp *PerformanceProfiler) GetKernelStats(name string) *KernelStats
+```
+GetKernelStats returns statistics for a specific kernel
+
+#### func (*PerformanceProfiler) ProfileKernel
+
+```go
+func (pp *PerformanceProfiler) ProfileKernel(name string, exec func())
+```
+ProfileKernel records performance data for a kernel execution
+
+#### func (*PerformanceProfiler) StartProfiling
+
+```go
+func (pp *PerformanceProfiler) StartProfiling()
+```
+StartProfiling begins performance monitoring
+
+#### func (*PerformanceProfiler) StopProfiling
+
+```go
+func (pp *PerformanceProfiler) StopProfiling()
+```
+StopProfiling ends performance monitoring
+
+#### type PipelineStage
+
+```go
+type PipelineStage struct {
+	ID         int
+	Layers     []Layer
+	StreamID   StreamID
+	InputSize  []int
+	OutputSize []int
+}
+```
+
+PipelineStage represents a stage in the model pipeline
+
+#### type PipelineTask
+
+```go
+type PipelineTask struct {
+	StageID      int
+	MicroBatchID int
+	TaskType     string // "forward" or "backward"
+}
+```
+
+PipelineTask represents a task in the pipeline schedule
+
 #### type Pool2DParams
 
 ```go
@@ -5235,6 +7868,96 @@ type Pool2DParams struct {
 ```
 
 Pool2DParams represents parameters for 2D pooling operations
+
+#### type PoolMemoryStats
+
+```go
+type PoolMemoryStats struct {
+	TotalAllocated     int64
+	TotalFreed         int64
+	PeakUsage          int64
+	AllocationCount    int64
+	FreeCount          int64
+	CacheHits          int64
+	CacheMisses        int64
+	FragmentationRatio float32
+}
+```
+
+PoolMemoryStats tracks memory pool statistics
+
+#### type PowerStats
+
+```go
+type PowerStats struct {
+	GPUPower    float64
+	MemoryPower float64
+	TotalPower  float64
+
+	// Temperature
+	GPUTemp    float64
+	MemoryTemp float64
+
+	// Throttling
+	ThermalEvents int64
+	PowerEvents   int64
+}
+```
+
+PowerStats tracks power consumption
+
+#### type PrecisionBenchmark
+
+```go
+type PrecisionBenchmark struct {
+	MatrixSize                 int
+	Iterations                 int
+	Float32Time                time.Duration
+	OriginalMixedPrecisionTime time.Duration
+	FixedMixedPrecisionTime    time.Duration
+	PureFloat32Time            time.Duration
+
+	OriginalSpeedup  float64
+	FixedSpeedup     float64
+	ImprovementRatio float64
+	Recommendation   string
+}
+```
+
+PrecisionBenchmark contains results from precision strategy comparison
+
+#### type PrecisionTestResult
+
+```go
+type PrecisionTestResult struct {
+	TestCase         string
+	OriginalValues   []float32
+	ConvertedValues  []float32
+	AbsoluteErrors   []float64
+	RelativeErrors   []float64
+	MaxAbsoluteError float64
+	MaxRelativeError float64
+	AvgAbsoluteError float64
+	AvgRelativeError float64
+}
+```
+
+PrecisionTestResult holds the results of precision testing
+
+#### type PrecisionType
+
+```go
+type PrecisionType int
+```
+
+PrecisionType represents the data precision for mixed precision training
+
+```go
+const (
+	PrecisionFloat32 PrecisionType = iota
+	PrecisionFloatMP16
+)
+```
 
 #### type PrefetchQueue
 
@@ -5327,6 +8050,50 @@ func (qr *QRDecomposition) ReleaseGPU()
 ```
 ReleaseGPU releases GPU resources for the QR decomposition
 
+#### type ReLULayer
+
+```go
+type ReLULayer struct {
+}
+```
+
+ReLULayer represents a ReLU activation layer
+
+#### func  NewReLULayer
+
+```go
+func NewReLULayer() *ReLULayer
+```
+NewReLULayer creates a new ReLU layer
+
+#### func (*ReLULayer) Backward
+
+```go
+func (r *ReLULayer) Backward(gradOutput *tensor.Tensor) *tensor.Tensor
+```
+Backward performs the backward pass
+
+#### func (*ReLULayer) Forward
+
+```go
+func (r *ReLULayer) Forward(input *tensor.Tensor) *tensor.Tensor
+```
+Forward performs the forward pass
+
+#### func (*ReLULayer) GetGradients
+
+```go
+func (r *ReLULayer) GetGradients() []*tensor.Tensor
+```
+GetGradients returns empty slice (no gradients)
+
+#### func (*ReLULayer) GetParameters
+
+```go
+func (r *ReLULayer) GetParameters() []*tensor.Tensor
+```
+GetParameters returns empty slice (no parameters)
+
 #### type RecomputationManager
 
 ```go
@@ -5368,6 +8135,81 @@ const (
 	HybridRecomputation
 )
 ```
+
+#### type Request
+
+```go
+type Request struct {
+	ID         string
+	Input      *tensor.Tensor
+	Priority   int
+	Timestamp  time.Time
+	Deadline   time.Time
+	ResultChan chan *tensor.Tensor
+
+	// Request metadata
+	ModelID  string
+	BatchIdx int
+}
+```
+
+Request represents an inference request
+
+#### type RequestPriorityQueue
+
+```go
+type RequestPriorityQueue []*Request
+```
+
+RequestPriorityQueue implements a priority queue for requests
+
+#### func (RequestPriorityQueue) Len
+
+```go
+func (pq RequestPriorityQueue) Len() int
+```
+
+#### func (RequestPriorityQueue) Less
+
+```go
+func (pq RequestPriorityQueue) Less(i, j int) bool
+```
+
+#### func (*RequestPriorityQueue) Pop
+
+```go
+func (pq *RequestPriorityQueue) Pop() interface{}
+```
+
+#### func (*RequestPriorityQueue) Push
+
+```go
+func (pq *RequestPriorityQueue) Push(x interface{})
+```
+
+#### func (RequestPriorityQueue) Swap
+
+```go
+func (pq RequestPriorityQueue) Swap(i, j int)
+```
+
+#### type ReusableBuffer
+
+```go
+type ReusableBuffer struct {
+	GPUPtr         unsafe.Pointer // GPU buffer pointer
+	Size           int            // Buffer size in bytes
+	Shape          []int          // Current tensor shape using this buffer
+	LastUsed       time.Time      // Last usage time for cleanup
+	UsageCount     int            // Number of times reused
+	Category       string         // Buffer size category (small, medium, large, etc.)
+	IsActive       bool           // Whether buffer is currently in use
+	OriginalTensor *tensor.Tensor // Original tensor if this buffer was allocated for one
+}
+```
+
+ReusableBuffer represents a GPU buffer that can be reused for multiple
+operations
 
 #### type SVDDecomposition
 
@@ -5426,6 +8268,296 @@ const (
 	WarmupLR
 )
 ```
+
+#### type Sequential
+
+```go
+type Sequential struct {
+}
+```
+
+Sequential represents a sequential container of layers
+
+#### func  NewSequential
+
+```go
+func NewSequential(layers ...Layer) *Sequential
+```
+NewSequential creates a new sequential model
+
+#### func (*Sequential) Backward
+
+```go
+func (s *Sequential) Backward(gradOutput *tensor.Tensor) *tensor.Tensor
+```
+Backward performs backward pass through all layers
+
+#### func (*Sequential) Forward
+
+```go
+func (s *Sequential) Forward(input *tensor.Tensor) *tensor.Tensor
+```
+Forward performs forward pass through all layers
+
+#### func (*Sequential) GetGradients
+
+```go
+func (s *Sequential) GetGradients() []*tensor.Tensor
+```
+GetGradients returns all gradients from all layers
+
+#### func (*Sequential) GetParameters
+
+```go
+func (s *Sequential) GetParameters() []*tensor.Tensor
+```
+GetParameters returns all parameters from all layers
+
+#### type SharedBuffer
+
+```go
+type SharedBuffer struct {
+}
+```
+
+SharedBuffer represents a zero-copy shared memory buffer
+
+#### func (*SharedBuffer) CPUPtr
+
+```go
+func (sb *SharedBuffer) CPUPtr() unsafe.Pointer
+```
+CPUPtr returns the CPU pointer for the shared buffer
+
+#### func (*SharedBuffer) GPUBuffer
+
+```go
+func (sb *SharedBuffer) GPUBuffer() unsafe.Pointer
+```
+GPUBuffer returns the GPU buffer pointer
+
+#### func (*SharedBuffer) Size
+
+```go
+func (sb *SharedBuffer) Size() int
+```
+Size returns the buffer size
+
+#### type SharedMemoryAccess
+
+```go
+type SharedMemoryAccess struct {
+	Pattern       string // "sequential", "strided", "tiled", "random"
+	Stride        int    // Access stride
+	CoalesceWidth int    // Width for coalesced access
+	ConflictFree  bool   // Whether access pattern is conflict-free
+	PrefetchSize  int    // Amount to prefetch
+}
+```
+
+SharedMemoryAccess describes memory access patterns
+
+#### type SharedMemoryBank
+
+```go
+type SharedMemoryBank struct {
+	BankID       int    // Bank identifier
+	Size         int    // Size of this bank in bytes
+	AccessStride int    // Optimal access stride for this bank
+	DataType     string // Data type stored in this bank
+}
+```
+
+SharedMemoryBank represents a memory bank configuration
+
+#### type SharedMemoryLayout
+
+```go
+type SharedMemoryLayout struct {
+	TotalSize     int                    // Total shared memory size needed
+	Banks         []SharedMemoryBank     // Memory banks configuration
+	AccessPattern SharedMemoryAccess     // Access pattern optimization
+	Padding       []int                  // Padding to avoid bank conflicts
+	TileSize      []int                  // Optimal tile sizes for operations
+	ThreadMapping map[string]interface{} // Thread-to-memory mapping strategy
+}
+```
+
+SharedMemoryLayout describes an optimized shared memory layout
+
+#### func  OptimizeSharedMemoryForOperation
+
+```go
+func OptimizeSharedMemoryForOperation(operation string, tensors []*tensor.Tensor, params map[string]interface{}) (*SharedMemoryLayout, error)
+```
+OptimizeSharedMemoryForOperation provides a high-level interface for shared
+memory optimization
+
+#### type SharedMemoryOptimizer
+
+```go
+type SharedMemoryOptimizer struct {
+}
+```
+
+SharedMemoryOptimizer optimizes shared memory usage in GPU kernels
+
+#### func  GetGlobalSharedMemoryOptimizer
+
+```go
+func GetGlobalSharedMemoryOptimizer() *SharedMemoryOptimizer
+```
+GetGlobalSharedMemoryOptimizer returns the global shared memory optimizer
+
+#### func  NewSharedMemoryOptimizer
+
+```go
+func NewSharedMemoryOptimizer() *SharedMemoryOptimizer
+```
+NewSharedMemoryOptimizer creates a new shared memory optimizer
+
+#### func (*SharedMemoryOptimizer) ApplySharedMemoryOptimization
+
+```go
+func (smo *SharedMemoryOptimizer) ApplySharedMemoryOptimization(kernelSource string, layout *SharedMemoryLayout) (string, error)
+```
+ApplySharedMemoryOptimization applies shared memory optimization to a kernel
+
+#### func (*SharedMemoryOptimizer) GenerateOptimizedKernel
+
+```go
+func (smo *SharedMemoryOptimizer) GenerateOptimizedKernel(operation string, params map[string]interface{}) (string, *SharedMemoryLayout, error)
+```
+GenerateOptimizedKernel generates an optimized kernel for a specific operation
+
+#### func (*SharedMemoryOptimizer) OptimizeForConvolution
+
+```go
+func (smo *SharedMemoryOptimizer) OptimizeForConvolution(inputShape, kernelShape []int) (*SharedMemoryLayout, error)
+```
+OptimizeForConvolution optimizes shared memory for convolution operations
+
+#### func (*SharedMemoryOptimizer) OptimizeForMatrixMultiplication
+
+```go
+func (smo *SharedMemoryOptimizer) OptimizeForMatrixMultiplication(M, N, K int) (*SharedMemoryLayout, error)
+```
+OptimizeForMatrixMultiplication optimizes shared memory for matrix
+multiplication
+
+#### func (*SharedMemoryOptimizer) OptimizeForReduction
+
+```go
+func (smo *SharedMemoryOptimizer) OptimizeForReduction(inputSize int, reductionType string) (*SharedMemoryLayout, error)
+```
+OptimizeForReduction optimizes shared memory for reduction operations
+
+#### type SimpleMemoryCoalescingOptimizer
+
+```go
+type SimpleMemoryCoalescingOptimizer struct {
+}
+```
+
+SimpleMemoryCoalescingOptimizer optimizes memory access patterns for GPU
+efficiency Note: A more advanced version is available in
+memory-coalescing-optimizer.go
+
+#### func  GetGlobalSimpleMemoryOptimizer
+
+```go
+func GetGlobalSimpleMemoryOptimizer() *SimpleMemoryCoalescingOptimizer
+```
+GetGlobalSimpleMemoryOptimizer returns the global simple memory coalescing
+optimizer
+
+#### func  NewSimpleMemoryCoalescingOptimizer
+
+```go
+func NewSimpleMemoryCoalescingOptimizer() *SimpleMemoryCoalescingOptimizer
+```
+NewSimpleMemoryCoalescingOptimizer creates a new simple memory coalescing
+optimizer
+
+#### func (*SimpleMemoryCoalescingOptimizer) OptimizeTensorLayout
+
+```go
+func (mco *SimpleMemoryCoalescingOptimizer) OptimizeTensorLayout(tensor *tensor.Tensor, operation string) (*tensor.Tensor, error)
+```
+OptimizeTensorLayout reorganizes tensor data for optimal GPU access patterns
+
+#### type SimpleTransferOptimizer
+
+```go
+type SimpleTransferOptimizer struct {
+}
+```
+
+GPU-CPU Transfer Optimizer reduces unnecessary memory transfers Note: A more
+advanced version is available in gpu-cpu-transfer-optimizer.go
+
+#### func  GetGlobalSimpleTransferOptimizer
+
+```go
+func GetGlobalSimpleTransferOptimizer() *SimpleTransferOptimizer
+```
+GetGlobalSimpleTransferOptimizer returns the global simple transfer optimizer
+
+#### func  NewSimpleTransferOptimizer
+
+```go
+func NewSimpleTransferOptimizer() *SimpleTransferOptimizer
+```
+NewSimpleTransferOptimizer creates a new simple transfer optimizer
+
+#### func (*SimpleTransferOptimizer) CleanupTensor
+
+```go
+func (to *SimpleTransferOptimizer) CleanupTensor(tensor *tensor.Tensor)
+```
+CleanupTensor removes tracking for a tensor
+
+#### func (*SimpleTransferOptimizer) MarkCPUInvalid
+
+```go
+func (to *SimpleTransferOptimizer) MarkCPUInvalid(tensor *tensor.Tensor)
+```
+MarkCPUInvalid marks a tensor's CPU data as invalid
+
+#### func (*SimpleTransferOptimizer) MarkCPUValid
+
+```go
+func (to *SimpleTransferOptimizer) MarkCPUValid(tensor *tensor.Tensor)
+```
+MarkCPUValid marks a tensor as having valid CPU data
+
+#### func (*SimpleTransferOptimizer) MarkGPUInvalid
+
+```go
+func (to *SimpleTransferOptimizer) MarkGPUInvalid(tensor *tensor.Tensor)
+```
+MarkGPUInvalid marks a tensor's GPU data as invalid
+
+#### func (*SimpleTransferOptimizer) MarkGPUValid
+
+```go
+func (to *SimpleTransferOptimizer) MarkGPUValid(tensor *tensor.Tensor, operation string)
+```
+MarkGPUValid marks a tensor as having valid GPU data
+
+#### func (*SimpleTransferOptimizer) ShouldTransferToCPU
+
+```go
+func (to *SimpleTransferOptimizer) ShouldTransferToCPU(tensor *tensor.Tensor) bool
+```
+ShouldTransferToCPU determines if a tensor needs to be transferred to CPU
+
+#### func (*SimpleTransferOptimizer) ShouldTransferToGPU
+
+```go
+func (to *SimpleTransferOptimizer) ShouldTransferToGPU(tensor *tensor.Tensor) bool
+```
+ShouldTransferToGPU determines if a tensor needs to be transferred to GPU
 
 #### type SmoothingBuffer
 
@@ -5499,6 +8631,23 @@ type StatisticalSummary struct {
 
 StatisticalSummary provides statistical summary of gradient values
 
+#### type StreamID
+
+```go
+type StreamID int
+```
+
+StreamID represents a specific command queue
+
+```go
+const (
+	DefaultStream  StreamID = 0
+	ComputeStream  StreamID = 1
+	TransferStream StreamID = 2
+	MaxStreams              = 8
+)
+```
+
 #### type StreamInfo
 
 ```go
@@ -5513,6 +8662,57 @@ type StreamInfo struct {
 
 StreamInfo provides information about a data stream
 
+#### type StreamManager
+
+```go
+type StreamManager struct {
+}
+```
+
+StreamManager manages multiple Metal command queues for parallel execution
+
+#### func  NewStreamManager
+
+```go
+func NewStreamManager(device unsafe.Pointer, numStreams int) (*StreamManager, error)
+```
+NewStreamManager creates a manager for multi-stream execution
+
+#### func (*StreamManager) GetSpecificStream
+
+```go
+func (sm *StreamManager) GetSpecificStream(id StreamID) unsafe.Pointer
+```
+GetSpecificStream returns a specific stream by ID
+
+#### func (*StreamManager) GetStream
+
+```go
+func (sm *StreamManager) GetStream() (StreamID, unsafe.Pointer)
+```
+GetStream returns the least loaded stream for load balancing
+
+#### func (*StreamManager) SubmitToStream
+
+```go
+func (sm *StreamManager) SubmitToStream(id StreamID, work func(unsafe.Pointer))
+```
+SubmitToStream submits work to a specific stream
+
+#### func (*StreamManager) SynchronizeAll
+
+```go
+func (sm *StreamManager) SynchronizeAll()
+```
+SynchronizeAll waits for all streams to complete
+
+#### func (*StreamManager) SynchronizeStream
+
+```go
+func (sm *StreamManager) SynchronizeStream(id StreamID)
+```
+SynchronizeStream waits for a specific stream to complete
+
 #### type StreamProvider
 
 ```go
@@ -5525,6 +8725,43 @@ type StreamProvider interface {
 ```
 
 StreamProvider interface for streaming data sources
+
+#### type StreamScheduler
+
+```go
+type StreamScheduler struct {
+}
+```
+
+StreamScheduler optimizes task scheduling across streams
+
+#### func  NewStreamScheduler
+
+```go
+func NewStreamScheduler(executor *ParallelExecutor, streamMgr *StreamManager) *StreamScheduler
+```
+NewStreamScheduler creates an optimized task scheduler
+
+#### func (*StreamScheduler) ScheduleDAG
+
+```go
+func (ss *StreamScheduler) ScheduleDAG(tasks []StreamTask)
+```
+ScheduleDAG schedules a directed acyclic graph of tasks
+
+#### type StreamTask
+
+```go
+type StreamTask struct {
+	ID       int
+	StreamID StreamID
+	Execute  func(unsafe.Pointer)
+	Depends  []int // Task dependencies
+	Priority int
+}
+```
+
+StreamTask represents a GPU computation task
 
 #### type StreamingDataLoader
 
@@ -5548,6 +8785,24 @@ NewStreamingDataLoader creates a new streaming data loader
 func (sdl *StreamingDataLoader) GetBatch(batchIdx int) (*tensor.Tensor, *tensor.Tensor, error)
 ```
 GetBatch returns the next batch from the stream
+
+#### type StressTestResult
+
+```go
+type StressTestResult struct {
+	Scenario          string
+	InitialScale      float32
+	FinalScale        float32
+	OverflowsDetected int
+	StepsSkipped      int
+	ScaleUpdates      int
+	MaxScale          float32
+	MinScale          float32
+	StabilityScore    float64 // 0-1, higher is more stable
+}
+```
+
+StressTestResult records the results of a stress test scenario
 
 #### type SwapBuffer
 
@@ -5654,6 +8909,97 @@ func (tc *TensorCache) Put(key string, tensor *tensor.Tensor, shape []int)
 ```
 Put adds a tensor to the cache
 
+#### type TensorLayout
+
+```go
+type TensorLayout int
+```
+
+TensorLayout represents different memory layouts for tensors
+
+```go
+const (
+	// Standard layouts
+	LayoutRowMajor TensorLayout = iota // Standard row-major layout
+	LayoutColMajor                     // Column-major layout
+
+	// Optimized layouts for specific operations
+	LayoutNHWC            // Batch, Height, Width, Channels (GPU-friendly for convolution)
+	LayoutNCHW            // Batch, Channels, Height, Width (CPU-friendly)
+	LayoutHWCN            // Height, Width, Channels, Batch (optimized for some GPU operations)
+	LayoutTiled           // Tiled layout for large matrices
+	LayoutBlockedRowMajor // Blocked row-major for cache efficiency
+	LayoutBlockedColMajor // Blocked column-major for cache efficiency
+	LayoutPadded          // Padded layout to avoid bank conflicts
+)
+```
+
+#### func (TensorLayout) String
+
+```go
+func (layout TensorLayout) String() string
+```
+String returns the string representation of a layout
+
+#### type TensorLayoutInfo
+
+```go
+type TensorLayoutInfo struct {
+	OriginalShape  []int        // Original tensor shape
+	OptimizedShape []int        // Optimized shape (may include padding)
+	Layout         TensorLayout // Layout type
+	Padding        []int        // Padding added to each dimension
+	Stride         []int        // Stride for each dimension
+	TileInfo       *TileInfo    // Tiling information if applicable
+}
+```
+
+TensorLayoutInfo contains information about an optimized tensor layout
+
+#### func  OptimizeTensorForOperation
+
+```go
+func OptimizeTensorForOperation(tensor *tensor.Tensor, operation string) (*tensor.Tensor, *TensorLayoutInfo, error)
+```
+OptimizeTensorForOperation optimizes a tensor layout for a specific operation
+
+#### type TensorLayoutOptimizer
+
+```go
+type TensorLayoutOptimizer struct {
+}
+```
+
+TensorLayoutOptimizer optimizes tensor layouts for specific GPU operations
+
+#### func  GetGlobalLayoutOptimizer
+
+```go
+func GetGlobalLayoutOptimizer() *TensorLayoutOptimizer
+```
+GetGlobalLayoutOptimizer returns the global tensor layout optimizer
+
+#### func  NewTensorLayoutOptimizer
+
+```go
+func NewTensorLayoutOptimizer() *TensorLayoutOptimizer
+```
+NewTensorLayoutOptimizer creates a new tensor layout optimizer
+
+#### func (*TensorLayoutOptimizer) ApplyLayoutOptimization
+
+```go
+func (tlo *TensorLayoutOptimizer) ApplyLayoutOptimization(t *tensor.Tensor, operation string) (*tensor.Tensor, *TensorLayoutInfo, error)
+```
+ApplyLayoutOptimization applies the layout optimization to a tensor
+
+#### func (*TensorLayoutOptimizer) OptimizeLayout
+
+```go
+func (tlo *TensorLayoutOptimizer) OptimizeLayout(shape []int, operation string, dataType string) *TensorLayoutInfo
+```
+OptimizeLayout determines the best layout for a tensor given the operation
+
 #### type TensorType
 
 ```go
@@ -5672,6 +9018,80 @@ TensorType describes tensor characteristics
 func (tt TensorType) String() string
 ```
 
+#### type TensorUnifiedMemoryAdapter
+
+```go
+type TensorUnifiedMemoryAdapter struct {
+}
+```
+
+TensorUnifiedMemoryAdapter adapts tensors to use unified memory system
+
+#### func  GetGlobalTensorAdapter
+
+```go
+func GetGlobalTensorAdapter(device unsafe.Pointer) *TensorUnifiedMemoryAdapter
+```
+GetGlobalTensorAdapter returns the singleton tensor adapter
+
+#### func  NewTensorUnifiedMemoryAdapter
+
+```go
+func NewTensorUnifiedMemoryAdapter(device unsafe.Pointer) *TensorUnifiedMemoryAdapter
+```
+NewTensorUnifiedMemoryAdapter creates a new adapter
+
+#### func (*TensorUnifiedMemoryAdapter) EnsureUnifiedGPU
+
+```go
+func (tuma *TensorUnifiedMemoryAdapter) EnsureUnifiedGPU(t *tensor.Tensor) error
+```
+EnsureUnifiedGPU ensures tensor is on GPU using unified memory system
+
+#### func (*TensorUnifiedMemoryAdapter) GetUnifiedCPUData
+
+```go
+func (tuma *TensorUnifiedMemoryAdapter) GetUnifiedCPUData(t *tensor.Tensor) unsafe.Pointer
+```
+GetUnifiedCPUData returns CPU data pointer for a tensor using unified memory
+
+#### func (*TensorUnifiedMemoryAdapter) GetUnifiedGPUBuffer
+
+```go
+func (tuma *TensorUnifiedMemoryAdapter) GetUnifiedGPUBuffer(t *tensor.Tensor) unsafe.Pointer
+```
+GetUnifiedGPUBuffer returns the GPU buffer for a tensor using unified memory
+
+#### func (*TensorUnifiedMemoryAdapter) GetUnifiedMemoryStatistics
+
+```go
+func (tuma *TensorUnifiedMemoryAdapter) GetUnifiedMemoryStatistics() MemoryStatistics
+```
+GetUnifiedMemoryStatistics returns unified memory statistics
+
+#### func (*TensorUnifiedMemoryAdapter) ReleaseUnifiedBuffer
+
+```go
+func (tuma *TensorUnifiedMemoryAdapter) ReleaseUnifiedBuffer(t *tensor.Tensor)
+```
+ReleaseUnifiedBuffer releases the unified buffer for a tensor
+
+#### func (*TensorUnifiedMemoryAdapter) SyncTensorToGPU
+
+```go
+func (tuma *TensorUnifiedMemoryAdapter) SyncTensorToGPU(t *tensor.Tensor) error
+```
+SyncTensorToGPU synchronizes tensor data to GPU using zero-copy if possible
+
+#### type TensorView
+
+```go
+type TensorView struct {
+}
+```
+
+TensorView represents a zero-copy view of a tensor
+
 #### type ThreadPool
 
 ```go
@@ -5687,6 +9107,18 @@ ThreadPool manages worker threads
 func NewThreadPool(numWorkers int) *ThreadPool
 ```
 NewThreadPool creates a new thread pool
+
+#### type TileInfo
+
+```go
+type TileInfo struct {
+	TileSize   []int // Size of each tile
+	NumTiles   []int // Number of tiles in each dimension
+	TileStride []int // Stride between tiles
+}
+```
+
+TileInfo contains tiling information for tiled layouts
 
 #### type TrainableModel
 
@@ -5866,6 +9298,178 @@ type TrainingState struct {
 
 TrainingState tracks the current state of training
 
+#### type TransferCacheEntry
+
+```go
+type TransferCacheEntry struct {
+	Tensor        *tensor.Tensor
+	GPUValid      bool
+	CPUValid      bool
+	LastGPUAccess time.Time
+	LastCPUAccess time.Time
+	TransferCount int
+	IsPinned      bool // Whether tensor uses pinned memory
+	LastOperation string
+}
+```
+
+TransferCacheEntry tracks tensor transfer state
+
+#### type TransferStatistics
+
+```go
+type TransferStatistics struct {
+	TotalTransfers        int64
+	TotalBytesTransferred int64
+	CPUToGPUTransfers     int64
+	GPUToCPUTransfers     int64
+	CacheHits             int64
+	CacheMisses           int64
+	AverageTransferTime   time.Duration
+	PinnedMemoryUsed      int64
+}
+```
+
+TransferStatistics tracks transfer performance metrics
+
+#### type TuningParameter
+
+```go
+type TuningParameter struct {
+	Name     string
+	Type     string // "int", "float", "choice"
+	MinValue float64
+	MaxValue float64
+	Choices  []interface{}
+	Current  interface{}
+
+	// Optimization hints
+	Impact      float64 // 0-1 impact on performance
+	Granularity float64 // Search granularity
+}
+```
+
+TuningParameter represents an auto-tuning parameter
+
+#### type TuningStrategy
+
+```go
+type TuningStrategy int
+```
+
+TuningStrategy defines the optimization approach
+
+```go
+const (
+	RandomSearch TuningStrategy = iota
+	GridSearch
+	BayesianOptimization
+	GeneticAlgorithm
+	SimulatedAnnealing
+)
+```
+
+#### type TuningTrial
+
+```go
+type TuningTrial struct {
+	ID          int
+	Parameters  map[string]interface{}
+	Performance PerformanceMetrics
+	Timestamp   time.Time
+	Success     bool
+}
+```
+
+TuningTrial records the result of a parameter configuration trial
+
+#### type UnifiedAccessPattern
+
+```go
+type UnifiedAccessPattern struct {
+	CPUReads   int
+	CPUWrites  int
+	GPUReads   int
+	GPUWrites  int
+	LastAccess int
+}
+```
+
+UnifiedAccessPattern represents observed access patterns
+
+#### type UnifiedMemoryManager
+
+```go
+type UnifiedMemoryManager struct {
+}
+```
+
+UnifiedMemoryManager optimizes memory usage for Apple Silicon's unified
+architecture
+
+#### func  GetGlobalUnifiedMemoryManager
+
+```go
+func GetGlobalUnifiedMemoryManager(device unsafe.Pointer) *UnifiedMemoryManager
+```
+GetGlobalUnifiedMemoryManager returns the singleton unified memory manager
+
+#### func  NewUnifiedMemoryManager
+
+```go
+func NewUnifiedMemoryManager(device unsafe.Pointer) *UnifiedMemoryManager
+```
+NewUnifiedMemoryManager creates a manager for unified memory optimization
+
+#### func (*UnifiedMemoryManager) CreateSharedBuffer
+
+```go
+func (umm *UnifiedMemoryManager) CreateSharedBuffer(name string, size int) (*SharedBuffer, error)
+```
+CreateSharedBuffer creates a zero-copy buffer accessible by CPU and GPU
+
+#### func (*UnifiedMemoryManager) CreateTensorView
+
+```go
+func (umm *UnifiedMemoryManager) CreateTensorView(parent *tensor.Tensor, offset, rows, cols int) (*TensorView, error)
+```
+CreateTensorView creates a zero-copy view of a tensor
+
+#### func (*UnifiedMemoryManager) GetStatistics
+
+```go
+func (umm *UnifiedMemoryManager) GetStatistics() MemoryStatistics
+```
+GetStatistics returns memory management statistics
+
+#### func (*UnifiedMemoryManager) MakeGPUResident
+
+```go
+func (umm *UnifiedMemoryManager) MakeGPUResident(bufferName string)
+```
+MakeGPUResident ensures buffer stays in GPU memory
+
+#### func (*UnifiedMemoryManager) MapModelWeights
+
+```go
+func (umm *UnifiedMemoryManager) MapModelWeights(path string) (*MMapRegion, error)
+```
+MapModelWeights memory-maps model weights for efficient loading
+
+#### func (*UnifiedMemoryManager) OptimizeBatchProcessing
+
+```go
+func (umm *UnifiedMemoryManager) OptimizeBatchProcessing(batchSize, featureSize int) *BatchOptimizer
+```
+OptimizeBatchProcessing optimizes memory for batch processing
+
+#### func (*UnifiedMemoryManager) ReleaseSharedBuffer
+
+```go
+func (umm *UnifiedMemoryManager) ReleaseSharedBuffer(buf *SharedBuffer)
+```
+ReleaseSharedBuffer releases a shared buffer
+
 #### type ValidationCallback
 
 ```go
@@ -5905,3 +9509,71 @@ type WorkerStatistics struct {
 ```
 
 WorkerStatistics tracks worker performance
+
+#### type ZeroCopyMixedPrecisionOps
+
+```go
+type ZeroCopyMixedPrecisionOps struct {
+}
+```
+
+ZeroCopyMixedPrecisionOps provides zero-copy mixed precision operations
+
+#### func  NewZeroCopyMixedPrecisionOps
+
+```go
+func NewZeroCopyMixedPrecisionOps(config *MixedPrecisionConfig) (*ZeroCopyMixedPrecisionOps, error)
+```
+NewZeroCopyMixedPrecisionOps creates zero-copy mixed precision operations
+
+#### func (*ZeroCopyMixedPrecisionOps) BatchOptimalMatMul
+
+```go
+func (zc *ZeroCopyMixedPrecisionOps) BatchOptimalMatMul(operations []MatMulOperation) ([]*tensor.Tensor, error)
+```
+BatchOptimalMatMul processes multiple matrix operations with optimal precision
+selection
+
+#### func (*ZeroCopyMixedPrecisionOps) Cleanup
+
+```go
+func (zc *ZeroCopyMixedPrecisionOps) Cleanup()
+```
+Cleanup releases resources
+
+#### func (*ZeroCopyMixedPrecisionOps) OptimalMatMul
+
+```go
+func (zc *ZeroCopyMixedPrecisionOps) OptimalMatMul(A, B *tensor.Tensor) (*tensor.Tensor, error)
+```
+OptimalMatMul chooses the best precision and implementation automatically
+
+#### func (*ZeroCopyMixedPrecisionOps) ProfileOperation
+
+```go
+func (zc *ZeroCopyMixedPrecisionOps) ProfileOperation(A, B *tensor.Tensor, iterations int) (*PerformanceProfile, error)
+```
+ProfileOperation provides detailed performance analysis for a specific operation
+
+#### type ZeroCopyTransfer
+
+```go
+type ZeroCopyTransfer struct {
+}
+```
+
+ZeroCopyTransfer performs zero-copy data transfer between CPU and GPU
+
+#### func (*ZeroCopyTransfer) TransferFromGPU
+
+```go
+func (zct *ZeroCopyTransfer) TransferFromGPU(gpuBuffer unsafe.Pointer, size int) ([]float32, error)
+```
+TransferFromGPU transfers data from GPU without copying (if possible)
+
+#### func (*ZeroCopyTransfer) TransferToGPU
+
+```go
+func (zct *ZeroCopyTransfer) TransferToGPU(data []float32, name string) (unsafe.Pointer, error)
+```
+TransferToGPU transfers data to GPU without copying (if possible)

@@ -1,7 +1,7 @@
 version: '3'
 
 vars:
-  BASE: /Users/tcs/vs-projects/gometal-project/go-nngpu
+  BASE: /Users/tcs/vs-projects/gometal-project/gometal
 
 tasks:
   build:
