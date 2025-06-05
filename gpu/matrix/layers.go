@@ -3,8 +3,8 @@ package matrix
 import (
 	"math"
 	"math/rand"
-	
-	"github.com/tsawler/go-nngpu/tensor"
+
+	"github.com/tsawler/gometal/tensor"
 )
 
 // LinearLayer represents a fully connected layer
@@ -12,14 +12,14 @@ type LinearLayer struct {
 	// Parameters
 	Weight *tensor.Tensor
 	Bias   *tensor.Tensor
-	
+
 	// Gradients
 	WeightGrad *tensor.Tensor
 	BiasGrad   *tensor.Tensor
-	
+
 	// Cache for backward pass
 	input *tensor.Tensor
-	
+
 	// Configuration
 	InputSize  int
 	OutputSize int
@@ -35,13 +35,13 @@ func NewLinearLayer(inputSize, outputSize int, useBias bool) *LinearLayer {
 		weightData[i] = (rand.Float32()*2 - 1) * scale
 	}
 	weight, _ := tensor.NewTensor([]int{inputSize, outputSize}, weightData)
-	
+
 	var bias *tensor.Tensor
 	if useBias {
 		biasData := make([]float32, outputSize)
 		bias, _ = tensor.NewTensor([]int{outputSize}, biasData)
 	}
-	
+
 	return &LinearLayer{
 		Weight:     weight,
 		Bias:       bias,
@@ -55,7 +55,7 @@ func NewLinearLayer(inputSize, outputSize int, useBias bool) *LinearLayer {
 func (l *LinearLayer) Forward(input *tensor.Tensor) *tensor.Tensor {
 	// Cache input for backward pass
 	l.input = input
-	
+
 	// Compute output = input @ weight + bias
 	output, err := MatMul(input, l.Weight)
 	if err != nil {
@@ -64,12 +64,12 @@ func (l *LinearLayer) Forward(input *tensor.Tensor) *tensor.Tensor {
 		output, _ = tensor.NewTensor([]int{input.Shape[0], l.OutputSize}, outputData)
 		return output
 	}
-	
+
 	if l.UseBias && l.Bias != nil {
 		// Add bias
 		output = l.addBias(output, l.Bias)
 	}
-	
+
 	return output
 }
 
@@ -78,20 +78,20 @@ func (l *LinearLayer) Backward(gradOutput *tensor.Tensor) *tensor.Tensor {
 	if l.input == nil {
 		panic("Backward called before Forward")
 	}
-	
+
 	// Compute weight gradient: input.T @ gradOutput
 	inputT, _ := Transpose(l.input)
 	l.WeightGrad, _ = MatMul(inputT, gradOutput)
-	
+
 	// Compute bias gradient: sum(gradOutput, axis=0)
 	if l.UseBias && l.Bias != nil {
 		l.BiasGrad = l.sumAlongAxis(gradOutput, 0)
 	}
-	
+
 	// Compute input gradient: gradOutput @ weight.T
 	weightT, _ := Transpose(l.Weight)
 	gradInput, _ := MatMul(gradOutput, weightT)
-	
+
 	return gradInput
 }
 
@@ -135,7 +135,7 @@ func (r *ReLULayer) Backward(gradOutput *tensor.Tensor) *tensor.Tensor {
 	if r.input == nil {
 		panic("Backward called before Forward")
 	}
-	
+
 	// ReLU gradient: gradOutput * (input > 0)
 	gradInput, _ := ReLUBackward(gradOutput, r.output)
 	return gradInput
@@ -156,14 +156,14 @@ type Conv2DLayer struct {
 	// Parameters
 	Weight *tensor.Tensor
 	Bias   *tensor.Tensor
-	
+
 	// Gradients
 	WeightGrad *tensor.Tensor
 	BiasGrad   *tensor.Tensor
-	
+
 	// Cache for backward pass
 	input *tensor.Tensor
-	
+
 	// Configuration
 	InChannels  int
 	OutChannels int
@@ -181,11 +181,11 @@ func NewConv2DLayer(inChannels, outChannels, kernelSize, stride, padding int) *C
 		weightData[i] = (rand.Float32()*2 - 1) * scale
 	}
 	weight, _ := tensor.NewTensor([]int{outChannels, inChannels, kernelSize, kernelSize}, weightData)
-	
+
 	// Initialize bias
 	biasData := make([]float32, outChannels)
 	bias, _ := tensor.NewTensor([]int{outChannels}, biasData)
-	
+
 	return &Conv2DLayer{
 		Weight:      weight,
 		Bias:        bias,
@@ -200,7 +200,7 @@ func NewConv2DLayer(inChannels, outChannels, kernelSize, stride, padding int) *C
 // Forward performs the forward pass
 func (c *Conv2DLayer) Forward(input *tensor.Tensor) *tensor.Tensor {
 	c.input = input
-	
+
 	// Create Conv2D parameters
 	params := Conv2DParams{
 		StrideH: c.Stride,
@@ -208,21 +208,21 @@ func (c *Conv2DLayer) Forward(input *tensor.Tensor) *tensor.Tensor {
 		PadH:    c.Padding,
 		PadW:    c.Padding,
 	}
-	
+
 	// Perform convolution
 	result, err := Conv2DForward(input, c.Weight, params)
 	if err != nil {
 		// Return zero output on error
 		return c.createZeroOutput(input)
 	}
-	
+
 	output := result.Output
-	
+
 	// Add bias if present
 	if c.Bias != nil {
 		output = c.addConvBias(output, c.Bias)
 	}
-	
+
 	return output
 }
 
@@ -231,22 +231,22 @@ func (c *Conv2DLayer) Backward(gradOutput *tensor.Tensor) *tensor.Tensor {
 	if c.input == nil {
 		panic("Backward called before Forward")
 	}
-	
+
 	// TODO: Implement Conv2D backward pass
 	// For now, return zero gradients
 	gradInputData := make([]float32, len(c.input.Data))
 	gradInput, _ := tensor.NewTensor(c.input.Shape, gradInputData)
-	
+
 	// Create zero weight gradients
 	weightGradData := make([]float32, len(c.Weight.Data))
 	c.WeightGrad, _ = tensor.NewTensor(c.Weight.Shape, weightGradData)
-	
+
 	// Create zero bias gradients if bias exists
 	if c.Bias != nil {
 		biasGradData := make([]float32, len(c.Bias.Data))
 		c.BiasGrad, _ = tensor.NewTensor(c.Bias.Shape, biasGradData)
 	}
-	
+
 	return gradInput
 }
 
@@ -298,7 +298,7 @@ func (c *Conv2DLayer) createZeroOutput(input *tensor.Tensor) *tensor.Tensor {
 	batch := input.Shape[0]
 	height := (input.Shape[2]+2*c.Padding-c.KernelSize)/c.Stride + 1
 	width := (input.Shape[3]+2*c.Padding-c.KernelSize)/c.Stride + 1
-	
+
 	outputData := make([]float32, batch*c.OutChannels*height*width)
 	output, _ := tensor.NewTensor([]int{batch, c.OutChannels, height, width}, outputData)
 	return output
@@ -310,7 +310,7 @@ func (c *Conv2DLayer) addConvBias(output, bias *tensor.Tensor) *tensor.Tensor {
 	channels := output.Shape[1]
 	height := output.Shape[2]
 	width := output.Shape[3]
-	
+
 	for b := 0; b < batch; b++ {
 		for ch := 0; ch < channels; ch++ {
 			biasVal := bias.Data[ch]
@@ -322,7 +322,7 @@ func (c *Conv2DLayer) addConvBias(output, bias *tensor.Tensor) *tensor.Tensor {
 			}
 		}
 	}
-	
+
 	return output
 }
 

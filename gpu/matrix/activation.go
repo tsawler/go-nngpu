@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"runtime"
 
-	_ "github.com/tsawler/go-nngpu/internal/cgo"
-	"github.com/tsawler/go-nngpu/tensor"
+	_ "github.com/tsawler/gometal/internal/cgo"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // ActivationType represents different activation function types

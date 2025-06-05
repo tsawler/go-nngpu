@@ -10,22 +10,22 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // EfficientMixedPrecisionTrainer provides optimized mixed precision operations
 // that minimize GPU↔CPU transfers and unnecessary conversions
 type EfficientMixedPrecisionTrainer struct {
-	config              *MixedPrecisionConfig
-	currentLossScale    float32
+	config               *MixedPrecisionConfig
+	currentLossScale     float32
 	stepsSinceLastGrowth int
-	overflowDetected    bool
-	devicePtr           unsafe.Pointer
-	
+	overflowDetected     bool
+	devicePtr            unsafe.Pointer
+
 	// GPU-side buffers for efficient operations
-	tempFloat16Buffer   unsafe.Pointer
-	lossScaleBuffer     unsafe.Pointer
-	overflowBuffer      unsafe.Pointer
+	tempFloat16Buffer unsafe.Pointer
+	lossScaleBuffer   unsafe.Pointer
+	overflowBuffer    unsafe.Pointer
 }
 
 // NewEfficientMixedPrecisionTrainer creates an optimized mixed precision trainer
@@ -85,7 +85,7 @@ func (mp *EfficientMixedPrecisionTrainer) inPlaceMixedPrecisionMatMul(A, B *tens
 		if err := result.RetrieveCPU(); err != nil {
 			return nil, err
 		}
-		
+
 		// Apply precision reduction in-place
 		for i := range result.Data {
 			// Simulate float16 precision by reducing mantissa precision
@@ -100,7 +100,7 @@ func (mp *EfficientMixedPrecisionTrainer) inPlaceMixedPrecisionMatMul(A, B *tens
 func (mp *EfficientMixedPrecisionTrainer) simulateFloat16Precision(val float32) float32 {
 	// Fast approximation of float16 precision without full conversion
 	// This maintains the performance benefit while simulating precision loss
-	
+
 	// For very small or very large values, apply more aggressive reduction
 	if val > 65000 || val < -65000 {
 		return val * 0.999 // Slight precision loss for large values
@@ -108,7 +108,7 @@ func (mp *EfficientMixedPrecisionTrainer) simulateFloat16Precision(val float32) 
 	if val < 1e-4 && val > -1e-4 {
 		return val * 0.95 // More aggressive loss for small values
 	}
-	
+
 	// For normal range values, apply minimal precision loss
 	return val * 0.9999
 }
@@ -141,10 +141,10 @@ func (zc *ZeroCopyMixedPrecisionOps) OptimalMatMul(A, B *tensor.Tensor) (*tensor
 	// Make decision based on operation characteristics
 	rowsA, colsA := A.Shape[0], A.Shape[1]
 	rowsB, colsB := B.Shape[0], B.Shape[1]
-	
+
 	// Calculate operation intensity (FLOPs vs memory access)
-	flops := int64(rowsA) * int64(colsA) * int64(colsB) * 2 // 2 ops per element (multiply + add)
-	memoryAccess := int64(rowsA*colsA + rowsB*colsB + rowsA*colsB) * 4 // bytes
+	flops := int64(rowsA) * int64(colsA) * int64(colsB) * 2        // 2 ops per element (multiply + add)
+	memoryAccess := int64(rowsA*colsA+rowsB*colsB+rowsA*colsB) * 4 // bytes
 	intensity := float64(flops) / float64(memoryAccess)
 
 	// High intensity operations benefit from mixed precision
@@ -160,11 +160,11 @@ func (zc *ZeroCopyMixedPrecisionOps) OptimalMatMul(A, B *tensor.Tensor) (*tensor
 // BatchOptimalMatMul processes multiple matrix operations with optimal precision selection
 func (zc *ZeroCopyMixedPrecisionOps) BatchOptimalMatMul(operations []MatMulOperation) ([]*tensor.Tensor, error) {
 	results := make([]*tensor.Tensor, len(operations))
-	
+
 	// Group operations by optimal precision
 	float32Ops := make([]int, 0)
 	mixedPrecisionOps := make([]int, 0)
-	
+
 	for i, op := range operations {
 		if zc.shouldUseMixedPrecision(op.A, op.B) {
 			mixedPrecisionOps = append(mixedPrecisionOps, i)
@@ -172,7 +172,7 @@ func (zc *ZeroCopyMixedPrecisionOps) BatchOptimalMatMul(operations []MatMulOpera
 			float32Ops = append(float32Ops, i)
 		}
 	}
-	
+
 	// Process float32 operations (typically faster for large operations)
 	for _, idx := range float32Ops {
 		result, err := MatMul(operations[idx].A, operations[idx].B)
@@ -181,7 +181,7 @@ func (zc *ZeroCopyMixedPrecisionOps) BatchOptimalMatMul(operations []MatMulOpera
 		}
 		results[idx] = result
 	}
-	
+
 	// Process mixed precision operations (typically faster for small operations)
 	for _, idx := range mixedPrecisionOps {
 		result, err := zc.trainer.EfficientMatMul(operations[idx].A, operations[idx].B)
@@ -190,7 +190,7 @@ func (zc *ZeroCopyMixedPrecisionOps) BatchOptimalMatMul(operations []MatMulOpera
 		}
 		results[idx] = result
 	}
-	
+
 	return results, nil
 }
 
@@ -209,28 +209,28 @@ func (zc *ZeroCopyMixedPrecisionOps) shouldUseMixedPrecision(A, B *tensor.Tensor
 	// Size-based decision
 	sizeA := A.Shape[0] * A.Shape[1]
 	sizeB := B.Shape[0] * B.Shape[1]
-	
+
 	// Mixed precision is beneficial for small to medium operations
 	// where memory bandwidth is the limiting factor
 	maxSize := sizeA
 	if sizeB > maxSize {
 		maxSize = sizeB
 	}
-	
+
 	return maxSize <= 256*256 // Empirically determined threshold
 }
 
 // PerformanceProfile provides detailed performance characteristics
 type PerformanceProfile struct {
-	MatrixSize              int
-	Float32Time            int64  // nanoseconds
-	MixedPrecisionTime     int64  // nanoseconds
-	OptimalTime            int64  // nanoseconds
-	MemoryBandwidthUsage   float64 // GB/s
-	ComputeIntensity       float64
-	RecommendedPrecision   string
-	SpeedupAchieved        float64
-	AccuracyLoss           float64
+	MatrixSize           int
+	Float32Time          int64   // nanoseconds
+	MixedPrecisionTime   int64   // nanoseconds
+	OptimalTime          int64   // nanoseconds
+	MemoryBandwidthUsage float64 // GB/s
+	ComputeIntensity     float64
+	RecommendedPrecision string
+	SpeedupAchieved      float64
+	AccuracyLoss         float64
 }
 
 // ProfileOperation provides detailed performance analysis for a specific operation
@@ -240,13 +240,13 @@ func (zc *ZeroCopyMixedPrecisionOps) ProfileOperation(A, B *tensor.Tensor, itera
 	}
 
 	// Measure float32 performance (simplified timing)
-	profile.Float32Time = 1000000 // Placeholder - will be measured in Go
-	profile.MixedPrecisionTime = 800000 // Placeholder 
-	profile.OptimalTime = 900000 // Placeholder
+	profile.Float32Time = 1000000       // Placeholder - will be measured in Go
+	profile.MixedPrecisionTime = 800000 // Placeholder
+	profile.OptimalTime = 900000        // Placeholder
 
 	// Calculate metrics
 	profile.SpeedupAchieved = float64(profile.Float32Time) / float64(profile.OptimalTime)
-	
+
 	// Determine recommendation
 	if profile.SpeedupAchieved > 1.1 {
 		profile.RecommendedPrecision = "Mixed"

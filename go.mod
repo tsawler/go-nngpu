@@ -1,4 +1,4 @@
-module github.com/tsawler/go-nngpu
+module github.com/tsawler/gometal
 
 go 1.24.3
 

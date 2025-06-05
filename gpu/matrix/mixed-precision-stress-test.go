@@ -5,7 +5,7 @@ import (
 	"math"
 	"math/rand"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // LossScaleStressTest provides comprehensive testing of loss scaling mechanisms
@@ -45,56 +45,56 @@ func (test *LossScaleStressTest) TestOverflowScenarios() ([]StressTestResult, er
 		{
 			name: "High Initial Scale - Force Overflow",
 			config: &MixedPrecisionConfig{
-				Enabled:             true,
-				LossScale:           1048576.0, // Very high initial scale
-				LossScaleGrowthRate: 2.0,
+				Enabled:              true,
+				LossScale:            1048576.0, // Very high initial scale
+				LossScaleGrowthRate:  2.0,
 				LossScaleBackoffRate: 0.5,
-				GrowthInterval:      5,
-				MaxLossScale:        1048576.0,
-				MinLossScale:        1.0,
-				SkipOverflowSteps:   true,
+				GrowthInterval:       5,
+				MaxLossScale:         1048576.0,
+				MinLossScale:         1.0,
+				SkipOverflowSteps:    true,
 			},
 			gradientSizes: []float32{100.0, 1000.0, 10000.0, 1.0, 0.1}, // Large gradients first
 		},
 		{
 			name: "Low Initial Scale - Test Growth",
 			config: &MixedPrecisionConfig{
-				Enabled:             true,
-				LossScale:           2.0, // Very low initial scale
-				LossScaleGrowthRate: 2.0,
+				Enabled:              true,
+				LossScale:            2.0, // Very low initial scale
+				LossScaleGrowthRate:  2.0,
 				LossScaleBackoffRate: 0.5,
-				GrowthInterval:      3,
-				MaxLossScale:        65536.0,
-				MinLossScale:        1.0,
-				SkipOverflowSteps:   true,
+				GrowthInterval:       3,
+				MaxLossScale:         65536.0,
+				MinLossScale:         1.0,
+				SkipOverflowSteps:    true,
 			},
 			gradientSizes: []float32{0.001, 0.002, 0.001, 0.003, 0.001}, // Small gradients
 		},
 		{
 			name: "Aggressive Backoff - Rapid Scale Reduction",
 			config: &MixedPrecisionConfig{
-				Enabled:             true,
-				LossScale:           32768.0,
-				LossScaleGrowthRate: 1.5,
+				Enabled:              true,
+				LossScale:            32768.0,
+				LossScaleGrowthRate:  1.5,
 				LossScaleBackoffRate: 0.1, // Very aggressive backoff
-				GrowthInterval:      10,
-				MaxLossScale:        65536.0,
-				MinLossScale:        0.1,
-				SkipOverflowSteps:   true,
+				GrowthInterval:       10,
+				MaxLossScale:         65536.0,
+				MinLossScale:         0.1,
+				SkipOverflowSteps:    true,
 			},
 			gradientSizes: []float32{50000.0, 100000.0, 1.0, 0.5}, // Huge gradients then normal
 		},
 		{
 			name: "Conservative Growth - Slow Scale Increase",
 			config: &MixedPrecisionConfig{
-				Enabled:             true,
-				LossScale:           8.0,
-				LossScaleGrowthRate: 1.1, // Very conservative growth
+				Enabled:              true,
+				LossScale:            8.0,
+				LossScaleGrowthRate:  1.1, // Very conservative growth
 				LossScaleBackoffRate: 0.8,
-				GrowthInterval:      2,
-				MaxLossScale:        1024.0,
-				MinLossScale:        1.0,
-				SkipOverflowSteps:   false, // Don't skip steps
+				GrowthInterval:       2,
+				MaxLossScale:         1024.0,
+				MinLossScale:         1.0,
+				SkipOverflowSteps:    false, // Don't skip steps
 			},
 			gradientSizes: []float32{0.01, 0.01, 0.01, 0.01, 0.01}, // Consistent small gradients
 		},
@@ -253,7 +253,7 @@ func (test *LossScaleStressTest) TestPrecisionLimits() (map[string]PrecisionTest
 
 	for i, tensor := range tensors {
 		name := names[i]
-		
+
 		// Convert to float16 and back
 		f16Tensor, err := trainer.ConvertTensorToFloat16(tensor)
 		if err != nil {
@@ -269,11 +269,11 @@ func (test *LossScaleStressTest) TestPrecisionLimits() (map[string]PrecisionTest
 
 		// Analyze precision loss
 		result := PrecisionTestResult{
-			TestCase:     name,
-			OriginalValues: make([]float32, len(tensor.Data)),
+			TestCase:        name,
+			OriginalValues:  make([]float32, len(tensor.Data)),
 			ConvertedValues: make([]float32, len(f16Tensor.Data)),
-			AbsoluteErrors: make([]float64, len(tensor.Data)),
-			RelativeErrors: make([]float64, len(tensor.Data)),
+			AbsoluteErrors:  make([]float64, len(tensor.Data)),
+			RelativeErrors:  make([]float64, len(tensor.Data)),
 		}
 
 		copy(result.OriginalValues, tensor.Data)
@@ -285,10 +285,10 @@ func (test *LossScaleStressTest) TestPrecisionLimits() (map[string]PrecisionTest
 		for j := range tensor.Data {
 			original := float64(tensor.Data[j])
 			converted := float64(f16Tensor.Data[j])
-			
+
 			absError := math.Abs(original - converted)
 			result.AbsoluteErrors[j] = absError
-			
+
 			var relError float64
 			if math.Abs(original) > 1e-15 {
 				relError = absError / math.Abs(original)
@@ -298,7 +298,7 @@ func (test *LossScaleStressTest) TestPrecisionLimits() (map[string]PrecisionTest
 			}
 
 			avgAbsError += absError
-			
+
 			if absError > maxAbsError {
 				maxAbsError = absError
 			}
@@ -322,11 +322,11 @@ func (test *LossScaleStressTest) TestPrecisionLimits() (map[string]PrecisionTest
 
 // PrecisionTestResult holds the results of precision testing
 type PrecisionTestResult struct {
-	TestCase        string
-	OriginalValues  []float32
-	ConvertedValues []float32
-	AbsoluteErrors  []float64
-	RelativeErrors  []float64
+	TestCase         string
+	OriginalValues   []float32
+	ConvertedValues  []float32
+	AbsoluteErrors   []float64
+	RelativeErrors   []float64
 	MaxAbsoluteError float64
 	MaxRelativeError float64
 	AvgAbsoluteError float64
@@ -344,14 +344,14 @@ func (test *LossScaleStressTest) RecommendOptimalScale(results []StressTestResul
 			bestStability = result.StabilityScore
 			// Create config based on the best performing scenario
 			bestConfig = &MixedPrecisionConfig{
-				Enabled:             true,
-				LossScale:           result.InitialScale,
-				LossScaleGrowthRate: 1.5, // Conservative growth
+				Enabled:              true,
+				LossScale:            result.InitialScale,
+				LossScaleGrowthRate:  1.5, // Conservative growth
 				LossScaleBackoffRate: 0.5, // Moderate backoff
-				GrowthInterval:      20,   // Longer intervals for stability
-				MaxLossScale:        result.MaxScale,
-				MinLossScale:        float32(math.Max(1.0, float64(result.MinScale))),
-				SkipOverflowSteps:   true,
+				GrowthInterval:       20,  // Longer intervals for stability
+				MaxLossScale:         result.MaxScale,
+				MinLossScale:         float32(math.Max(1.0, float64(result.MinScale))),
+				SkipOverflowSteps:    true,
 			}
 		}
 	}

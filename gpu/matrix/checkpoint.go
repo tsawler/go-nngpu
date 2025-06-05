@@ -10,20 +10,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tsawler/go-nngpu/gpu/optimizer"
+	"github.com/tsawler/gometal/gpu/optimizer"
 )
 
 // CheckpointManager handles saving and loading training checkpoints
 type CheckpointManager struct {
-	baseDir        string
-	maxCheckpoints int
-	saveOptimizer  bool
-	saveScheduler  bool
-	compression    bool
-	checksumVerify bool
+	baseDir            string
+	maxCheckpoints     int
+	saveOptimizer      bool
+	saveScheduler      bool
+	compression        bool
+	checksumVerify     bool
 	checkpoints        map[*GradientTensor]*CheckpointData // Stores actual checkpoints
 	strategy           CheckpointingStrategy               // Checkpointing strategy
-	checkpointingRatio float32                           // Fraction of layers to checkpoint
+	checkpointingRatio float32                             // Fraction of layers to checkpoint
 	currentMemoryUsage int64                               // Tracks memory used by checkpoints
 	memoryBudget       int64                               // Memory budget for checkpoints
 	mutex              sync.RWMutex                        // Mutex for concurrent access

@@ -13,8 +13,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/tsawler/go-nngpu/tensor"
-	_ "github.com/tsawler/go-nngpu/internal/cgo"
+	_ "github.com/tsawler/gometal/internal/cgo"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // GPUMemoryPool manages GPU memory allocation and reuse
@@ -40,34 +40,34 @@ type MemoryBlock struct {
 // PoolMemoryStats tracks memory pool statistics
 type PoolMemoryStats struct {
 	TotalAllocated     int64
-	TotalFreed        int64
-	PeakUsage         int64
-	AllocationCount   int64
-	FreeCount         int64
-	CacheHits         int64
-	CacheMisses       int64
+	TotalFreed         int64
+	PeakUsage          int64
+	AllocationCount    int64
+	FreeCount          int64
+	CacheHits          int64
+	CacheMisses        int64
 	FragmentationRatio float32
 }
 
 // TensorCache provides caching for frequently used tensors
 type TensorCache struct {
-	cache     map[string]*CachedTensor
-	lru       *LRUList
-	maxSize   int
-	mutex     sync.RWMutex
-	hits      int64
-	misses    int64
+	cache   map[string]*CachedTensor
+	lru     *LRUList
+	maxSize int
+	mutex   sync.RWMutex
+	hits    int64
+	misses  int64
 }
 
 // CachedTensor represents a cached tensor with metadata
 type CachedTensor struct {
-	tensor    *tensor.Tensor
-	shape     []int
-	size      int64
-	created   time.Time
-	accessed  time.Time
-	useCount  int64
-	lruNode   *LRUNode
+	tensor   *tensor.Tensor
+	shape    []int
+	size     int64
+	created  time.Time
+	accessed time.Time
+	useCount int64
+	lruNode  *LRUNode
 }
 
 // LRUList implements a doubly-linked list for LRU cache
@@ -79,9 +79,9 @@ type LRUList struct {
 
 // LRUNode represents a node in the LRU list
 type LRUNode struct {
-	key   string
-	prev  *LRUNode
-	next  *LRUNode
+	key  string
+	prev *LRUNode
+	next *LRUNode
 }
 
 // NewGPUMemoryPool creates a new GPU memory pool
@@ -91,17 +91,17 @@ func NewGPUMemoryPool(maxMemory int64) (*GPUMemoryPool, error) {
 		allocatedPtrs: make(map[unsafe.Pointer]*MemoryBlock),
 		freeBlocks:    make(map[int64][]*MemoryBlock),
 	}
-	
+
 	// Initialize memory pool on GPU side
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	
+
 	var cErr C.CError
 	retCode := C.initialize_memory_pool(
 		C.long(maxMemory),
 		&cErr,
 	)
-	
+
 	if retCode != 0 {
 		var errMsg string
 		if cErr.message != nil {
@@ -110,7 +110,7 @@ func NewGPUMemoryPool(maxMemory int64) (*GPUMemoryPool, error) {
 		}
 		return nil, fmt.Errorf("failed to initialize GPU memory pool (code %d): %s", retCode, errMsg)
 	}
-	
+
 	return pool, nil
 }
 
@@ -118,21 +118,21 @@ func NewGPUMemoryPool(maxMemory int64) (*GPUMemoryPool, error) {
 func (p *GPUMemoryPool) Allocate(size int64) (unsafe.Pointer, error) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-	
+
 	// Check if we have a free block of the right size
 	if blocks, exists := p.freeBlocks[size]; exists && len(blocks) > 0 {
 		// Reuse existing block
 		block := blocks[len(blocks)-1]
 		p.freeBlocks[size] = blocks[:len(blocks)-1]
-		
+
 		block.inUse = true
 		block.lastUsed = time.Now()
 		block.refCount = 1
-		
+
 		p.stats.CacheHits++
 		return block.ptr, nil
 	}
-	
+
 	// Check memory limit
 	if p.maxMemory > 0 && p.currentUsage+size > p.maxMemory {
 		// Try to free some memory
@@ -140,18 +140,18 @@ func (p *GPUMemoryPool) Allocate(size int64) (unsafe.Pointer, error) {
 		if err != nil {
 			return nil, fmt.Errorf("garbage collection failed: %w", err)
 		}
-		
+
 		// Check again after GC
 		if p.currentUsage+size > p.maxMemory {
-			return nil, fmt.Errorf("out of GPU memory: requested %d bytes, available %d bytes", 
+			return nil, fmt.Errorf("out of GPU memory: requested %d bytes, available %d bytes",
 				size, p.maxMemory-p.currentUsage)
 		}
 	}
-	
+
 	// Allocate new block
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	
+
 	var ptr C.GPUPtr
 	var cErr C.CError
 	retCode := C.allocate_gpu_memory(
@@ -159,7 +159,7 @@ func (p *GPUMemoryPool) Allocate(size int64) (unsafe.Pointer, error) {
 		&ptr,
 		&cErr,
 	)
-	
+
 	if retCode != 0 {
 		var errMsg string
 		if cErr.message != nil {
@@ -168,7 +168,7 @@ func (p *GPUMemoryPool) Allocate(size int64) (unsafe.Pointer, error) {
 		}
 		return nil, fmt.Errorf("GPU memory allocation failed (code %d): %s", retCode, errMsg)
 	}
-	
+
 	block := &MemoryBlock{
 		ptr:       unsafe.Pointer(ptr),
 		size:      size,
@@ -177,17 +177,17 @@ func (p *GPUMemoryPool) Allocate(size int64) (unsafe.Pointer, error) {
 		inUse:     true,
 		refCount:  1,
 	}
-	
+
 	p.allocatedPtrs[block.ptr] = block
 	p.currentUsage += size
 	p.stats.TotalAllocated += size
 	p.stats.AllocationCount++
 	p.stats.CacheMisses++
-	
+
 	if p.currentUsage > p.stats.PeakUsage {
 		p.stats.PeakUsage = p.currentUsage
 	}
-	
+
 	return block.ptr, nil
 }
 
@@ -195,24 +195,24 @@ func (p *GPUMemoryPool) Allocate(size int64) (unsafe.Pointer, error) {
 func (p *GPUMemoryPool) Free(ptr unsafe.Pointer) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-	
+
 	block, exists := p.allocatedPtrs[ptr]
 	if !exists {
 		return fmt.Errorf("attempting to free unallocated pointer")
 	}
-	
+
 	block.refCount--
 	if block.refCount > 0 {
 		return nil // Still has references
 	}
-	
+
 	block.inUse = false
 	block.lastUsed = time.Now()
-	
+
 	// Add to free blocks for reuse
 	p.freeBlocks[block.size] = append(p.freeBlocks[block.size], block)
 	p.stats.FreeCount++
-	
+
 	return nil
 }
 
@@ -220,12 +220,12 @@ func (p *GPUMemoryPool) Free(ptr unsafe.Pointer) error {
 func (p *GPUMemoryPool) Release(ptr unsafe.Pointer) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-	
+
 	block, exists := p.allocatedPtrs[ptr]
 	if !exists {
 		return fmt.Errorf("attempting to release unallocated pointer")
 	}
-	
+
 	// Remove from free blocks if present
 	if blocks, exists := p.freeBlocks[block.size]; exists {
 		for i, freeBlock := range blocks {
@@ -235,17 +235,17 @@ func (p *GPUMemoryPool) Release(ptr unsafe.Pointer) error {
 			}
 		}
 	}
-	
+
 	// Free GPU memory
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	
+
 	var cErr C.CError
 	retCode := C.free_gpu_memory(
 		C.GPUPtr(ptr),
 		&cErr,
 	)
-	
+
 	if retCode != 0 {
 		var errMsg string
 		if cErr.message != nil {
@@ -254,11 +254,11 @@ func (p *GPUMemoryPool) Release(ptr unsafe.Pointer) error {
 		}
 		return fmt.Errorf("GPU memory release failed (code %d): %s", retCode, errMsg)
 	}
-	
+
 	delete(p.allocatedPtrs, ptr)
 	p.currentUsage -= block.size
 	p.stats.TotalFreed += block.size
-	
+
 	return nil
 }
 
@@ -266,12 +266,12 @@ func (p *GPUMemoryPool) Release(ptr unsafe.Pointer) error {
 func (p *GPUMemoryPool) garbageCollect() error {
 	now := time.Now()
 	threshold := 5 * time.Minute // Free blocks unused for 5 minutes
-	
+
 	var toRelease []unsafe.Pointer
-	
+
 	for size, blocks := range p.freeBlocks {
 		var keepBlocks []*MemoryBlock
-		
+
 		for _, block := range blocks {
 			if !block.inUse && now.Sub(block.lastUsed) > threshold {
 				toRelease = append(toRelease, block.ptr)
@@ -279,10 +279,10 @@ func (p *GPUMemoryPool) garbageCollect() error {
 				keepBlocks = append(keepBlocks, block)
 			}
 		}
-		
+
 		p.freeBlocks[size] = keepBlocks
 	}
-	
+
 	// Release old blocks
 	for _, ptr := range toRelease {
 		err := p.Release(ptr)
@@ -290,10 +290,10 @@ func (p *GPUMemoryPool) garbageCollect() error {
 			return fmt.Errorf("failed to release memory during GC: %w", err)
 		}
 	}
-	
+
 	// Update fragmentation ratio
 	p.updateFragmentationRatio()
-	
+
 	return nil
 }
 
@@ -303,18 +303,18 @@ func (p *GPUMemoryPool) updateFragmentationRatio() {
 		p.stats.FragmentationRatio = 0.0
 		return
 	}
-	
+
 	// Count free blocks
 	freeBlockCount := 0
 	freeMemory := int64(0)
-	
+
 	for _, blocks := range p.freeBlocks {
 		freeBlockCount += len(blocks)
 		for _, block := range blocks {
 			freeMemory += block.size
 		}
 	}
-	
+
 	if freeBlockCount > 1 && freeMemory > 0 {
 		// Simple fragmentation metric: ratio of free blocks to total memory
 		p.stats.FragmentationRatio = float32(freeBlockCount) / float32(p.currentUsage/1024) // per KB
@@ -341,15 +341,15 @@ func (p *GPUMemoryPool) GetStats() PoolMemoryStats {
 func (p *GPUMemoryPool) ReleaseAll() {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-	
+
 	// Release all allocated blocks
 	for ptr := range p.allocatedPtrs {
 		p.releaseUnsafe(ptr)
 	}
-	
+
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	
+
 	var cErr C.CError
 	C.cleanup_memory_pool(&cErr)
 }
@@ -360,7 +360,7 @@ func (p *GPUMemoryPool) releaseUnsafe(ptr unsafe.Pointer) error {
 	if !exists {
 		return fmt.Errorf("attempting to release unallocated pointer")
 	}
-	
+
 	// Remove from free blocks if present
 	if blocks, exists := p.freeBlocks[block.size]; exists {
 		for i, freeBlock := range blocks {
@@ -370,17 +370,17 @@ func (p *GPUMemoryPool) releaseUnsafe(ptr unsafe.Pointer) error {
 			}
 		}
 	}
-	
+
 	// Free GPU memory
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	
+
 	var cErr C.CError
 	retCode := C.free_gpu_memory(
 		C.GPUPtr(ptr),
 		&cErr,
 	)
-	
+
 	if retCode != 0 {
 		var errMsg string
 		if cErr.message != nil {
@@ -389,11 +389,11 @@ func (p *GPUMemoryPool) releaseUnsafe(ptr unsafe.Pointer) error {
 		}
 		return fmt.Errorf("GPU memory release failed (code %d): %s", retCode, errMsg)
 	}
-	
+
 	delete(p.allocatedPtrs, ptr)
 	p.currentUsage -= block.size
 	p.stats.TotalFreed += block.size
-	
+
 	return nil
 }
 
@@ -410,7 +410,7 @@ func NewTensorCache(maxSize int) *TensorCache {
 func (tc *TensorCache) Get(key string, shape []int, createFn func() (*tensor.Tensor, error)) (*tensor.Tensor, error) {
 	tc.mutex.Lock()
 	defer tc.mutex.Unlock()
-	
+
 	if cached, exists := tc.cache[key]; exists {
 		// Check if shape matches
 		if len(cached.shape) == len(shape) {
@@ -421,7 +421,7 @@ func (tc *TensorCache) Get(key string, shape []int, createFn func() (*tensor.Ten
 					break
 				}
 			}
-			
+
 			if match {
 				cached.accessed = time.Now()
 				cached.useCount++
@@ -430,18 +430,18 @@ func (tc *TensorCache) Get(key string, shape []int, createFn func() (*tensor.Ten
 				return cached.tensor, nil
 			}
 		}
-		
+
 		// Shape mismatch, remove from cache
 		tc.removeUnsafe(key)
 	}
-	
+
 	// Cache miss, create new tensor
 	tc.misses++
 	tensor, err := createFn()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Add to cache if space available
 	if len(tc.cache) < tc.maxSize {
 		tc.putUnsafe(key, tensor, shape)
@@ -450,7 +450,7 @@ func (tc *TensorCache) Get(key string, shape []int, createFn func() (*tensor.Ten
 		tc.evictLRU()
 		tc.putUnsafe(key, tensor, shape)
 	}
-	
+
 	return tensor, nil
 }
 
@@ -466,9 +466,9 @@ func (tc *TensorCache) putUnsafe(key string, tensorObj *tensor.Tensor, shape []i
 	if len(tc.cache) >= tc.maxSize {
 		tc.evictLRU()
 	}
-	
+
 	size := int64(len(tensorObj.Data) * 4) // float32 = 4 bytes
-	
+
 	cached := &CachedTensor{
 		tensor:   tensorObj,
 		shape:    append([]int{}, shape...),
@@ -477,10 +477,10 @@ func (tc *TensorCache) putUnsafe(key string, tensorObj *tensor.Tensor, shape []i
 		accessed: time.Now(),
 		useCount: 1,
 	}
-	
+
 	node := tc.lru.AddToFront(key)
 	cached.lruNode = node
-	
+
 	tc.cache[key] = cached
 }
 
@@ -489,7 +489,7 @@ func (tc *TensorCache) evictLRU() {
 	if tc.lru.size == 0 {
 		return
 	}
-	
+
 	key := tc.lru.RemoveLast()
 	if cached, exists := tc.cache[key]; exists {
 		cached.tensor.ReleaseGPU()
@@ -510,11 +510,11 @@ func (tc *TensorCache) removeUnsafe(key string) {
 func (tc *TensorCache) Clear() {
 	tc.mutex.Lock()
 	defer tc.mutex.Unlock()
-	
+
 	for _, cached := range tc.cache {
 		cached.tensor.ReleaseGPU()
 	}
-	
+
 	tc.cache = make(map[string]*CachedTensor)
 	tc.lru = NewLRUList()
 }
@@ -523,12 +523,12 @@ func (tc *TensorCache) Clear() {
 func (tc *TensorCache) GetStats() (hits, misses int64, hitRatio float32) {
 	tc.mutex.RLock()
 	defer tc.mutex.RUnlock()
-	
+
 	total := tc.hits + tc.misses
 	if total > 0 {
 		hitRatio = float32(tc.hits) / float32(total)
 	}
-	
+
 	return tc.hits, tc.misses, hitRatio
 }
 
@@ -538,7 +538,7 @@ func NewLRUList() *LRUList {
 	tail := &LRUNode{}
 	head.next = tail
 	tail.prev = head
-	
+
 	return &LRUList{
 		head: head,
 		tail: tail,
@@ -549,12 +549,12 @@ func NewLRUList() *LRUList {
 // AddToFront adds a node to the front of the list
 func (lru *LRUList) AddToFront(key string) *LRUNode {
 	node := &LRUNode{key: key}
-	
+
 	node.next = lru.head.next
 	node.prev = lru.head
 	lru.head.next.prev = node
 	lru.head.next = node
-	
+
 	lru.size++
 	return node
 }
@@ -581,7 +581,7 @@ func (lru *LRUList) RemoveLast() string {
 	if lru.size == 0 {
 		return ""
 	}
-	
+
 	last := lru.tail.prev
 	key := last.key
 	lru.Remove(last)
@@ -622,11 +622,11 @@ func (mp *MemoryProfiler) Start(memPool *GPUMemoryPool, cache *TensorCache) {
 	mp.mutex.Lock()
 	mp.active = true
 	mp.mutex.Unlock()
-	
+
 	go func() {
 		ticker := time.NewTicker(mp.interval)
 		defer ticker.Stop()
-		
+
 		for {
 			select {
 			case <-ticker.C:
@@ -642,7 +642,7 @@ func (mp *MemoryProfiler) Start(memPool *GPUMemoryPool, cache *TensorCache) {
 func (mp *MemoryProfiler) Stop() {
 	mp.mutex.Lock()
 	defer mp.mutex.Unlock()
-	
+
 	if mp.active {
 		mp.active = false
 		mp.stopChan <- true
@@ -653,12 +653,12 @@ func (mp *MemoryProfiler) Stop() {
 func (mp *MemoryProfiler) collectSample(memPool *GPUMemoryPool, cache *TensorCache) {
 	mp.mutex.Lock()
 	defer mp.mutex.Unlock()
-	
+
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	hits, misses, _ := cache.GetStats()
-	
+
 	sample := MemorySample{
 		Timestamp:   time.Now(),
 		GPUUsage:    memPool.GetUsage(),
@@ -666,7 +666,7 @@ func (mp *MemoryProfiler) collectSample(memPool *GPUMemoryPool, cache *TensorCac
 		CacheHits:   hits,
 		CacheMisses: misses,
 	}
-	
+
 	if len(mp.samples) >= mp.maxSamples {
 		// Remove oldest sample
 		copy(mp.samples, mp.samples[1:])
@@ -680,7 +680,7 @@ func (mp *MemoryProfiler) collectSample(memPool *GPUMemoryPool, cache *TensorCac
 func (mp *MemoryProfiler) GetSamples() []MemorySample {
 	mp.mutex.RLock()
 	defer mp.mutex.RUnlock()
-	
+
 	result := make([]MemorySample, len(mp.samples))
 	copy(result, mp.samples)
 	return result
@@ -690,7 +690,7 @@ func (mp *MemoryProfiler) GetSamples() []MemorySample {
 func (mp *MemoryProfiler) GetPeakUsage() (gpuPeak, cpuPeak int64) {
 	mp.mutex.RLock()
 	defer mp.mutex.RUnlock()
-	
+
 	for _, sample := range mp.samples {
 		if sample.GPUUsage > gpuPeak {
 			gpuPeak = sample.GPUUsage
@@ -699,6 +699,6 @@ func (mp *MemoryProfiler) GetPeakUsage() (gpuPeak, cpuPeak int64) {
 			cpuPeak = sample.CPUUsage
 		}
 	}
-	
+
 	return gpuPeak, cpuPeak
 }

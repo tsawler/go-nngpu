@@ -11,9 +11,9 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/tsawler/go-nngpu/gpu/optimizer"
-	_ "github.com/tsawler/go-nngpu/internal/cgo"
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/gpu/optimizer"
+	_ "github.com/tsawler/gometal/internal/cgo"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // TrainingConfig contains configuration for memory-efficient training
@@ -840,13 +840,13 @@ func (t *Trainer) SaveCheckpoint(filepath string) error {
 func GetCombinedMemoryStats(state *TrainingState) (poolUsage, tensorUsage, peakUsage int64) {
 	// Get tensor memory stats (actual GPU memory usage)
 	tensorUsage, peakUsage, _ = tensor.GetGlobalMemoryStats()
-	
+
 	// Get memory pool stats (if available)
 	if state.MemoryPool != nil {
 		poolStats := state.MemoryPool.GetStats()
 		poolUsage = poolStats.PeakUsage
 	}
-	
+
 	return poolUsage, tensorUsage, peakUsage
 }
 

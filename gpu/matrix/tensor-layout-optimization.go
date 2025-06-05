@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // Phase 8C: Tensor Layout Optimization
@@ -17,7 +17,7 @@ const (
 	// Standard layouts
 	LayoutRowMajor TensorLayout = iota // Standard row-major layout
 	LayoutColMajor                     // Column-major layout
-	
+
 	// Optimized layouts for specific operations
 	LayoutNHWC            // Batch, Height, Width, Channels (GPU-friendly for convolution)
 	LayoutNCHW            // Batch, Channels, Height, Width (CPU-friendly)
@@ -64,12 +64,12 @@ type TensorLayoutOptimizer struct {
 
 // TensorLayoutInfo contains information about an optimized tensor layout
 type TensorLayoutInfo struct {
-	OriginalShape []int        // Original tensor shape
-	OptimizedShape []int       // Optimized shape (may include padding)
-	Layout        TensorLayout // Layout type
-	Padding       []int        // Padding added to each dimension
-	Stride        []int        // Stride for each dimension
-	TileInfo      *TileInfo    // Tiling information if applicable
+	OriginalShape  []int        // Original tensor shape
+	OptimizedShape []int        // Optimized shape (may include padding)
+	Layout         TensorLayout // Layout type
+	Padding        []int        // Padding added to each dimension
+	Stride         []int        // Stride for each dimension
+	TileInfo       *TileInfo    // Tiling information if applicable
 }
 
 // TileInfo contains tiling information for tiled layouts
@@ -83,8 +83,8 @@ type TileInfo struct {
 func NewTensorLayoutOptimizer() *TensorLayoutOptimizer {
 	return &TensorLayoutOptimizer{
 		cache:     make(map[string]*TensorLayoutInfo),
-		tileSize:  64,  // 64x64 tiles for good cache locality
-		blockSize: 16,  // 16x16 blocks for vectorization
+		tileSize:  64, // 64x64 tiles for good cache locality
+		blockSize: 16, // 16x16 blocks for vectorization
 	}
 }
 
@@ -92,7 +92,7 @@ func NewTensorLayoutOptimizer() *TensorLayoutOptimizer {
 func (tlo *TensorLayoutOptimizer) OptimizeLayout(shape []int, operation string, dataType string) *TensorLayoutInfo {
 	// Create cache key
 	key := fmt.Sprintf("%v_%s_%s", shape, operation, dataType)
-	
+
 	tlo.mutex.RLock()
 	if info, exists := tlo.cache[key]; exists {
 		tlo.mutex.RUnlock()
@@ -102,7 +102,7 @@ func (tlo *TensorLayoutOptimizer) OptimizeLayout(shape []int, operation string, 
 
 	// Determine optimal layout based on operation and tensor properties
 	var info *TensorLayoutInfo
-	
+
 	switch operation {
 	case "conv2d", "convolution":
 		info = tlo.optimizeForConvolution(shape)
@@ -119,12 +119,12 @@ func (tlo *TensorLayoutOptimizer) OptimizeLayout(shape []int, operation string, 
 	default:
 		info = tlo.optimizeGeneral(shape)
 	}
-	
+
 	// Cache the result
 	tlo.mutex.Lock()
 	tlo.cache[key] = info
 	tlo.mutex.Unlock()
-	
+
 	return info
 }
 
@@ -133,31 +133,31 @@ func (tlo *TensorLayoutOptimizer) optimizeForConvolution(shape []int) *TensorLay
 	if len(shape) != 4 {
 		return tlo.optimizeGeneral(shape) // Fall back for non-4D tensors
 	}
-	
+
 	batch, height, width, channels := shape[0], shape[1], shape[2], shape[3]
-	
+
 	// Calculate memory overhead before optimization
 	originalSize := batch * height * width * channels
-	
+
 	// For GPU efficiency, pad channels to multiple of 4 or 8 (not 16)
 	// Use smaller alignment to reduce memory waste
 	var paddedChannels int
 	if channels <= 4 {
-		paddedChannels = ((channels + 3) / 4) * 4  // Align to 4 for small channel counts
+		paddedChannels = ((channels + 3) / 4) * 4 // Align to 4 for small channel counts
 	} else {
-		paddedChannels = ((channels + 7) / 8) * 8  // Align to 8 for larger channel counts
+		paddedChannels = ((channels + 7) / 8) * 8 // Align to 8 for larger channel counts
 	}
 	channelPadding := paddedChannels - channels
-	
+
 	// Don't add spatial padding here - let the convolution operation handle it
 	// This avoids unnecessary memory overhead for operations that don't need it
 	paddedHeight := height
 	paddedWidth := width
-	
+
 	// Calculate optimized size and check if overhead is reasonable
 	optimizedSize := batch * paddedHeight * paddedWidth * paddedChannels
 	overheadRatio := float64(optimizedSize) / float64(originalSize)
-	
+
 	// If overhead is too high (>50%), don't optimize
 	if overheadRatio > 1.5 {
 		return &TensorLayoutInfo{
@@ -168,11 +168,11 @@ func (tlo *TensorLayoutOptimizer) optimizeForConvolution(shape []int) *TensorLay
 			Stride:         []int{height * width * channels, width * channels, channels, 1},
 		}
 	}
-	
+
 	optimizedShape := []int{batch, paddedHeight, paddedWidth, paddedChannels}
 	padding := []int{0, 0, 0, channelPadding}
 	stride := []int{paddedHeight * paddedWidth * paddedChannels, paddedWidth * paddedChannels, paddedChannels, 1}
-	
+
 	return &TensorLayoutInfo{
 		OriginalShape:  shape,
 		OptimizedShape: optimizedShape,
@@ -187,9 +187,9 @@ func (tlo *TensorLayoutOptimizer) optimizeForMatrixMultiplication(shape []int) *
 	if len(shape) != 2 {
 		return tlo.optimizeGeneral(shape)
 	}
-	
+
 	rows, cols := shape[0], shape[1]
-	
+
 	// Choose between tiled and blocked layout based on matrix size
 	if rows >= 512 && cols >= 512 {
 		return tlo.optimizeWithTiling(shape, LayoutTiled)
@@ -205,11 +205,11 @@ func (tlo *TensorLayoutOptimizer) optimizeForElementwise(shape []int) *TensorLay
 	for _, dim := range shape {
 		totalSize *= dim
 	}
-	
+
 	// Pad to multiple of 16 for SIMD operations
 	paddedSize := ((totalSize + 15) / 16) * 16
 	elementPadding := paddedSize - totalSize
-	
+
 	if elementPadding == 0 {
 		// No padding needed
 		stride := make([]int, len(shape))
@@ -217,7 +217,7 @@ func (tlo *TensorLayoutOptimizer) optimizeForElementwise(shape []int) *TensorLay
 		for i := len(stride) - 2; i >= 0; i-- {
 			stride[i] = stride[i+1] * shape[i+1]
 		}
-		
+
 		return &TensorLayoutInfo{
 			OriginalShape:  shape,
 			OptimizedShape: shape,
@@ -226,21 +226,21 @@ func (tlo *TensorLayoutOptimizer) optimizeForElementwise(shape []int) *TensorLay
 			Stride:         stride,
 		}
 	}
-	
+
 	// Add padding to the last dimension
 	optimizedShape := make([]int, len(shape))
 	copy(optimizedShape, shape)
 	optimizedShape[len(optimizedShape)-1] += elementPadding
-	
+
 	padding := make([]int, len(shape))
 	padding[len(padding)-1] = elementPadding
-	
+
 	stride := make([]int, len(shape))
 	stride[len(stride)-1] = 1
 	for i := len(stride) - 2; i >= 0; i-- {
 		stride[i] = stride[i+1] * optimizedShape[i+1]
 	}
-	
+
 	return &TensorLayoutInfo{
 		OriginalShape:  shape,
 		OptimizedShape: optimizedShape,
@@ -254,34 +254,34 @@ func (tlo *TensorLayoutOptimizer) optimizeForElementwise(shape []int) *TensorLay
 func (tlo *TensorLayoutOptimizer) optimizeForReduction(shape []int) *TensorLayoutInfo {
 	// For reductions, organize data for efficient parallel access
 	// Prefer layouts that allow coalesced memory access during reduction
-	
+
 	if len(shape) == 1 {
 		return tlo.optimizeForElementwise(shape)
 	}
-	
+
 	// For multi-dimensional reductions, ensure the reduction dimension is continuous
 	// and well-aligned for parallel reduction
 	lastDim := shape[len(shape)-1]
 	paddedLastDim := ((lastDim + 31) / 32) * 32 // Pad to multiple of 32 for efficient reduction
 	padding := paddedLastDim - lastDim
-	
+
 	if padding == 0 {
 		return tlo.optimizeGeneral(shape)
 	}
-	
+
 	optimizedShape := make([]int, len(shape))
 	copy(optimizedShape, shape)
 	optimizedShape[len(optimizedShape)-1] = paddedLastDim
-	
+
 	paddingArray := make([]int, len(shape))
 	paddingArray[len(paddingArray)-1] = padding
-	
+
 	stride := make([]int, len(shape))
 	stride[len(stride)-1] = 1
 	for i := len(stride) - 2; i >= 0; i-- {
 		stride[i] = stride[i+1] * optimizedShape[i+1]
 	}
-	
+
 	return &TensorLayoutInfo{
 		OriginalShape:  shape,
 		OptimizedShape: optimizedShape,
@@ -296,7 +296,7 @@ func (tlo *TensorLayoutOptimizer) optimizeForTranspose(shape []int) *TensorLayou
 	if len(shape) != 2 {
 		return tlo.optimizeGeneral(shape) // Only optimize 2D transposes for now
 	}
-	
+
 	// For transpose operations, use blocked layout to improve cache locality
 	return tlo.optimizeWithBlocking(shape, LayoutBlockedRowMajor)
 }
@@ -306,22 +306,22 @@ func (tlo *TensorLayoutOptimizer) optimizeForAttention(shape []int) *TensorLayou
 	if len(shape) != 3 {
 		return tlo.optimizeGeneral(shape) // Expect [batch, seq_len, model_dim]
 	}
-	
+
 	batch, seqLen, modelDim := shape[0], shape[1], shape[2]
-	
+
 	// Pad model dimension to multiple of head size (typically 64 or 128)
 	headSize := 64
 	paddedModelDim := ((modelDim + headSize - 1) / headSize) * headSize
 	modelPadding := paddedModelDim - modelDim
-	
+
 	// Pad sequence length to multiple of 32 for efficient attention computation
 	paddedSeqLen := ((seqLen + 31) / 32) * 32
 	seqPadding := paddedSeqLen - seqLen
-	
+
 	optimizedShape := []int{batch, paddedSeqLen, paddedModelDim}
 	padding := []int{0, seqPadding, modelPadding}
 	stride := []int{paddedSeqLen * paddedModelDim, paddedModelDim, 1}
-	
+
 	return &TensorLayoutInfo{
 		OriginalShape:  shape,
 		OptimizedShape: optimizedShape,
@@ -336,33 +336,33 @@ func (tlo *TensorLayoutOptimizer) optimizeWithTiling(shape []int, layout TensorL
 	if len(shape) != 2 {
 		return tlo.optimizeGeneral(shape)
 	}
-	
+
 	rows, cols := shape[0], shape[1]
 	tileRows := tlo.tileSize
 	tileColumns := tlo.tileSize
-	
+
 	// Calculate number of tiles
 	numTileRows := (rows + tileRows - 1) / tileRows
 	numTileColumns := (cols + tileColumns - 1) / tileColumns
-	
+
 	// Calculate padding needed
 	paddedRows := numTileRows * tileRows
 	paddedColumns := numTileColumns * tileColumns
 	rowPadding := paddedRows - rows
 	colPadding := paddedColumns - cols
-	
+
 	optimizedShape := []int{paddedRows, paddedColumns}
 	padding := []int{rowPadding, colPadding}
-	
+
 	// For tiled layout, stride is more complex
 	stride := []int{paddedColumns, 1}
-	
+
 	tileInfo := &TileInfo{
 		TileSize:   []int{tileRows, tileColumns},
 		NumTiles:   []int{numTileRows, numTileColumns},
 		TileStride: []int{tileRows * paddedColumns, tileColumns},
 	}
-	
+
 	return &TensorLayoutInfo{
 		OriginalShape:  shape,
 		OptimizedShape: optimizedShape,
@@ -378,21 +378,21 @@ func (tlo *TensorLayoutOptimizer) optimizeWithBlocking(shape []int, layout Tenso
 	if len(shape) != 2 {
 		return tlo.optimizeGeneral(shape)
 	}
-	
+
 	rows, cols := shape[0], shape[1]
 	blockRows := tlo.blockSize
 	blockColumns := tlo.blockSize
-	
+
 	// Calculate padding for block alignment
 	paddedRows := ((rows + blockRows - 1) / blockRows) * blockRows
 	paddedColumns := ((cols + blockColumns - 1) / blockColumns) * blockColumns
 	rowPadding := paddedRows - rows
 	colPadding := paddedColumns - cols
-	
+
 	optimizedShape := []int{paddedRows, paddedColumns}
 	padding := []int{rowPadding, colPadding}
 	stride := []int{paddedColumns, 1}
-	
+
 	return &TensorLayoutInfo{
 		OriginalShape:  shape,
 		OptimizedShape: optimizedShape,
@@ -409,11 +409,11 @@ func (tlo *TensorLayoutOptimizer) optimizeGeneral(shape []int) *TensorLayoutInfo
 	for _, dim := range shape {
 		totalSize *= dim
 	}
-	
+
 	// Align to 16 elements (64 bytes for float32)
 	alignedSize := ((totalSize + 15) / 16) * 16
 	padding := alignedSize - totalSize
-	
+
 	if padding == 0 {
 		// No optimization needed
 		stride := make([]int, len(shape))
@@ -423,7 +423,7 @@ func (tlo *TensorLayoutOptimizer) optimizeGeneral(shape []int) *TensorLayoutInfo
 				stride[i] = stride[i+1] * shape[i+1]
 			}
 		}
-		
+
 		return &TensorLayoutInfo{
 			OriginalShape:  shape,
 			OptimizedShape: shape,
@@ -432,19 +432,19 @@ func (tlo *TensorLayoutOptimizer) optimizeGeneral(shape []int) *TensorLayoutInfo
 			Stride:         stride,
 		}
 	}
-	
+
 	// Add padding to the last dimension
 	optimizedShape := make([]int, len(shape))
 	copy(optimizedShape, shape)
 	if len(optimizedShape) > 0 {
 		optimizedShape[len(optimizedShape)-1] += padding
 	}
-	
+
 	paddingArray := make([]int, len(shape))
 	if len(paddingArray) > 0 {
 		paddingArray[len(paddingArray)-1] = padding
 	}
-	
+
 	stride := make([]int, len(shape))
 	if len(stride) > 0 {
 		stride[len(stride)-1] = 1
@@ -452,7 +452,7 @@ func (tlo *TensorLayoutOptimizer) optimizeGeneral(shape []int) *TensorLayoutInfo
 			stride[i] = stride[i+1] * optimizedShape[i+1]
 		}
 	}
-	
+
 	return &TensorLayoutInfo{
 		OriginalShape:  shape,
 		OptimizedShape: optimizedShape,
@@ -465,27 +465,27 @@ func (tlo *TensorLayoutOptimizer) optimizeGeneral(shape []int) *TensorLayoutInfo
 // ApplyLayoutOptimization applies the layout optimization to a tensor
 func (tlo *TensorLayoutOptimizer) ApplyLayoutOptimization(t *tensor.Tensor, operation string) (*tensor.Tensor, *TensorLayoutInfo, error) {
 	layoutInfo := tlo.OptimizeLayout(t.Shape, operation, "float32")
-	
+
 	// If no optimization is needed, return original tensor
 	if layoutInfo.Layout == LayoutRowMajor && sumIntSlice(layoutInfo.Padding) == 0 {
 		return t, layoutInfo, nil
 	}
-	
+
 	// Create optimized tensor data
 	optimizedData := make([]float32, calculateTotalSize(layoutInfo.OptimizedShape))
-	
+
 	// Copy and transform data according to the layout
 	err := tlo.transformTensorData(t.Data, optimizedData, layoutInfo)
 	if err != nil {
 		return t, layoutInfo, err // Fall back to original tensor
 	}
-	
+
 	// Create new tensor with optimized layout
 	optimizedTensor, err := tensor.NewTensor(layoutInfo.OptimizedShape, optimizedData)
 	if err != nil {
 		return t, layoutInfo, err // Fall back to original tensor
 	}
-	
+
 	return optimizedTensor, layoutInfo, nil
 }
 
@@ -512,7 +512,7 @@ func (tlo *TensorLayoutOptimizer) transformWithPadding(src, dst []float32, layou
 		copy(dst, src)
 		return nil
 	}
-	
+
 	// Multi-dimensional padding
 	return tlo.copyWithPadding(src, dst, layoutInfo.OriginalShape, layoutInfo.OptimizedShape, layoutInfo.Padding)
 }
@@ -523,7 +523,7 @@ func (tlo *TensorLayoutOptimizer) copyWithPadding(src, dst []float32, originalSh
 	if len(originalShape) == 2 {
 		rows, cols := originalShape[0], originalShape[1]
 		optCols := optimizedShape[1]
-		
+
 		for r := 0; r < rows; r++ {
 			srcOffset := r * cols
 			dstOffset := r * optCols
@@ -534,18 +534,18 @@ func (tlo *TensorLayoutOptimizer) copyWithPadding(src, dst []float32, originalSh
 		// 4D tensor (common for convolution)
 		batch, height, width, channels := originalShape[0], originalShape[1], originalShape[2], originalShape[3]
 		_, optHeight, optWidth, optChannels := optimizedShape[0], optimizedShape[1], optimizedShape[2], optimizedShape[3]
-		
+
 		for b := 0; b < batch; b++ {
 			for h := 0; h < height; h++ {
 				for w := 0; w < width; w++ {
-					srcOffset := ((b*height+h)*width+w)*channels
-					dstOffset := ((b*optHeight+h)*optWidth+w)*optChannels
+					srcOffset := ((b*height+h)*width + w) * channels
+					dstOffset := ((b*optHeight+h)*optWidth + w) * optChannels
 					copy(dst[dstOffset:dstOffset+channels], src[srcOffset:srcOffset+channels])
 				}
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -554,18 +554,18 @@ func (tlo *TensorLayoutOptimizer) transformToTiled(src, dst []float32, layoutInf
 	if layoutInfo.TileInfo == nil || len(layoutInfo.OriginalShape) != 2 {
 		return fmt.Errorf("invalid tiling information")
 	}
-	
+
 	rows, cols := layoutInfo.OriginalShape[0], layoutInfo.OriginalShape[1]
 	tileRows, tileCols := layoutInfo.TileInfo.TileSize[0], layoutInfo.TileInfo.TileSize[1]
 	optCols := layoutInfo.OptimizedShape[1]
-	
+
 	// Copy data in tile order
 	for tileR := 0; tileR < rows; tileR += tileRows {
 		for tileC := 0; tileC < cols; tileC += tileCols {
 			// Copy this tile
 			maxR := min(tileR+tileRows, rows)
 			maxC := min(tileC+tileCols, cols)
-			
+
 			for r := tileR; r < maxR; r++ {
 				for c := tileC; c < maxC; c++ {
 					srcIdx := r*cols + c
@@ -575,7 +575,7 @@ func (tlo *TensorLayoutOptimizer) transformToTiled(src, dst []float32, layoutInf
 			}
 		}
 	}
-	
+
 	return nil
 }
 

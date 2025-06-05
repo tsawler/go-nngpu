@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // Phase 8C: GPU-CPU Transfer Optimizer
@@ -24,26 +24,26 @@ type GPUCPUTransferOptimizer struct {
 
 // TransferCacheEntry tracks tensor transfer state
 type TransferCacheEntry struct {
-	Tensor         *tensor.Tensor
-	GPUValid       bool
-	CPUValid       bool
-	LastGPUAccess  time.Time
-	LastCPUAccess  time.Time
-	TransferCount  int
-	IsPinned       bool // Whether tensor uses pinned memory
-	LastOperation  string
+	Tensor        *tensor.Tensor
+	GPUValid      bool
+	CPUValid      bool
+	LastGPUAccess time.Time
+	LastCPUAccess time.Time
+	TransferCount int
+	IsPinned      bool // Whether tensor uses pinned memory
+	LastOperation string
 }
 
 // TransferStatistics tracks transfer performance metrics
 type TransferStatistics struct {
-	TotalTransfers      int64
+	TotalTransfers        int64
 	TotalBytesTransferred int64
-	CPUToGPUTransfers   int64
-	GPUToCPUTransfers   int64
-	CacheHits           int64
-	CacheMisses         int64
-	AverageTransferTime time.Duration
-	PinnedMemoryUsed    int64
+	CPUToGPUTransfers     int64
+	GPUToCPUTransfers     int64
+	CacheHits             int64
+	CacheMisses           int64
+	AverageTransferTime   time.Duration
+	PinnedMemoryUsed      int64
 }
 
 // NewGPUCPUTransferOptimizer creates a new transfer optimizer
@@ -90,7 +90,7 @@ func (opt *GPUCPUTransferOptimizer) OptimizeTransfer(t *tensor.Tensor, toGPU boo
 	// Perform the transfer
 	start := time.Now()
 	var err error
-	
+
 	if toGPU {
 		err = opt.transferToGPU(t, entry)
 		if err == nil {
@@ -126,7 +126,7 @@ func (opt *GPUCPUTransferOptimizer) transferToGPU(t *tensor.Tensor, entry *Trans
 	// 1. Use pinned memory for faster transfers
 	// 2. Use async transfers when possible
 	// 3. Batch small transfers together
-	
+
 	// For now, use the tensor's built-in GPU transfer
 	err := t.EnsureGPU()
 	if err != nil {
@@ -147,10 +147,10 @@ func (opt *GPUCPUTransferOptimizer) transferToCPU(t *tensor.Tensor, entry *Trans
 // updateTransferStats updates transfer statistics
 func (opt *GPUCPUTransferOptimizer) updateTransferStats(t *tensor.Tensor, transferTime time.Duration) {
 	tensorSize := int64(len(t.Data) * 4) // 4 bytes per float32
-	
+
 	opt.transferStats.TotalTransfers++
 	opt.transferStats.TotalBytesTransferred += tensorSize
-	
+
 	// Update average transfer time
 	if opt.transferStats.AverageTransferTime == 0 {
 		opt.transferStats.AverageTransferTime = transferTime
@@ -247,7 +247,7 @@ func (opt *GPUCPUTransferOptimizer) InvalidateCPU(t *tensor.Tensor) {
 func (opt *GPUCPUTransferOptimizer) GetTransferStats() TransferStatistics {
 	opt.mutex.RLock()
 	defer opt.mutex.RUnlock()
-	
+
 	return opt.transferStats
 }
 
@@ -255,7 +255,7 @@ func (opt *GPUCPUTransferOptimizer) GetTransferStats() TransferStatistics {
 func (opt *GPUCPUTransferOptimizer) ClearCache() {
 	opt.mutex.Lock()
 	defer opt.mutex.Unlock()
-	
+
 	opt.tensorCache = make(map[*tensor.Tensor]*TransferCacheEntry)
 }
 
@@ -263,7 +263,7 @@ func (opt *GPUCPUTransferOptimizer) ClearCache() {
 func (opt *GPUCPUTransferOptimizer) EnableCaching(enable bool) {
 	opt.mutex.Lock()
 	defer opt.mutex.Unlock()
-	
+
 	opt.cachingEnabled = enable
 }
 
@@ -271,7 +271,7 @@ func (opt *GPUCPUTransferOptimizer) EnableCaching(enable bool) {
 func (opt *GPUCPUTransferOptimizer) SetBatchSize(size int) {
 	opt.mutex.Lock()
 	defer opt.mutex.Unlock()
-	
+
 	if size > 0 {
 		opt.batchSize = size
 	}
@@ -283,12 +283,12 @@ func (opt *GPUCPUTransferOptimizer) GetCacheInfo() map[string]interface{} {
 	defer opt.mutex.RUnlock()
 
 	info := map[string]interface{}{
-		"cache_size":       len(opt.tensorCache),
-		"caching_enabled":  opt.cachingEnabled,
-		"async_transfers":  opt.asyncTransfers,
-		"batch_size":       opt.batchSize,
-		"total_transfers":  opt.transferStats.TotalTransfers,
-		"cache_hit_rate":   float64(0),
+		"cache_size":      len(opt.tensorCache),
+		"caching_enabled": opt.cachingEnabled,
+		"async_transfers": opt.asyncTransfers,
+		"batch_size":      opt.batchSize,
+		"total_transfers": opt.transferStats.TotalTransfers,
+		"cache_hit_rate":  float64(0),
 	}
 
 	totalAccesses := opt.transferStats.CacheHits + opt.transferStats.CacheMisses
@@ -312,13 +312,13 @@ func (opt *GPUCPUTransferOptimizer) OptimizeBatchTransfer(batch *BatchedTransfer
 	// 1. Sort tensors by size for optimal packing
 	// 2. Use a single large transfer when possible
 	// 3. Pipeline transfers with computation
-	
+
 	for _, t := range batch.Tensors {
 		if err := opt.OptimizeTransfer(t, batch.ToGPU, batch.Operation); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 

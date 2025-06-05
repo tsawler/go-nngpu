@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // GradientUtilities provides advanced utilities for gradient manipulation,

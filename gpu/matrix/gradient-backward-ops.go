@@ -3,7 +3,7 @@ package matrix
 import (
 	"fmt"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // This file contains the missing backward function implementations for

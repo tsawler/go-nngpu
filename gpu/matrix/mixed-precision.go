@@ -11,7 +11,7 @@ import (
 	"math"
 	"unsafe"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // PrecisionType represents the data precision for mixed precision training
@@ -24,39 +24,39 @@ const (
 
 // MixedPrecisionConfig configures mixed precision training behavior
 type MixedPrecisionConfig struct {
-	Enabled             bool          // Enable mixed precision training
-	LossScale           float32       // Initial loss scale factor
-	LossScaleGrowthRate float32       // Factor to increase loss scale when no overflow
-	LossScaleBackoffRate float32      // Factor to decrease loss scale on overflow
-	GrowthInterval      int           // Number of steps between loss scale growth attempts
-	MaxLossScale        float32       // Maximum allowed loss scale
-	MinLossScale        float32       // Minimum allowed loss scale
-	SkipOverflowSteps   bool          // Skip optimizer step on gradient overflow
+	Enabled              bool    // Enable mixed precision training
+	LossScale            float32 // Initial loss scale factor
+	LossScaleGrowthRate  float32 // Factor to increase loss scale when no overflow
+	LossScaleBackoffRate float32 // Factor to decrease loss scale on overflow
+	GrowthInterval       int     // Number of steps between loss scale growth attempts
+	MaxLossScale         float32 // Maximum allowed loss scale
+	MinLossScale         float32 // Minimum allowed loss scale
+	SkipOverflowSteps    bool    // Skip optimizer step on gradient overflow
 }
 
 // DefaultMixedPrecisionConfig returns default mixed precision configuration
 func DefaultMixedPrecisionConfig() *MixedPrecisionConfig {
 	return &MixedPrecisionConfig{
-		Enabled:             true,
-		LossScale:           65536.0,   // 2^16
-		LossScaleGrowthRate: 2.0,
+		Enabled:              true,
+		LossScale:            65536.0, // 2^16
+		LossScaleGrowthRate:  2.0,
 		LossScaleBackoffRate: 0.5,
-		GrowthInterval:      2000,
-		MaxLossScale:        1048576.0, // 2^20
-		MinLossScale:        1.0,
-		SkipOverflowSteps:   true,
+		GrowthInterval:       2000,
+		MaxLossScale:         1048576.0, // 2^20
+		MinLossScale:         1.0,
+		SkipOverflowSteps:    true,
 	}
 }
 
 // MixedPrecisionTrainer manages mixed precision training state
 type MixedPrecisionTrainer struct {
-	config              *MixedPrecisionConfig
-	currentLossScale    float32
+	config               *MixedPrecisionConfig
+	currentLossScale     float32
 	stepsSinceLastGrowth int
-	overflowDetected    bool
-	scaleBuffer         unsafe.Pointer // GPU buffer for loss scale
-	overflowBuffer      unsafe.Pointer // GPU buffer for overflow detection
-	devicePtr           unsafe.Pointer
+	overflowDetected     bool
+	scaleBuffer          unsafe.Pointer // GPU buffer for loss scale
+	overflowBuffer       unsafe.Pointer // GPU buffer for overflow detection
+	devicePtr            unsafe.Pointer
 }
 
 // NewMixedPrecisionTrainer creates a new mixed precision trainer
@@ -88,14 +88,14 @@ func (mp *MixedPrecisionTrainer) initializeGPUBuffers() error {
 	if err != nil {
 		return fmt.Errorf("failed to create scale tensor: %w", err)
 	}
-	
+
 	if err := scaleTensor.EnsureGPU(); err != nil {
 		return fmt.Errorf("failed to move scale tensor to GPU: %w", err)
 	}
-	
+
 	// Store tensor instead of raw GPU pointer for compatibility
 	// TODO: In a real implementation, we'd store the tensor reference
-	
+
 	return nil
 }
 
@@ -105,12 +105,12 @@ type FloatMP16 uint16
 // Float32ToFloatMP16 converts float32 to float16
 func Float32ToFloatMP16(f float32) FloatMP16 {
 	bits := math.Float32bits(f)
-	
+
 	// Extract sign, exponent, and mantissa
 	sign := (bits >> 31) & 0x1
 	exp := (bits >> 23) & 0xFF
 	mantissa := bits & 0x7FFFFF
-	
+
 	// Handle special cases
 	if exp == 0 {
 		// Zero or subnormal
@@ -125,10 +125,10 @@ func Float32ToFloatMP16(f float32) FloatMP16 {
 			return FloatMP16((sign << 15) | 0x7C00 | (mantissa >> 13))
 		}
 	}
-	
+
 	// Adjust exponent for float16 bias (15 vs 127)
 	expAdjusted := int32(exp) - 127 + 15
-	
+
 	if expAdjusted >= 31 {
 		// Overflow to infinity
 		return FloatMP16((sign << 15) | 0x7C00)
@@ -145,7 +145,7 @@ func Float32ToFloatMP16(f float32) FloatMP16 {
 		}
 		return FloatMP16((sign << 15) | (mantissa >> 13))
 	}
-	
+
 	// Normal number
 	return FloatMP16((sign << 15) | (uint32(expAdjusted) << 10) | (mantissa >> 13))
 }
@@ -153,14 +153,14 @@ func Float32ToFloatMP16(f float32) FloatMP16 {
 // FloatMP16ToFloat32 converts float16 to float32
 func FloatMP16ToFloat32(h FloatMP16) float32 {
 	bits := uint32(h)
-	
+
 	// Extract sign, exponent, and mantissa
 	sign := (bits >> 15) & 0x1
 	exp := (bits >> 10) & 0x1F
 	mantissa := bits & 0x3FF
-	
+
 	var result uint32
-	
+
 	if exp == 0 {
 		if mantissa == 0 {
 			// Zero
@@ -184,7 +184,7 @@ func FloatMP16ToFloat32(h FloatMP16) float32 {
 		exp = exp - 15 + 127
 		result = (sign << 31) | (uint32(exp) << 23) | (mantissa << 13)
 	}
-	
+
 	return math.Float32frombits(result)
 }
 
@@ -242,12 +242,12 @@ func (mp *MixedPrecisionTrainer) UnscaleGradients(scaledGradients *tensor.Tensor
 	unscaledData := make([]float32, len(scaledGradients.Data))
 	for i, grad := range scaledGradients.Data {
 		unscaled := grad * invScale
-		
+
 		// Check for overflow (inf or NaN)
 		if math.IsInf(float64(unscaled), 0) || math.IsNaN(float64(unscaled)) {
 			mp.overflowDetected = true
 		}
-		
+
 		unscaledData[i] = unscaled
 	}
 

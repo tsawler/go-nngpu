@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // Phase 8C: Memory Coalescing Optimizer
@@ -22,14 +22,14 @@ type MemoryCoalescingOptimizer struct {
 
 // AccessPattern describes how memory is accessed during an operation
 type AccessPattern struct {
-	OperationType    string
-	TensorShapes     [][]int
-	AccessOrder      AccessOrder
-	StridePattern    []int
-	AccessFrequency  int64
-	LastAccess       time.Time
-	IsCoalesced      bool
-	BankConflicts    int
+	OperationType   string
+	TensorShapes    [][]int
+	AccessOrder     AccessOrder
+	StridePattern   []int
+	AccessFrequency int64
+	LastAccess      time.Time
+	IsCoalesced     bool
+	BankConflicts   int
 }
 
 // AccessOrder defines how tensor elements are accessed
@@ -46,9 +46,9 @@ const (
 
 // CoalescingStrategy defines how to optimize memory access for coalescing
 type CoalescingStrategy struct {
-	OperationType      string
-	RecommendedLayout  TensorLayout
-	RecommendedStride  []int
+	OperationType     string
+	RecommendedLayout TensorLayout
+	RecommendedStride []int
 	TileSize          []int
 	BlockSize         []int
 	PaddingRequired   []int
@@ -58,12 +58,12 @@ type CoalescingStrategy struct {
 
 // CoalescingStatistics tracks memory coalescing performance
 type CoalescingStatistics struct {
-	TotalOptimizations    int64
-	SuccessfulCoalescing  int64
-	BankConflictsReduced  int64
-	AverageSpeedup        float64
-	TotalMemoryAccesses   int64
-	CoalescedAccesses     int64
+	TotalOptimizations   int64
+	SuccessfulCoalescing int64
+	BankConflictsReduced int64
+	AverageSpeedup       float64
+	TotalMemoryAccesses  int64
+	CoalescedAccesses    int64
 }
 
 // NewMemoryCoalescingOptimizer creates a new memory coalescing optimizer
@@ -90,7 +90,7 @@ func (mco *MemoryCoalescingOptimizer) AnalyzeAccessPattern(
 
 	// Create pattern key
 	key := mco.createPatternKey(operationType, tensors)
-	
+
 	// Check if pattern exists
 	if pattern, exists := mco.accessPatterns[key]; exists {
 		pattern.AccessFrequency++
@@ -165,7 +165,7 @@ func (mco *MemoryCoalescingOptimizer) OptimizeCoalescing(
 
 	// Cache the strategy
 	mco.optimizationCache[key] = strategy
-	
+
 	// Update statistics
 	mco.statistics.TotalOptimizations++
 	if strategy.ExpectedSpeedup > 1.1 {
@@ -190,11 +190,11 @@ func (mco *MemoryCoalescingOptimizer) optimizeMatrixMultiplyCoalescing(
 	if len(tensors) >= 2 {
 		// For matrix multiplication, use tiled access pattern
 		rows, cols := tensors[0].Shape[0], tensors[1].Shape[1]
-		
+
 		// Calculate optimal tile size based on shared memory constraints
 		maxSharedMem := 48 * 1024 // 48KB typical shared memory
-		floatSize := 4           // 4 bytes per float32
-		
+		floatSize := 4            // 4 bytes per float32
+
 		// Try different tile sizes
 		for tileSize := 32; tileSize >= 8; tileSize /= 2 {
 			memRequired := 2 * tileSize * tileSize * floatSize
@@ -231,21 +231,21 @@ func (mco *MemoryCoalescingOptimizer) optimizeConvolutionCoalescing(
 	if len(tensors) >= 1 && len(tensors[0].Shape) == 4 {
 		// For convolution, optimize for spatial locality
 		_, height, width, channels := tensors[0].Shape[0], tensors[0].Shape[1], tensors[0].Shape[2], tensors[0].Shape[3]
-		
+
 		// Use small tiles for convolution to maximize data reuse
 		tileH := min(height, 16)
 		tileW := min(width, 16)
-		
+
 		strategy.TileSize = []int{tileH, tileW}
 		strategy.BlockSize = []int{1, tileH, tileW, min(channels, 16)}
-		
+
 		// Minimal padding for alignment
 		if channels%4 != 0 {
 			strategy.PaddingRequired = []int{0, 0, 0, 4 - (channels % 4)}
 		}
-		
+
 		// Calculate expected speedup based on spatial locality
-		spatialReuse := float64(tileH * tileW) / 256.0 // Normalize to typical cache line
+		spatialReuse := float64(tileH*tileW) / 256.0 // Normalize to typical cache line
 		strategy.ExpectedSpeedup = 1.0 + spatialReuse*0.4
 	}
 
@@ -270,11 +270,11 @@ func (mco *MemoryCoalescingOptimizer) optimizeElementwiseCoalescing(
 		for _, dim := range tensors[0].Shape {
 			totalElements *= dim
 		}
-		
+
 		// Use vector-friendly block sizes
 		blockSize := min(totalElements, 256) // Process in blocks of 256 elements
 		strategy.BlockSize = []int{blockSize}
-		
+
 		// Calculate speedup based on memory bandwidth utilization
 		if totalElements >= 1024 {
 			strategy.ExpectedSpeedup = 1.15 // Good vectorization potential
@@ -327,15 +327,15 @@ func (mco *MemoryCoalescingOptimizer) calculateStridePattern(tensors []*tensor.T
 	if len(tensors) == 0 || len(tensors[0].Shape) == 0 {
 		return []int{1}
 	}
-	
+
 	shape := tensors[0].Shape
 	stride := make([]int, len(shape))
 	stride[len(stride)-1] = 1
-	
+
 	for i := len(stride) - 2; i >= 0; i-- {
 		stride[i] = stride[i+1] * shape[i+1]
 	}
-	
+
 	return stride
 }
 
@@ -369,7 +369,7 @@ func (mco *MemoryCoalescingOptimizer) GetStatistics() CoalescingStatistics {
 func (mco *MemoryCoalescingOptimizer) ClearCache() {
 	mco.mutex.Lock()
 	defer mco.mutex.Unlock()
-	
+
 	mco.accessPatterns = make(map[string]*AccessPattern)
 	mco.optimizationCache = make(map[string]*CoalescingStrategy)
 }

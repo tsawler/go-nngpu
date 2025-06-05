@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // FixedMixedPrecisionTrainer eliminates the conversion bottleneck entirely
 type FixedMixedPrecisionTrainer struct {
-	config       *MixedPrecisionConfig
-	lossScale    float32
+	config           *MixedPrecisionConfig
+	lossScale        float32
 	overflowDetected bool
 }
 
@@ -35,26 +35,32 @@ func (fmp *FixedMixedPrecisionTrainer) OptimalMatMul(A, B *tensor.Tensor) (*tens
 	// Calculate operation characteristics
 	rowsA, colsA := A.Shape[0], A.Shape[1]
 	rowsB, colsB := B.Shape[0], B.Shape[1]
-	
+
 	// For validation: Make sure dimensions are compatible
 	if colsA != rowsB {
 		return nil, fmt.Errorf("incompatible matrix dimensions: A[%d,%d] * B[%d,%d]", rowsA, colsA, rowsB, colsB)
 	}
 
 	// Calculate computational intensity (FLOPS vs memory bandwidth)
-	flops := int64(rowsA) * int64(colsA) * int64(colsB) * 2 // 2 ops per element
-	memoryAccess := int64(rowsA*colsA + rowsB*colsB + rowsA*colsB) * 4 // 4 bytes per float32
+	flops := int64(rowsA) * int64(colsA) * int64(colsB) * 2        // 2 ops per element
+	memoryAccess := int64(rowsA*colsA+rowsB*colsB+rowsA*colsB) * 4 // 4 bytes per float32
 	intensity := float64(flops) / float64(memoryAccess)
 
 	// EMPIRICALLY DETERMINED THRESHOLDS based on profiling data:
 	// - Small matrices (≤128): Always beneficial due to memory bandwidth
 	// - Medium matrices (256): Only if high compute intensity
 	// - Large matrices (≥512): Never beneficial due to conversion overhead
-	
+
 	maxDim := rowsA
-	if colsA > maxDim { maxDim = colsA }
-	if rowsB > maxDim { maxDim = rowsB }
-	if colsB > maxDim { maxDim = colsB }
+	if colsA > maxDim {
+		maxDim = colsA
+	}
+	if rowsB > maxDim {
+		maxDim = rowsB
+	}
+	if colsB > maxDim {
+		maxDim = colsB
+	}
 
 	// Decision matrix based on profiling results
 	if maxDim <= 128 {
@@ -80,7 +86,7 @@ func (fmp *FixedMixedPrecisionTrainer) simulatedMixedPrecisionMatMul(A, B *tenso
 	// Step 2: Apply precision reduction ONLY to the result (minimal overhead)
 	// This simulates the precision characteristics of mixed precision training
 	// without the prohibitive conversion cost identified in profiling
-	
+
 	if err := result.RetrieveCPU(); err != nil {
 		return nil, fmt.Errorf("failed to retrieve result: %w", err)
 	}
@@ -101,7 +107,7 @@ func (fmp *FixedMixedPrecisionTrainer) fastPrecisionReduction(val float32) float
 	// 1. Reduced precision for regularization effect
 	// 2. Handling of large/small values
 	// 3. Preserved numerical stability
-	
+
 	absVal := val
 	if val < 0 {
 		absVal = -val
@@ -192,30 +198,30 @@ func (fmp *FixedMixedPrecisionTrainer) BenchmarkPrecisionStrategies(A, B *tensor
 
 // PrecisionBenchmark contains results from precision strategy comparison
 type PrecisionBenchmark struct {
-	MatrixSize                int
-	Iterations               int
-	Float32Time              time.Duration
+	MatrixSize                 int
+	Iterations                 int
+	Float32Time                time.Duration
 	OriginalMixedPrecisionTime time.Duration
-	FixedMixedPrecisionTime   time.Duration
-	PureFloat32Time          time.Duration
-	
-	OriginalSpeedup          float64
-	FixedSpeedup             float64
-	ImprovementRatio         float64
-	Recommendation           string
+	FixedMixedPrecisionTime    time.Duration
+	PureFloat32Time            time.Duration
+
+	OriginalSpeedup  float64
+	FixedSpeedup     float64
+	ImprovementRatio float64
+	Recommendation   string
 }
 
 // AdaptivePrecisionManager automatically selects optimal precision based on operation characteristics
 type AdaptivePrecisionManager struct {
 	trainer *FixedMixedPrecisionTrainer
-	
+
 	// Performance history for learning
 	performanceCache map[string]*PrecisionBenchmark
-	
+
 	// Thresholds (updated based on empirical results)
-	smallMatrixThreshold  int     // Always use mixed precision
-	largeMatrixThreshold  int     // Never use mixed precision
-	intensityThreshold    float64 // Compute intensity threshold
+	smallMatrixThreshold int     // Always use mixed precision
+	largeMatrixThreshold int     // Never use mixed precision
+	intensityThreshold   float64 // Compute intensity threshold
 }
 
 // NewAdaptivePrecisionManager creates an adaptive precision manager
@@ -228,9 +234,9 @@ func NewAdaptivePrecisionManager(config *MixedPrecisionConfig) (*AdaptivePrecisi
 	return &AdaptivePrecisionManager{
 		trainer:              trainer,
 		performanceCache:     make(map[string]*PrecisionBenchmark),
-		smallMatrixThreshold: 128,  // Based on profiling: always beneficial
-		largeMatrixThreshold: 512,  // Based on profiling: never beneficial
-		intensityThreshold:   1.0,  // Compute-to-memory ratio
+		smallMatrixThreshold: 128, // Based on profiling: always beneficial
+		largeMatrixThreshold: 512, // Based on profiling: never beneficial
+		intensityThreshold:   1.0, // Compute-to-memory ratio
 	}, nil
 }
 
@@ -245,11 +251,11 @@ func (apm *AdaptivePrecisionManager) LearnFromBenchmark(benchmark *PrecisionBenc
 	if benchmark.FixedSpeedup > 1.2 && benchmark.MatrixSize > apm.smallMatrixThreshold {
 		apm.smallMatrixThreshold = benchmark.MatrixSize
 	}
-	
+
 	if benchmark.FixedSpeedup < 0.8 && benchmark.MatrixSize < apm.largeMatrixThreshold {
 		apm.largeMatrixThreshold = benchmark.MatrixSize
 	}
-	
+
 	// Cache results for future decisions
 	key := fmt.Sprintf("%d", benchmark.MatrixSize)
 	apm.performanceCache[key] = benchmark

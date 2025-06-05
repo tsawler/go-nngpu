@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // Phase 8C: Shared Memory Usage Optimization
@@ -19,22 +19,22 @@ import (
 
 // SharedMemoryOptimizer optimizes shared memory usage in GPU kernels
 type SharedMemoryOptimizer struct {
-	maxSharedMemory       int // Maximum shared memory available per threadgroup
-	bankSize              int // Memory bank size for avoiding bank conflicts
-	warpSize              int // Warp/SIMD group size for optimal access patterns
-	optimizationStrategy  int // 0: conservative, 1: balanced, 2: aggressive
-	cachedOptimizations   map[string]*SharedMemoryLayout
-	mutex                 sync.RWMutex
+	maxSharedMemory      int // Maximum shared memory available per threadgroup
+	bankSize             int // Memory bank size for avoiding bank conflicts
+	warpSize             int // Warp/SIMD group size for optimal access patterns
+	optimizationStrategy int // 0: conservative, 1: balanced, 2: aggressive
+	cachedOptimizations  map[string]*SharedMemoryLayout
+	mutex                sync.RWMutex
 }
 
 // SharedMemoryLayout describes an optimized shared memory layout
 type SharedMemoryLayout struct {
-	TotalSize       int                    // Total shared memory size needed
-	Banks           []SharedMemoryBank     // Memory banks configuration
-	AccessPattern   SharedMemoryAccess     // Access pattern optimization
-	Padding         []int                  // Padding to avoid bank conflicts
-	TileSize        []int                  // Optimal tile sizes for operations
-	ThreadMapping   map[string]interface{} // Thread-to-memory mapping strategy
+	TotalSize     int                    // Total shared memory size needed
+	Banks         []SharedMemoryBank     // Memory banks configuration
+	AccessPattern SharedMemoryAccess     // Access pattern optimization
+	Padding       []int                  // Padding to avoid bank conflicts
+	TileSize      []int                  // Optimal tile sizes for operations
+	ThreadMapping map[string]interface{} // Thread-to-memory mapping strategy
 }
 
 // SharedMemoryBank represents a memory bank configuration
@@ -47,19 +47,19 @@ type SharedMemoryBank struct {
 
 // SharedMemoryAccess describes memory access patterns
 type SharedMemoryAccess struct {
-	Pattern         string   // "sequential", "strided", "tiled", "random"
-	Stride          int      // Access stride
-	CoalesceWidth   int      // Width for coalesced access
-	ConflictFree    bool     // Whether access pattern is conflict-free
-	PrefetchSize    int      // Amount to prefetch
+	Pattern       string // "sequential", "strided", "tiled", "random"
+	Stride        int    // Access stride
+	CoalesceWidth int    // Width for coalesced access
+	ConflictFree  bool   // Whether access pattern is conflict-free
+	PrefetchSize  int    // Amount to prefetch
 }
 
 // NewSharedMemoryOptimizer creates a new shared memory optimizer
 func NewSharedMemoryOptimizer() *SharedMemoryOptimizer {
 	return &SharedMemoryOptimizer{
 		maxSharedMemory:      32768, // 32KB default for Apple Silicon GPUs
-		bankSize:            4,      // 4-byte banks typical for Apple Silicon
-		warpSize:            32,     // SIMD group size for Apple Silicon
+		bankSize:             4,     // 4-byte banks typical for Apple Silicon
+		warpSize:             32,    // SIMD group size for Apple Silicon
 		optimizationStrategy: 1,     // Balanced by default
 		cachedOptimizations:  make(map[string]*SharedMemoryLayout),
 	}
@@ -68,38 +68,38 @@ func NewSharedMemoryOptimizer() *SharedMemoryOptimizer {
 // OptimizeForMatrixMultiplication optimizes shared memory for matrix multiplication
 func (smo *SharedMemoryOptimizer) OptimizeForMatrixMultiplication(M, N, K int) (*SharedMemoryLayout, error) {
 	cacheKey := fmt.Sprintf("matmul_%d_%d_%d", M, N, K)
-	
+
 	smo.mutex.RLock()
 	if layout, exists := smo.cachedOptimizations[cacheKey]; exists {
 		smo.mutex.RUnlock()
 		return layout, nil
 	}
 	smo.mutex.RUnlock()
-	
+
 	// Calculate optimal tile sizes based on shared memory constraints
 	maxTileSize := int(float64(smo.maxSharedMemory) * 0.8) // Use 80% of available shared memory
-	
+
 	// For matrix multiplication, we need two tiles: A_tile and B_tile
 	// Each tile stores float32 values (4 bytes each)
 	elementsPerTile := maxTileSize / (2 * 4) // Divided by 2 for A and B tiles
-	
+
 	// Find optimal square tile size
 	tileSize := 1
 	for tileSize*tileSize <= elementsPerTile {
 		tileSize++
 	}
 	tileSize-- // Back up to last valid size
-	
+
 	// Ensure tile size is multiple of warp size for optimal access
 	tileSize = (tileSize / smo.warpSize) * smo.warpSize
 	if tileSize == 0 {
 		tileSize = smo.warpSize
 	}
-	
+
 	// Create memory banks for A and B tiles
 	aTileSize := tileSize * tileSize * 4 // 4 bytes per float32
 	bTileSize := tileSize * tileSize * 4
-	
+
 	banks := []SharedMemoryBank{
 		{
 			BankID:       0,
@@ -114,10 +114,10 @@ func (smo *SharedMemoryOptimizer) OptimizeForMatrixMultiplication(M, N, K int) (
 			DataType:     "float32",
 		},
 	}
-	
+
 	// Calculate padding to avoid bank conflicts
 	padding := smo.calculateBankConflictPadding(tileSize, 4)
-	
+
 	layout := &SharedMemoryLayout{
 		TotalSize: aTileSize + bTileSize + padding[0] + padding[1],
 		Banks:     banks,
@@ -131,17 +131,17 @@ func (smo *SharedMemoryOptimizer) OptimizeForMatrixMultiplication(M, N, K int) (
 		Padding:  padding,
 		TileSize: []int{tileSize, tileSize},
 		ThreadMapping: map[string]interface{}{
-			"threads_per_tile":  smo.warpSize,
-			"tiles_per_block":   4,
+			"threads_per_tile":    smo.warpSize,
+			"tiles_per_block":     4,
 			"workload_per_thread": tileSize / smo.warpSize,
 		},
 	}
-	
+
 	// Cache the optimization
 	smo.mutex.Lock()
 	smo.cachedOptimizations[cacheKey] = layout
 	smo.mutex.Unlock()
-	
+
 	return layout, nil
 }
 
@@ -150,53 +150,57 @@ func (smo *SharedMemoryOptimizer) OptimizeForConvolution(inputShape, kernelShape
 	if len(inputShape) != 4 || len(kernelShape) != 4 {
 		return nil, fmt.Errorf("invalid shapes for convolution optimization")
 	}
-	
+
 	batch, height, width, channels := inputShape[0], inputShape[1], inputShape[2], inputShape[3]
 	kernelH, kernelW, _, outChannels := kernelShape[0], kernelShape[1], kernelShape[2], kernelShape[3]
-	
-	cacheKey := fmt.Sprintf("conv_%d_%d_%d_%d_%d_%d_%d", 
+
+	cacheKey := fmt.Sprintf("conv_%d_%d_%d_%d_%d_%d_%d",
 		batch, height, width, channels, kernelH, kernelW, outChannels)
-	
+
 	smo.mutex.RLock()
 	if layout, exists := smo.cachedOptimizations[cacheKey]; exists {
 		smo.mutex.RUnlock()
 		return layout, nil
 	}
 	smo.mutex.RUnlock()
-	
+
 	// Calculate optimal tile sizes for input patch and kernel
 	maxTileSize := int(float64(smo.maxSharedMemory) * 0.75) // Use 75% of available shared memory
-	
+
 	// For convolution, we need tiles for: input patch, kernel weights, and output accumulation
 	bytesPerElement := 4 // float32
-	
+
 	// Calculate input tile size (includes padding for kernel application)
 	inputTileH := 16 // Start with reasonable tile size
 	inputTileW := 16
-	
+
 	// Adjust tile size based on memory constraints
 	inputTileSize := inputTileH * inputTileW * channels * bytesPerElement
 	kernelTileSize := kernelH * kernelW * channels * outChannels * bytesPerElement
 	outputTileSize := inputTileH * inputTileW * outChannels * bytesPerElement
-	
+
 	totalSize := inputTileSize + kernelTileSize + outputTileSize
 	if totalSize > maxTileSize {
 		// Scale down tile sizes proportionally
 		scale := float64(maxTileSize) / float64(totalSize)
 		inputTileH = int(float64(inputTileH) * scale)
 		inputTileW = int(float64(inputTileW) * scale)
-		
+
 		// Ensure tile sizes are multiples of 4 for optimal access
 		inputTileH = (inputTileH / 4) * 4
 		inputTileW = (inputTileW / 4) * 4
-		if inputTileH == 0 { inputTileH = 4 }
-		if inputTileW == 0 { inputTileW = 4 }
+		if inputTileH == 0 {
+			inputTileH = 4
+		}
+		if inputTileW == 0 {
+			inputTileW = 4
+		}
 	}
-	
+
 	// Recalculate sizes with adjusted tile dimensions
 	inputTileSize = inputTileH * inputTileW * channels * bytesPerElement
 	outputTileSize = inputTileH * inputTileW * outChannels * bytesPerElement
-	
+
 	banks := []SharedMemoryBank{
 		{
 			BankID:       0,
@@ -217,13 +221,13 @@ func (smo *SharedMemoryOptimizer) OptimizeForConvolution(inputShape, kernelShape
 			DataType:     "float32",
 		},
 	}
-	
+
 	// Calculate padding for optimal access patterns
 	padding := []int{0, 0, 0} // One for each bank
 	for i := range banks {
 		padding[i] = smo.calculateConvolutionPadding(banks[i].AccessStride)
 	}
-	
+
 	layout := &SharedMemoryLayout{
 		TotalSize: inputTileSize + kernelTileSize + outputTileSize + padding[0] + padding[1] + padding[2],
 		Banks:     banks,
@@ -242,36 +246,36 @@ func (smo *SharedMemoryOptimizer) OptimizeForConvolution(inputShape, kernelShape
 			"output_threads_per_tile": (inputTileH * inputTileW) / 4, // 4 outputs per thread
 		},
 	}
-	
+
 	// Cache the optimization
 	smo.mutex.Lock()
 	smo.cachedOptimizations[cacheKey] = layout
 	smo.mutex.Unlock()
-	
+
 	return layout, nil
 }
 
 // OptimizeForReduction optimizes shared memory for reduction operations
 func (smo *SharedMemoryOptimizer) OptimizeForReduction(inputSize int, reductionType string) (*SharedMemoryLayout, error) {
 	cacheKey := fmt.Sprintf("reduce_%d_%s", inputSize, reductionType)
-	
+
 	smo.mutex.RLock()
 	if layout, exists := smo.cachedOptimizations[cacheKey]; exists {
 		smo.mutex.RUnlock()
 		return layout, nil
 	}
 	smo.mutex.RUnlock()
-	
+
 	// For reduction, use tree-based reduction in shared memory
 	threadsPerBlock := 256 // Typical block size
 	elementsPerThread := (inputSize + threadsPerBlock - 1) / threadsPerBlock
-	
+
 	// Shared memory for partial sums
 	sharedMemSize := threadsPerBlock * 4 // 4 bytes per float32
-	
+
 	// Add padding to avoid bank conflicts in reduction tree
 	padding := smo.calculateReductionPadding(threadsPerBlock)
-	
+
 	banks := []SharedMemoryBank{
 		{
 			BankID:       0,
@@ -280,7 +284,7 @@ func (smo *SharedMemoryOptimizer) OptimizeForReduction(inputSize int, reductionT
 			DataType:     "float32",
 		},
 	}
-	
+
 	layout := &SharedMemoryLayout{
 		TotalSize: sharedMemSize + padding,
 		Banks:     banks,
@@ -294,17 +298,17 @@ func (smo *SharedMemoryOptimizer) OptimizeForReduction(inputSize int, reductionT
 		Padding:  []int{padding},
 		TileSize: []int{threadsPerBlock},
 		ThreadMapping: map[string]interface{}{
-			"threads_per_block":     threadsPerBlock,
-			"elements_per_thread":   elementsPerThread,
-			"reduction_levels":      smo.calculateReductionLevels(threadsPerBlock),
+			"threads_per_block":   threadsPerBlock,
+			"elements_per_thread": elementsPerThread,
+			"reduction_levels":    smo.calculateReductionLevels(threadsPerBlock),
 		},
 	}
-	
+
 	// Cache the optimization
 	smo.mutex.Lock()
 	smo.cachedOptimizations[cacheKey] = layout
 	smo.mutex.Unlock()
-	
+
 	return layout, nil
 }
 
@@ -312,18 +316,18 @@ func (smo *SharedMemoryOptimizer) OptimizeForReduction(inputSize int, reductionT
 func (smo *SharedMemoryOptimizer) calculateBankConflictPadding(tileSize, elementSize int) []int {
 	// For Apple Silicon GPUs, bank conflicts occur when multiple threads access
 	// the same bank simultaneously. Add padding to offset access patterns.
-	
+
 	stride := tileSize * elementSize
 	banksPerStride := stride / smo.bankSize
-	
+
 	// Add padding if stride aligns with bank boundaries
 	padding := make([]int, 2) // For A and B tiles
-	
+
 	if banksPerStride%32 == 0 { // Avoid conflicts with SIMD group size
 		padding[0] = smo.bankSize // Add one bank worth of padding
 		padding[1] = smo.bankSize
 	}
-	
+
 	return padding
 }
 
@@ -340,18 +344,18 @@ func (smo *SharedMemoryOptimizer) calculateConvolutionPadding(accessStride int) 
 func (smo *SharedMemoryOptimizer) calculateReductionPadding(threadsPerBlock int) int {
 	// During tree reduction, threads access shared memory with strides that are powers of 2
 	// Add padding to ensure conflict-free access at all reduction levels
-	
+
 	// Find the largest power of 2 stride that could cause conflicts
 	maxStride := 1
 	for maxStride < threadsPerBlock {
 		maxStride *= 2
 	}
-	
+
 	// Add padding if max stride aligns with bank size
-	if (maxStride * 4) % smo.bankSize == 0 {
+	if (maxStride*4)%smo.bankSize == 0 {
 		return smo.bankSize
 	}
-	
+
 	return 0
 }
 
@@ -370,7 +374,7 @@ func (smo *SharedMemoryOptimizer) calculateReductionLevels(threadsPerBlock int) 
 func (smo *SharedMemoryOptimizer) ApplySharedMemoryOptimization(kernelSource string, layout *SharedMemoryLayout) (string, error) {
 	// This would modify the kernel source to use the optimized shared memory layout
 	// For now, return the original source with comments about the optimization
-	
+
 	optimizedSource := fmt.Sprintf(`
 // Shared Memory Optimization Applied
 // Total shared memory: %d bytes
@@ -380,7 +384,7 @@ func (smo *SharedMemoryOptimizer) ApplySharedMemoryOptimization(kernelSource str
 
 %s
 `, layout.TotalSize, len(layout.Banks), layout.AccessPattern.Pattern, layout.TileSize, kernelSource)
-	
+
 	return optimizedSource, nil
 }
 
@@ -403,18 +407,18 @@ func (smo *SharedMemoryOptimizer) generateMatMulKernel(params map[string]interfa
 	M, ok1 := params["M"].(int)
 	N, ok2 := params["N"].(int)
 	K, ok3 := params["K"].(int)
-	
+
 	if !ok1 || !ok2 || !ok3 {
 		return "", nil, fmt.Errorf("invalid parameters for matrix multiplication kernel")
 	}
-	
+
 	layout, err := smo.OptimizeForMatrixMultiplication(M, N, K)
 	if err != nil {
 		return "", nil, err
 	}
-	
+
 	tileSize := layout.TileSize[0]
-	
+
 	kernelSource := fmt.Sprintf(`
 #include <metal_stdlib>
 using namespace metal;
@@ -479,7 +483,7 @@ kernel void optimized_matmul(device const float* A [[buffer(0)]],
     }
 }
 `, tileSize, tileSize, layout.TotalSize, tileSize)
-	
+
 	return kernelSource, layout, nil
 }
 
@@ -487,16 +491,16 @@ kernel void optimized_matmul(device const float* A [[buffer(0)]],
 func (smo *SharedMemoryOptimizer) generateConvolutionKernel(params map[string]interface{}) (string, *SharedMemoryLayout, error) {
 	inputShape, ok1 := params["input_shape"].([]int)
 	kernelShape, ok2 := params["kernel_shape"].([]int)
-	
+
 	if !ok1 || !ok2 {
 		return "", nil, fmt.Errorf("invalid parameters for convolution kernel")
 	}
-	
+
 	layout, err := smo.OptimizeForConvolution(inputShape, kernelShape)
 	if err != nil {
 		return "", nil, err
 	}
-	
+
 	kernelSource := fmt.Sprintf(`
 #include <metal_stdlib>
 using namespace metal;
@@ -536,7 +540,7 @@ kernel void optimized_conv2d(device const float* input [[buffer(0)]],
     output[output_idx] = sum;
 }
 `, layout.TileSize, layout.TotalSize, layout.TileSize[0], layout.TileSize[1])
-	
+
 	return kernelSource, layout, nil
 }
 
@@ -544,19 +548,19 @@ kernel void optimized_conv2d(device const float* input [[buffer(0)]],
 func (smo *SharedMemoryOptimizer) generateReductionKernel(params map[string]interface{}) (string, *SharedMemoryLayout, error) {
 	inputSize, ok1 := params["input_size"].(int)
 	reductionType, ok2 := params["reduction_type"].(string)
-	
+
 	if !ok1 || !ok2 {
 		return "", nil, fmt.Errorf("invalid parameters for reduction kernel")
 	}
-	
+
 	layout, err := smo.OptimizeForReduction(inputSize, reductionType)
 	if err != nil {
 		return "", nil, err
 	}
-	
+
 	threadsPerBlock := layout.TileSize[0]
 	reductionLevels := layout.ThreadMapping["reduction_levels"].(int)
-	
+
 	kernelSource := fmt.Sprintf(`
 #include <metal_stdlib>
 using namespace metal;
@@ -596,43 +600,43 @@ kernel void optimized_reduction(device const float* input [[buffer(0)]],
     }
 }
 `, threadsPerBlock, reductionLevels, layout.TotalSize, threadsPerBlock)
-	
+
 	return kernelSource, layout, nil
 }
 
 // OptimizeSharedMemoryForOperation provides a high-level interface for shared memory optimization
 func OptimizeSharedMemoryForOperation(operation string, tensors []*tensor.Tensor, params map[string]interface{}) (*SharedMemoryLayout, error) {
 	optimizer := GetGlobalSharedMemoryOptimizer()
-	
+
 	switch operation {
 	case "matmul":
 		if len(tensors) < 2 {
 			return nil, fmt.Errorf("matrix multiplication requires at least 2 tensors")
 		}
-		
+
 		A, B := tensors[0], tensors[1]
 		if len(A.Shape) != 2 || len(B.Shape) != 2 {
 			return nil, fmt.Errorf("matrix multiplication requires 2D tensors")
 		}
-		
+
 		M, K := A.Shape[0], A.Shape[1]
 		_, N := B.Shape[0], B.Shape[1]
-		
+
 		return optimizer.OptimizeForMatrixMultiplication(M, N, K)
-		
+
 	case "conv2d":
 		if len(tensors) < 2 {
 			return nil, fmt.Errorf("convolution requires input and kernel tensors")
 		}
-		
+
 		input, kernel := tensors[0], tensors[1]
 		return optimizer.OptimizeForConvolution(input.Shape, kernel.Shape)
-		
+
 	case "reduction":
 		if len(tensors) < 1 {
 			return nil, fmt.Errorf("reduction requires input tensor")
 		}
-		
+
 		input := tensors[0]
 		size := len(input.Data)
 		reductionType := "sum"
@@ -641,9 +645,9 @@ func OptimizeSharedMemoryForOperation(operation string, tensors []*tensor.Tensor
 				reductionType = rtStr
 			}
 		}
-		
+
 		return optimizer.OptimizeForReduction(size, reductionType)
-		
+
 	default:
 		return nil, fmt.Errorf("unsupported operation for shared memory optimization: %s", operation)
 	}
@@ -674,20 +678,20 @@ func GetSharedMemoryUsageStats() map[string]interface{} {
 	optimizer := GetGlobalSharedMemoryOptimizer()
 	optimizer.mutex.RLock()
 	defer optimizer.mutex.RUnlock()
-	
+
 	totalOptimizations := len(optimizer.cachedOptimizations)
 	totalSharedMemory := 0
-	
+
 	for _, layout := range optimizer.cachedOptimizations {
 		totalSharedMemory += layout.TotalSize
 	}
-	
+
 	return map[string]interface{}{
 		"total_optimizations": totalOptimizations,
 		"total_shared_memory": totalSharedMemory,
-		"cache_size":         len(optimizer.cachedOptimizations),
-		"max_shared_memory":  optimizer.maxSharedMemory,
-		"bank_size":          optimizer.bankSize,
-		"warp_size":          optimizer.warpSize,
+		"cache_size":          len(optimizer.cachedOptimizations),
+		"max_shared_memory":   optimizer.maxSharedMemory,
+		"bank_size":           optimizer.bankSize,
+		"warp_size":           optimizer.warpSize,
 	}
 }

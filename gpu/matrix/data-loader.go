@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // Enhanced data loading implementations with memory efficiency and async loading
@@ -43,15 +43,15 @@ type DataWorker struct {
 	active     bool
 	loadChan   chan *LoadRequest
 	resultChan chan *BatchData
-	loader     *AsyncDataLoader // Add this field
+	loader     *AsyncDataLoader   // Add this field
 	taskChan   chan *PrefetchTask // Add this field
 	stopChan   chan struct{}      // Add this field
 }
 
 // LoadRequest represents a data loading request
 type LoadRequest struct {
-	batchIdx  int
-	indices   []int
+	batchIdx   int
+	indices    []int
 	resultChan chan *PrefetchedBatch
 }
 
@@ -93,15 +93,15 @@ type DataLoader interface {
 
 // DataLoaderConfig contains configuration for data loader
 type DataLoaderConfig struct {
-	BatchSize       int
-	Shuffle         bool
-	DropLast        bool
-	NumWorkers      int
-	PrefetchFactor  int
-	CacheSize       int
-	MaxMemoryUsage  int64
-	MemoryPool      *GPUMemoryPool
-	TensorCache     *TensorCache
+	BatchSize      int
+	Shuffle        bool
+	DropLast       bool
+	NumWorkers     int
+	PrefetchFactor int
+	CacheSize      int
+	MaxMemoryUsage int64
+	MemoryPool     *GPUMemoryPool
+	TensorCache    *TensorCache
 }
 
 // StreamingDataLoader provides streaming data loading for large datasets
@@ -167,7 +167,6 @@ type DistributedCoordinator struct {
 	shardMapping map[int][]int // node -> shard indices
 	mutex        sync.RWMutex
 }
-
 
 // NodeInfo represents information about a distributed node
 type NodeInfo struct {

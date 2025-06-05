@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // Global unified memory manager
@@ -34,9 +34,9 @@ func GetGlobalUnifiedMemoryManager(device unsafe.Pointer) *UnifiedMemoryManager 
 
 // TensorUnifiedMemoryAdapter adapts tensors to use unified memory system
 type TensorUnifiedMemoryAdapter struct {
-	umm        *UnifiedMemoryManager
+	umm           *UnifiedMemoryManager
 	tensorBuffers map[*tensor.Tensor]*SharedBuffer
-	bufferMu   sync.RWMutex
+	bufferMu      sync.RWMutex
 }
 
 // NewTensorUnifiedMemoryAdapter creates a new adapter
@@ -76,10 +76,10 @@ func (tuma *TensorUnifiedMemoryAdapter) EnsureUnifiedGPU(t *tensor.Tensor) error
 
 	// Calculate required size
 	dataSize := len(t.Data) * int(unsafe.Sizeof(t.Data[0]))
-	
+
 	// Create unique buffer name for this tensor
 	bufferName := fmt.Sprintf("tensor_%p_%d", t, dataSize)
-	
+
 	// Create shared buffer through unified memory system
 	buf, err := tuma.umm.CreateSharedBuffer(bufferName, dataSize)
 	if err != nil {
@@ -98,7 +98,7 @@ func (tuma *TensorUnifiedMemoryAdapter) EnsureUnifiedGPU(t *tensor.Tensor) error
 
 	// Track this buffer
 	tuma.tensorBuffers[t] = buf
-	
+
 	// Increment zero-copy hits for initial setup (first allocation counts as hit)
 	// fmt.Printf("[DEBUG] Initial zero-copy allocation for tensor %p\n", t)
 	atomic.AddInt64(&tuma.umm.zeroCopyHits, 1)
@@ -116,7 +116,7 @@ func (tuma *TensorUnifiedMemoryAdapter) GetUnifiedGPUBuffer(t *tensor.Tensor) un
 		atomic.AddInt64(&tuma.umm.zeroCopyHits, 1)
 		return buf.GPUBuffer()
 	}
-	
+
 	return nil
 }
 
@@ -130,7 +130,7 @@ func (tuma *TensorUnifiedMemoryAdapter) GetUnifiedCPUData(t *tensor.Tensor) unsa
 		atomic.AddInt64(&tuma.umm.zeroCopyHits, 1)
 		return buf.CPUPtr()
 	}
-	
+
 	return nil
 }
 
@@ -154,7 +154,7 @@ func (tuma *TensorUnifiedMemoryAdapter) SyncTensorToGPU(t *tensor.Tensor) error 
 	// For unified memory, CPU and GPU share the same memory - no explicit sync needed
 	// Just increment zero-copy hits to track usage
 	atomic.AddInt64(&tuma.umm.zeroCopyHits, 1)
-	
+
 	return nil
 }
 

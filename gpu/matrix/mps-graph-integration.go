@@ -8,29 +8,29 @@ import (
 	"fmt"
 	"sync"
 	"unsafe"
-	
-	"github.com/tsawler/go-nngpu/tensor"
+
+	"github.com/tsawler/gometal/tensor"
 )
 
 // MPSGraphManager manages Metal Performance Shaders Graph operations
 type MPSGraphManager struct {
-	device       unsafe.Pointer
-	graph        unsafe.Pointer
-	
+	device unsafe.Pointer
+	graph  unsafe.Pointer
+
 	// Operation nodes
-	nodes        map[string]unsafe.Pointer
-	nodeMu       sync.RWMutex
-	
+	nodes  map[string]unsafe.Pointer
+	nodeMu sync.RWMutex
+
 	// Tensor cache
-	tensors      map[string]unsafe.Pointer
-	tensorMu     sync.RWMutex
-	
+	tensors  map[string]unsafe.Pointer
+	tensorMu sync.RWMutex
+
 	// Compiled graphs
-	compiledOps  map[string]*CompiledOperation
-	compileMu    sync.RWMutex
-	
+	compiledOps map[string]*CompiledOperation
+	compileMu   sync.RWMutex
+
 	// Fusion optimizer
-	fusionOpt    *FusionOptimizer
+	fusionOpt *FusionOptimizer
 }
 
 // CompiledOperation represents a compiled MPS graph operation
@@ -44,9 +44,9 @@ type CompiledOperation struct {
 
 // FusionOptimizer identifies and fuses operations
 type FusionOptimizer struct {
-	patterns     []FusionPattern
-	fusionStats  map[string]int
-	mu           sync.RWMutex
+	patterns    []FusionPattern
+	fusionStats map[string]int
+	mu          sync.RWMutex
 }
 
 // FusionPattern represents a pattern of operations that can be fused
@@ -75,10 +75,10 @@ func NewMPSGraphManager(device unsafe.Pointer) *MPSGraphManager {
 		compiledOps: make(map[string]*CompiledOperation),
 		fusionOpt:   NewFusionOptimizer(),
 	}
-	
+
 	// Register common fusion patterns
 	mgm.registerCommonPatterns()
-	
+
 	return mgm
 }
 
@@ -89,8 +89,8 @@ func (mgm *MPSGraphManager) registerCommonPatterns() {
 		Name:       "ConvReLU",
 		Operations: []string{"Conv2D", "ReLU"},
 		CanFuse: func(ops []Operation) bool {
-			return len(ops) == 2 && 
-				ops[0].Type == "Conv2D" && 
+			return len(ops) == 2 &&
+				ops[0].Type == "Conv2D" &&
 				ops[1].Type == "ReLU" &&
 				ops[0].Output == ops[1].Inputs[0]
 		},
@@ -98,14 +98,14 @@ func (mgm *MPSGraphManager) registerCommonPatterns() {
 			return mgm.createConvReLUFusion(ops)
 		},
 	})
-	
+
 	// Linear + Activation fusion
 	mgm.fusionOpt.RegisterPattern(FusionPattern{
 		Name:       "LinearActivation",
 		Operations: []string{"MatMul", "Activation"},
 		CanFuse: func(ops []Operation) bool {
-			return len(ops) == 2 && 
-				ops[0].Type == "MatMul" && 
+			return len(ops) == 2 &&
+				ops[0].Type == "MatMul" &&
 				(ops[1].Type == "ReLU" || ops[1].Type == "Sigmoid" || ops[1].Type == "Tanh") &&
 				ops[0].Output == ops[1].Inputs[0]
 		},
@@ -113,14 +113,14 @@ func (mgm *MPSGraphManager) registerCommonPatterns() {
 			return mgm.createLinearActivationFusion(ops)
 		},
 	})
-	
+
 	// BatchNorm + Activation fusion
 	mgm.fusionOpt.RegisterPattern(FusionPattern{
 		Name:       "BatchNormActivation",
 		Operations: []string{"BatchNorm", "Activation"},
 		CanFuse: func(ops []Operation) bool {
-			return len(ops) == 2 && 
-				ops[0].Type == "BatchNorm" && 
+			return len(ops) == 2 &&
+				ops[0].Type == "BatchNorm" &&
 				(ops[1].Type == "ReLU" || ops[1].Type == "Sigmoid") &&
 				ops[0].Output == ops[1].Inputs[0]
 		},
@@ -134,70 +134,70 @@ func (mgm *MPSGraphManager) registerCommonPatterns() {
 func (mgm *MPSGraphManager) CreateTensor(name string, shape []int, dataType string) unsafe.Pointer {
 	mgm.tensorMu.Lock()
 	defer mgm.tensorMu.Unlock()
-	
+
 	// Check cache
 	if tensor, exists := mgm.tensors[name]; exists {
 		return tensor
 	}
-	
+
 	// Create new tensor
 	tensor := createMPSGraphTensor(mgm.graph, shape, dataType)
 	mgm.tensors[name] = tensor
-	
+
 	return tensor
 }
 
 // MatMulOp creates a matrix multiplication operation
 func (mgm *MPSGraphManager) MatMulOp(a, b string, transposeA, transposeB bool) string {
 	outputName := fmt.Sprintf("matmul_%s_%s", a, b)
-	
+
 	mgm.nodeMu.Lock()
 	defer mgm.nodeMu.Unlock()
-	
+
 	// Get input tensors
 	tensorA := mgm.tensors[a]
 	tensorB := mgm.tensors[b]
-	
+
 	// Create MatMul node
 	node := createMatMulNode(mgm.graph, tensorA, tensorB, transposeA, transposeB)
 	mgm.nodes[outputName] = node
-	
+
 	// Create output tensor
 	outputTensor := getNodeOutput(node)
 	mgm.tensors[outputName] = outputTensor
-	
+
 	return outputName
 }
 
 // Conv2DOp creates a 2D convolution operation
 func (mgm *MPSGraphManager) Conv2DOp(input, weights string, stride, padding []int) string {
 	outputName := fmt.Sprintf("conv2d_%s_%s", input, weights)
-	
+
 	mgm.nodeMu.Lock()
 	defer mgm.nodeMu.Unlock()
-	
+
 	inputTensor := mgm.tensors[input]
 	weightsTensor := mgm.tensors[weights]
-	
+
 	// Create Conv2D node with MPS
 	node := createConv2DNode(mgm.graph, inputTensor, weightsTensor, stride, padding)
 	mgm.nodes[outputName] = node
-	
+
 	outputTensor := getNodeOutput(node)
 	mgm.tensors[outputName] = outputTensor
-	
+
 	return outputName
 }
 
 // ActivationOp creates an activation operation
 func (mgm *MPSGraphManager) ActivationOp(input string, activationType string) string {
 	outputName := fmt.Sprintf("%s_%s", activationType, input)
-	
+
 	mgm.nodeMu.Lock()
 	defer mgm.nodeMu.Unlock()
-	
+
 	inputTensor := mgm.tensors[input]
-	
+
 	// Create activation node
 	var node unsafe.Pointer
 	switch activationType {
@@ -210,11 +210,11 @@ func (mgm *MPSGraphManager) ActivationOp(input string, activationType string) st
 	default:
 		panic(fmt.Sprintf("Unknown activation type: %s", activationType))
 	}
-	
+
 	mgm.nodes[outputName] = node
 	outputTensor := getNodeOutput(node)
 	mgm.tensors[outputName] = outputTensor
-	
+
 	return outputName
 }
 
@@ -222,43 +222,43 @@ func (mgm *MPSGraphManager) ActivationOp(input string, activationType string) st
 func (mgm *MPSGraphManager) CompileGraph(inputs []string, outputs []string) *CompiledOperation {
 	// Create cache key
 	cacheKey := fmt.Sprintf("%v->%v", inputs, outputs)
-	
+
 	mgm.compileMu.RLock()
 	if compiled, exists := mgm.compiledOps[cacheKey]; exists {
 		mgm.compileMu.RUnlock()
 		return compiled
 	}
 	mgm.compileMu.RUnlock()
-	
+
 	// Compile new graph
 	mgm.compileMu.Lock()
 	defer mgm.compileMu.Unlock()
-	
+
 	// Double-check after acquiring write lock
 	if compiled, exists := mgm.compiledOps[cacheKey]; exists {
 		return compiled
 	}
-	
+
 	// Get input and output tensors
 	inputTensors := make([]unsafe.Pointer, len(inputs))
 	for i, name := range inputs {
 		inputTensors[i] = mgm.tensors[name]
 	}
-	
+
 	outputTensors := make([]unsafe.Pointer, len(outputs))
 	for i, name := range outputs {
 		outputTensors[i] = mgm.tensors[name]
 	}
-	
+
 	// Compile graph
 	executable := compileGraph(mgm.graph, inputTensors, outputTensors)
-	
+
 	compiled := &CompiledOperation{
 		Graph:      mgm.graph,
 		Executable: executable,
 		CacheKey:   cacheKey,
 	}
-	
+
 	mgm.compiledOps[cacheKey] = compiled
 	return compiled
 }
@@ -267,15 +267,15 @@ func (mgm *MPSGraphManager) CompileGraph(inputs []string, outputs []string) *Com
 func (mgm *MPSGraphManager) Execute(compiled *CompiledOperation, inputs map[string]*tensor.Tensor) map[string]*tensor.Tensor {
 	// Create input dictionary
 	inputData := make(map[unsafe.Pointer]unsafe.Pointer)
-	
+
 	for name, tensorInput := range inputs {
 		tensor := mgm.tensors[name]
 		inputData[tensor] = unsafe.Pointer(&tensorInput.Data[0])
 	}
-	
+
 	// Execute graph
 	outputData := executeCompiledGraph(compiled.Executable, inputData)
-	
+
 	// Convert outputs to tensors
 	outputs := make(map[string]*tensor.Tensor)
 	for tensorPtr, _ := range outputData {
@@ -297,17 +297,17 @@ func (mgm *MPSGraphManager) Execute(compiled *CompiledOperation, inputs map[stri
 			}
 		}
 	}
-	
+
 	return outputs
 }
 
 // OptimizeGraph applies fusion and optimization passes
 func (mgm *MPSGraphManager) OptimizeGraph(operations []Operation) []Operation {
 	optimized := mgm.fusionOpt.OptimizeOperations(operations)
-	
+
 	// Apply additional MPS-specific optimizations
 	optimized = mgm.applyMPSOptimizations(optimized)
-	
+
 	return optimized
 }
 
@@ -334,7 +334,7 @@ func NewFusionOptimizer() *FusionOptimizer {
 func (fo *FusionOptimizer) RegisterPattern(pattern FusionPattern) {
 	fo.mu.Lock()
 	defer fo.mu.Unlock()
-	
+
 	fo.patterns = append(fo.patterns, pattern)
 }
 
@@ -342,13 +342,13 @@ func (fo *FusionOptimizer) RegisterPattern(pattern FusionPattern) {
 func (fo *FusionOptimizer) OptimizeOperations(ops []Operation) []Operation {
 	fo.mu.RLock()
 	defer fo.mu.RUnlock()
-	
+
 	optimized := make([]Operation, 0, len(ops))
 	i := 0
-	
+
 	for i < len(ops) {
 		fused := false
-		
+
 		// Try each fusion pattern
 		for _, pattern := range fo.patterns {
 			if i+len(pattern.Operations) <= len(ops) {
@@ -362,10 +362,10 @@ func (fo *FusionOptimizer) OptimizeOperations(ops []Operation) []Operation {
 						Output:     candidate[len(candidate)-1].Output,
 						Attributes: mergeMaps(candidate),
 					}
-					
+
 					optimized = append(optimized, fusedOp)
 					i += len(pattern.Operations)
-					
+
 					// Update statistics
 					fo.fusionStats[pattern.Name]++
 					fused = true
@@ -373,13 +373,13 @@ func (fo *FusionOptimizer) OptimizeOperations(ops []Operation) []Operation {
 				}
 			}
 		}
-		
+
 		if !fused {
 			optimized = append(optimized, ops[i])
 			i++
 		}
 	}
-	
+
 	return optimized
 }
 
@@ -388,20 +388,20 @@ func (fo *FusionOptimizer) OptimizeOperations(ops []Operation) []Operation {
 func (mgm *MPSGraphManager) createConvReLUFusion(ops []Operation) *CompiledOperation {
 	// Create fused Conv+ReLU operation in MPS Graph
 	conv := ops[0]
-	
+
 	// Get conv parameters
 	input := mgm.tensors[conv.Inputs[0]]
 	weights := mgm.tensors[conv.Inputs[1]]
 	stride := conv.Attributes["stride"].([]int)
 	padding := conv.Attributes["padding"].([]int)
-	
+
 	// Create fused node
 	fusedNode := createConvReLUNode(mgm.graph, input, weights, stride, padding)
-	
+
 	// Compile the fused operation
 	outputTensor := getNodeOutput(fusedNode)
 	executable := compileGraph(mgm.graph, []unsafe.Pointer{input, weights}, []unsafe.Pointer{outputTensor})
-	
+
 	return &CompiledOperation{
 		Graph:      mgm.graph,
 		Executable: executable,
@@ -413,10 +413,10 @@ func (mgm *MPSGraphManager) createLinearActivationFusion(ops []Operation) *Compi
 	// Create fused Linear+Activation operation
 	linear := ops[0]
 	activation := ops[1]
-	
+
 	inputA := mgm.tensors[linear.Inputs[0]]
 	inputB := mgm.tensors[linear.Inputs[1]]
-	
+
 	// Create fused node based on activation type
 	var fusedNode unsafe.Pointer
 	switch activation.Type {
@@ -427,10 +427,10 @@ func (mgm *MPSGraphManager) createLinearActivationFusion(ops []Operation) *Compi
 	case "Tanh":
 		fusedNode = createLinearTanhNode(mgm.graph, inputA, inputB)
 	}
-	
+
 	outputTensor := getNodeOutput(fusedNode)
 	executable := compileGraph(mgm.graph, []unsafe.Pointer{inputA, inputB}, []unsafe.Pointer{outputTensor})
-	
+
 	return &CompiledOperation{
 		Graph:      mgm.graph,
 		Executable: executable,
@@ -442,13 +442,13 @@ func (mgm *MPSGraphManager) createBatchNormActivationFusion(ops []Operation) *Co
 	// Create fused BatchNorm+Activation operation
 	bn := ops[0]
 	activation := ops[1]
-	
+
 	input := mgm.tensors[bn.Inputs[0]]
 	mean := mgm.tensors[bn.Inputs[1]]
 	variance := mgm.tensors[bn.Inputs[2]]
 	scale := mgm.tensors[bn.Inputs[3]]
 	bias := mgm.tensors[bn.Inputs[4]]
-	
+
 	// Create fused node
 	var fusedNode unsafe.Pointer
 	if activation.Type == "ReLU" {
@@ -456,11 +456,11 @@ func (mgm *MPSGraphManager) createBatchNormActivationFusion(ops []Operation) *Co
 	} else {
 		fusedNode = createBatchNormSigmoidNode(mgm.graph, input, mean, variance, scale, bias)
 	}
-	
+
 	outputTensor := getNodeOutput(fusedNode)
 	inputs := []unsafe.Pointer{input, mean, variance, scale, bias}
 	executable := compileGraph(mgm.graph, inputs, []unsafe.Pointer{outputTensor})
-	
+
 	return &CompiledOperation{
 		Graph:      mgm.graph,
 		Executable: executable,
@@ -489,21 +489,21 @@ func NewAutoKernelSelector(mgm *MPSGraphManager) *AutoKernelSelector {
 func (aks *AutoKernelSelector) SelectKernel(op Operation, inputShapes [][]int) string {
 	// Create key from operation and shapes
 	key := fmt.Sprintf("%s_%v", op.Type, inputShapes)
-	
+
 	aks.mu.RLock()
 	if kernel, exists := aks.kernelCache[key]; exists {
 		aks.mu.RUnlock()
 		return kernel
 	}
 	aks.mu.RUnlock()
-	
+
 	// Determine optimal kernel
 	kernel := aks.determineOptimalKernel(op, inputShapes)
-	
+
 	aks.mu.Lock()
 	aks.kernelCache[key] = kernel
 	aks.mu.Unlock()
-	
+
 	return kernel
 }
 
@@ -524,10 +524,10 @@ func (aks *AutoKernelSelector) selectMatMulKernel(shapes [][]int) string {
 	if len(shapes) < 2 {
 		return "default"
 	}
-	
+
 	m, k := shapes[0][0], shapes[0][1]
 	n := shapes[1][1]
-	
+
 	// Use different kernels based on matrix dimensions
 	if m*n*k < 1000000 {
 		return "small_matmul"
@@ -536,7 +536,7 @@ func (aks *AutoKernelSelector) selectMatMulKernel(shapes [][]int) string {
 	} else if m == 1 || n == 1 {
 		return "gemv_optimized"
 	}
-	
+
 	return "standard_matmul"
 }
 
@@ -545,11 +545,11 @@ func (aks *AutoKernelSelector) selectConv2DKernel(shapes [][]int) string {
 	if len(shapes) < 2 {
 		return "default"
 	}
-	
+
 	// Input shape: [N, C, H, W]
 	// Weight shape: [OutC, InC, KH, KW]
 	kernelSize := shapes[1][2] * shapes[1][3]
-	
+
 	if kernelSize == 1 {
 		return "conv_1x1_optimized"
 	} else if kernelSize == 9 {
@@ -557,7 +557,7 @@ func (aks *AutoKernelSelector) selectConv2DKernel(shapes [][]int) string {
 	} else if kernelSize > 25 {
 		return "conv_large_kernel"
 	}
-	
+
 	return "conv_standard"
 }
 
@@ -579,8 +579,8 @@ func createMatMulNode(graph, a, b unsafe.Pointer, transposeA, transposeB bool) u
 
 func createConv2DNode(graph, input, weights unsafe.Pointer, stride, padding []int) unsafe.Pointer {
 	if len(stride) >= 2 && len(padding) >= 2 {
-		return C.createConv2DNode(graph, input, weights, 
-			C.long(stride[0]), C.long(stride[1]), 
+		return C.createConv2DNode(graph, input, weights,
+			C.long(stride[0]), C.long(stride[1]),
 			C.long(padding[0]), C.long(padding[1]))
 	}
 	return nil

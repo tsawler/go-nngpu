@@ -16,7 +16,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // Advanced features for automatic differentiation including higher-order derivatives,
@@ -198,8 +198,8 @@ type RecomputationManager struct {
 
 // ComputationCostModel models the cost of operations
 type ComputationCostModel struct {
-	operationCosts map[OpType]*OperationCost
-	memoryCosts    map[string]*MemoryCost  // Changed from TensorType to string
+	operationCosts     map[OpType]*OperationCost
+	memoryCosts        map[string]*MemoryCost // Changed from TensorType to string
 	communicationCosts *CommunicationCost
 }
 

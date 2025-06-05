@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // AutodiffProfiler provides detailed profiling and analysis of the computation graph

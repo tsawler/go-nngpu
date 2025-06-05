@@ -11,8 +11,8 @@ import (
 	"runtime"
 	"unsafe"
 
-	"github.com/tsawler/go-nngpu/tensor"
-	_ "github.com/tsawler/go-nngpu/internal/cgo"
+	_ "github.com/tsawler/gometal/internal/cgo"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // Global device pointer for unified memory system
@@ -408,19 +408,19 @@ func Add(A, B *tensor.Tensor) (*tensor.Tensor, error) {
 	if len(A.Shape) != 2 || len(B.Shape) != 2 {
 		return nil, fmt.Errorf("Add requires 2D tensors (matrices)")
 	}
-	
+
 	// Check for broadcasting compatibility
 	canBroadcast, resultShape := canBroadcast2D(A.Shape, B.Shape)
 	if !canBroadcast {
-		return nil, fmt.Errorf("incompatible matrix dimensions for addition: A (%dx%d) vs B (%dx%d)", 
+		return nil, fmt.Errorf("incompatible matrix dimensions for addition: A (%dx%d) vs B (%dx%d)",
 			A.Shape[0], A.Shape[1], B.Shape[0], B.Shape[1])
 	}
-	
+
 	// If shapes are identical, use the original fast path
 	if A.Shape[0] == B.Shape[0] && A.Shape[1] == B.Shape[1] {
 		return addSameShape(A, B)
 	}
-	
+
 	// Handle broadcasting case
 	return addWithBroadcasting(A, B, resultShape)
 }
@@ -429,16 +429,16 @@ func Add(A, B *tensor.Tensor) (*tensor.Tensor, error) {
 func canBroadcast2D(shapeA, shapeB []int) (bool, []int) {
 	// For 2D broadcasting: [M, N] + [1, N] = [M, N] or [M, N] + [M, 1] = [M, N]
 	// Also handle exact matches: [M, N] + [M, N] = [M, N]
-	
+
 	if len(shapeA) != 2 || len(shapeB) != 2 {
 		return false, nil
 	}
-	
+
 	// Case 1: Exact match
 	if shapeA[0] == shapeB[0] && shapeA[1] == shapeB[1] {
 		return true, []int{shapeA[0], shapeA[1]}
 	}
-	
+
 	// Case 2: Broadcasting along dimension 0 (bias case: [M, N] + [1, N])
 	if (shapeA[0] != shapeB[0] && (shapeA[0] == 1 || shapeB[0] == 1)) && shapeA[1] == shapeB[1] {
 		resultRows := shapeA[0]
@@ -447,7 +447,7 @@ func canBroadcast2D(shapeA, shapeB []int) (bool, []int) {
 		}
 		return true, []int{resultRows, shapeA[1]}
 	}
-	
+
 	// Case 3: Broadcasting along dimension 1 ([M, N] + [M, 1])
 	if shapeA[0] == shapeB[0] && (shapeA[1] != shapeB[1] && (shapeA[1] == 1 || shapeB[1] == 1)) {
 		resultCols := shapeA[1]
@@ -456,7 +456,7 @@ func canBroadcast2D(shapeA, shapeB []int) (bool, []int) {
 		}
 		return true, []int{shapeA[0], resultCols}
 	}
-	
+
 	return false, nil
 }
 
@@ -553,7 +553,7 @@ func Sub(A, B *tensor.Tensor) (*tensor.Tensor, error) {
 		return nil, fmt.Errorf("Sub requires 2D tensors (matrices)")
 	}
 	if A.Shape[0] != B.Shape[0] || A.Shape[1] != B.Shape[1] {
-		return nil, fmt.Errorf("incompatible matrix dimensions for subtraction: A (%dx%d) != B (%dx%d)", 
+		return nil, fmt.Errorf("incompatible matrix dimensions for subtraction: A (%dx%d) != B (%dx%d)",
 			A.Shape[0], A.Shape[1], B.Shape[0], B.Shape[1])
 	}
 
@@ -604,7 +604,7 @@ func Mul(A, B *tensor.Tensor) (*tensor.Tensor, error) {
 		return nil, fmt.Errorf("Mul requires 2D tensors (matrices)")
 	}
 	if A.Shape[0] != B.Shape[0] || A.Shape[1] != B.Shape[1] {
-		return nil, fmt.Errorf("incompatible matrix dimensions for element-wise multiplication: A (%dx%d) != B (%dx%d)", 
+		return nil, fmt.Errorf("incompatible matrix dimensions for element-wise multiplication: A (%dx%d) != B (%dx%d)",
 			A.Shape[0], A.Shape[1], B.Shape[0], B.Shape[1])
 	}
 
@@ -655,7 +655,7 @@ func Div(A, B *tensor.Tensor) (*tensor.Tensor, error) {
 		return nil, fmt.Errorf("Div requires 2D tensors (matrices)")
 	}
 	if A.Shape[0] != B.Shape[0] || A.Shape[1] != B.Shape[1] {
-		return nil, fmt.Errorf("incompatible matrix dimensions for element-wise division: A (%dx%d) != B (%dx%d)", 
+		return nil, fmt.Errorf("incompatible matrix dimensions for element-wise division: A (%dx%d) != B (%dx%d)",
 			A.Shape[0], A.Shape[1], B.Shape[0], B.Shape[1])
 	}
 
@@ -900,16 +900,16 @@ func LU(A *tensor.Tensor) (*LUDecomposition, error) {
 
 	rows := A.Shape[0]
 	cols := A.Shape[1]
-	
+
 	// Create L matrix (rows x rows) and U matrix (rows x cols)
 	lData := make([]float32, rows*rows)
 	uData := make([]float32, rows*cols)
-	
+
 	lTensor, err := tensor.NewTensor([]int{rows, rows}, lData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L tensor: %w", err)
 	}
-	
+
 	uTensor, err := tensor.NewTensor([]int{rows, cols}, uData)
 	if err != nil {
 		lTensor.ReleaseGPU()

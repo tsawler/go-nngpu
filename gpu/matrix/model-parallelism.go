@@ -6,31 +6,31 @@ import (
 	"sync"
 	"sync/atomic"
 	"unsafe"
-	
-	"github.com/tsawler/go-nngpu/tensor"
+
+	"github.com/tsawler/gometal/tensor"
 )
 
 // ModelParallelism implements model parallelism on a single device
 type ModelParallelism struct {
-	streamMgr    *StreamManager
-	memMgr       *UnifiedMemoryManager
-	executor     *ParallelExecutor
-	
+	streamMgr *StreamManager
+	memMgr    *UnifiedMemoryManager
+	executor  *ParallelExecutor
+
 	// Pipeline configuration
 	numStages    int
 	stageStreams []StreamID
-	
+
 	// Micro-batching
 	microBatchSize int
 	accumSteps     int
-	
+
 	// Gradient checkpointing
-	checkpoints    map[string]*tensor.Tensor
-	checkpointMu   sync.RWMutex
-	
+	checkpoints  map[string]*tensor.Tensor
+	checkpointMu sync.RWMutex
+
 	// Performance metrics
-	stageTimings   []int64
-	pipelineDepth  int
+	stageTimings  []int64
+	pipelineDepth int
 }
 
 // PipelineStage represents a stage in the model pipeline
@@ -40,7 +40,7 @@ type PipelineStage struct {
 	StreamID   StreamID
 	InputSize  []int
 	OutputSize []int
-	
+
 	// Buffers for pipeline
 	inputBuffer  *tensor.Tensor
 	outputBuffer *tensor.Tensor
@@ -58,7 +58,7 @@ type Layer interface {
 // NewModelParallelism creates a model parallelism manager
 func NewModelParallelism(streamMgr *StreamManager, memMgr *UnifiedMemoryManager) *ModelParallelism {
 	executor := NewParallelExecutor(streamMgr)
-	
+
 	return &ModelParallelism{
 		streamMgr:      streamMgr,
 		memMgr:         memMgr,
@@ -79,52 +79,52 @@ func (mp *ModelParallelism) SplitModel(layers []Layer, strategy string) ([]*Pipe
 	if numLayers < mp.numStages {
 		return nil, fmt.Errorf("not enough layers (%d) for %d stages", numLayers, mp.numStages)
 	}
-	
+
 	stages := make([]*PipelineStage, mp.numStages)
-	
+
 	switch strategy {
 	case "balanced":
 		// Balance layers evenly across stages
 		layersPerStage := numLayers / mp.numStages
 		remainder := numLayers % mp.numStages
-		
+
 		layerIdx := 0
 		for i := 0; i < mp.numStages; i++ {
 			stageLayerCount := layersPerStage
 			if i < remainder {
 				stageLayerCount++
 			}
-			
+
 			stageLayers := make([]Layer, stageLayerCount)
 			for j := 0; j < stageLayerCount; j++ {
 				stageLayers[j] = layers[layerIdx]
 				layerIdx++
 			}
-			
+
 			stages[i] = &PipelineStage{
 				ID:       i,
 				Layers:   stageLayers,
 				StreamID: StreamID(i % mp.streamMgr.numStreams),
 			}
 		}
-		
+
 	case "memory":
 		// Balance by memory usage
 		stages = mp.splitByMemory(layers)
-		
+
 	case "compute":
 		// Balance by compute complexity
 		stages = mp.splitByCompute(layers)
-		
+
 	default:
 		return nil, fmt.Errorf("unknown split strategy: %s", strategy)
 	}
-	
+
 	// Initialize stage buffers
 	for _, stage := range stages {
 		mp.initializeStageBuffers(stage)
 	}
-	
+
 	return stages, nil
 }
 
@@ -133,7 +133,7 @@ func (mp *ModelParallelism) splitByMemory(layers []Layer) []*PipelineStage {
 	// Calculate memory requirements for each layer
 	layerMemory := make([]int64, len(layers))
 	totalMemory := int64(0)
-	
+
 	for i, layer := range layers {
 		params := layer.GetParameters()
 		memory := int64(0)
@@ -147,19 +147,19 @@ func (mp *ModelParallelism) splitByMemory(layers []Layer) []*PipelineStage {
 		layerMemory[i] = memory
 		totalMemory += memory
 	}
-	
+
 	// Target memory per stage
 	targetMemory := totalMemory / int64(mp.numStages)
-	
+
 	stages := make([]*PipelineStage, mp.numStages)
 	stageIdx := 0
 	currentMemory := int64(0)
 	currentLayers := []Layer{}
-	
+
 	for i, layer := range layers {
 		currentLayers = append(currentLayers, layer)
 		currentMemory += layerMemory[i]
-		
+
 		// Check if we should create a new stage
 		if currentMemory >= targetMemory && stageIdx < mp.numStages-1 {
 			stages[stageIdx] = &PipelineStage{
@@ -172,7 +172,7 @@ func (mp *ModelParallelism) splitByMemory(layers []Layer) []*PipelineStage {
 			currentLayers = []Layer{}
 		}
 	}
-	
+
 	// Add remaining layers to last stage
 	if len(currentLayers) > 0 {
 		stages[stageIdx] = &PipelineStage{
@@ -181,7 +181,7 @@ func (mp *ModelParallelism) splitByMemory(layers []Layer) []*PipelineStage {
 			StreamID: StreamID(stageIdx % mp.streamMgr.numStreams),
 		}
 	}
-	
+
 	return stages
 }
 
@@ -190,7 +190,7 @@ func (mp *ModelParallelism) splitByCompute(layers []Layer) []*PipelineStage {
 	// Estimate compute for each layer (simplified)
 	layerCompute := make([]int64, len(layers))
 	totalCompute := int64(0)
-	
+
 	for i, layer := range layers {
 		// Estimate based on parameter count (simplified)
 		params := layer.GetParameters()
@@ -205,19 +205,19 @@ func (mp *ModelParallelism) splitByCompute(layers []Layer) []*PipelineStage {
 		layerCompute[i] = compute
 		totalCompute += compute
 	}
-	
+
 	// Similar logic to memory-based splitting
 	targetCompute := totalCompute / int64(mp.numStages)
-	
+
 	stages := make([]*PipelineStage, mp.numStages)
 	stageIdx := 0
 	currentCompute := int64(0)
 	currentLayers := []Layer{}
-	
+
 	for i, layer := range layers {
 		currentLayers = append(currentLayers, layer)
 		currentCompute += layerCompute[i]
-		
+
 		if currentCompute >= targetCompute && stageIdx < mp.numStages-1 {
 			stages[stageIdx] = &PipelineStage{
 				ID:       stageIdx,
@@ -229,7 +229,7 @@ func (mp *ModelParallelism) splitByCompute(layers []Layer) []*PipelineStage {
 			currentLayers = []Layer{}
 		}
 	}
-	
+
 	if len(currentLayers) > 0 {
 		stages[stageIdx] = &PipelineStage{
 			ID:       stageIdx,
@@ -237,7 +237,7 @@ func (mp *ModelParallelism) splitByCompute(layers []Layer) []*PipelineStage {
 			StreamID: StreamID(stageIdx % mp.streamMgr.numStreams),
 		}
 	}
-	
+
 	return stages
 }
 
@@ -247,15 +247,15 @@ func (mp *ModelParallelism) initializeStageBuffers(stage *PipelineStage) {
 	if len(stage.Layers) == 0 {
 		return
 	}
-	
+
 	// For simplicity, assume fixed sizes (would be dynamic in practice)
 	inputSize := 1024  // Example input features
 	outputSize := 1024 // Example output features
-	
+
 	inputData := make([]float32, mp.microBatchSize*inputSize)
 	outputData := make([]float32, mp.microBatchSize*outputSize)
 	gradData := make([]float32, mp.microBatchSize*outputSize)
-	
+
 	stage.inputBuffer, _ = tensor.NewTensor([]int{mp.microBatchSize, inputSize}, inputData)
 	stage.outputBuffer, _ = tensor.NewTensor([]int{mp.microBatchSize, outputSize}, outputData)
 	stage.gradBuffer, _ = tensor.NewTensor([]int{mp.microBatchSize, outputSize}, gradData)
@@ -264,13 +264,13 @@ func (mp *ModelParallelism) initializeStageBuffers(stage *PipelineStage) {
 // PipelineForward executes forward pass with pipeline parallelism
 func (mp *ModelParallelism) PipelineForward(stages []*PipelineStage, input *tensor.Tensor) *tensor.Tensor {
 	numMicroBatches := input.Shape[0] / mp.microBatchSize
-	
+
 	// Create pipeline schedule (for real implementation)
 	_ = mp.createPipelineSchedule(stages, numMicroBatches)
-	
+
 	// Execute pipeline
 	outputs := make([]*tensor.Tensor, numMicroBatches)
-	
+
 	// TODO: For demo purposes, create mock outputs directly
 	// In a real implementation, this would execute the actual pipeline
 	for i := 0; i < numMicroBatches; i++ {
@@ -281,7 +281,7 @@ func (mp *ModelParallelism) PipelineForward(stages []*PipelineStage, input *tens
 		}
 		outputs[i], _ = tensor.NewTensor([]int{mp.microBatchSize, outputSize}, outputData)
 	}
-	
+
 	// Concatenate outputs
 	return mp.concatenateMicroBatches(outputs)
 }
@@ -296,7 +296,7 @@ type PipelineTask struct {
 // createPipelineSchedule creates an optimized pipeline schedule
 func (mp *ModelParallelism) createPipelineSchedule(stages []*PipelineStage, numMicroBatches int) [][]PipelineTask {
 	schedule := [][]PipelineTask{}
-	
+
 	// 1F1B schedule (1 forward, 1 backward)
 	// Warm-up phase
 	for i := 0; i < len(stages); i++ {
@@ -310,12 +310,12 @@ func (mp *ModelParallelism) createPipelineSchedule(stages []*PipelineStage, numM
 		}
 		schedule = append(schedule, tasks)
 	}
-	
+
 	// Steady state (1F1B)
 	steadySteps := numMicroBatches - len(stages)
 	for i := 0; i < steadySteps; i++ {
 		tasks := []PipelineTask{}
-		
+
 		// Forward for new micro-batch
 		mbID := len(stages) + i
 		if mbID < numMicroBatches {
@@ -325,7 +325,7 @@ func (mp *ModelParallelism) createPipelineSchedule(stages []*PipelineStage, numM
 				TaskType:     "forward",
 			})
 		}
-		
+
 		// Continue pipeline for in-flight micro-batches
 		for j := 1; j < len(stages); j++ {
 			if mbID-j >= 0 && mbID-j < numMicroBatches {
@@ -336,21 +336,21 @@ func (mp *ModelParallelism) createPipelineSchedule(stages []*PipelineStage, numM
 				})
 			}
 		}
-		
+
 		schedule = append(schedule, tasks)
 	}
-	
+
 	return schedule
 }
 
 // executePipelineTask executes a single pipeline task
 func (mp *ModelParallelism) executePipelineTask(task PipelineTask, stages []*PipelineStage, input *tensor.Tensor, outputs []*tensor.Tensor) {
 	stage := stages[task.StageID]
-	
+
 	// Get micro-batch input
 	mbStart := task.MicroBatchID * mp.microBatchSize
 	mbEnd := mbStart + mp.microBatchSize
-	
+
 	var stageInput *tensor.Tensor
 	if task.StageID == 0 {
 		// First stage gets input from original data
@@ -365,7 +365,7 @@ func (mp *ModelParallelism) executePipelineTask(task PipelineTask, stages []*Pip
 		// This would be coordinated through stage buffers
 		stageInput = stage.inputBuffer
 	}
-	
+
 	// Execute on appropriate stream
 	mp.streamMgr.SubmitToStream(stage.StreamID, func(stream unsafe.Pointer) {
 		// Forward through stage layers
@@ -373,7 +373,7 @@ func (mp *ModelParallelism) executePipelineTask(task PipelineTask, stages []*Pip
 		for _, layer := range stage.Layers {
 			output = layer.Forward(output)
 		}
-		
+
 		// Store output
 		if task.StageID == len(stages)-1 {
 			// Last stage stores final output
@@ -385,7 +385,7 @@ func (mp *ModelParallelism) executePipelineTask(task PipelineTask, stages []*Pip
 			nextStage := stages[task.StageID+1]
 			copy(nextStage.inputBuffer.Data, output.Data)
 		}
-		
+
 		// Update timing
 		atomic.AddInt64(&mp.stageTimings[task.StageID], 1)
 	})
@@ -413,14 +413,14 @@ func (gc *GradientCheckpointing) CheckpointForward(layers []Layer, input *tensor
 	if len(layers) == 0 {
 		return input
 	}
-	
+
 	outputs := make([]*tensor.Tensor, len(layers)+1)
 	outputs[0] = input
-	
+
 	for i, layer := range layers {
 		// Run forward pass
 		outputs[i+1] = layer.Forward(outputs[i])
-		
+
 		// Checkpoint intermediate activations
 		if i%gc.checkpointEvery == 0 {
 			key := fmt.Sprintf("checkpoint_%d", i)
@@ -434,7 +434,7 @@ func (gc *GradientCheckpointing) CheckpointForward(layers []Layer, input *tensor
 			outputs[i] = nil
 		}
 	}
-	
+
 	finalOutput := outputs[len(layers)]
 	if finalOutput == nil {
 		// Return a copy of the input if something went wrong
@@ -442,32 +442,32 @@ func (gc *GradientCheckpointing) CheckpointForward(layers []Layer, input *tensor
 		copy(data, input.Data)
 		finalOutput, _ = tensor.NewTensor(input.Shape, data)
 	}
-	
+
 	return finalOutput
 }
 
 // CheckpointBackward runs backward pass with recomputation
 func (gc *GradientCheckpointing) CheckpointBackward(layers []Layer, gradOutput *tensor.Tensor) {
 	numLayers := len(layers)
-	
+
 	for i := numLayers - 1; i >= 0; i-- {
 		// Recompute forward activations if needed
 		if i%gc.checkpointEvery != 0 {
 			// Find nearest checkpoint
 			checkpointIdx := (i / gc.checkpointEvery) * gc.checkpointEvery
 			key := fmt.Sprintf("checkpoint_%d", checkpointIdx)
-			
+
 			gc.mu.RLock()
 			checkpointInput := gc.savedTensors[key]
 			gc.mu.RUnlock()
-			
+
 			// Recompute forward from checkpoint to current layer
 			current := checkpointInput
 			for j := checkpointIdx; j < i; j++ {
 				current = layers[j].Forward(current)
 			}
 		}
-		
+
 		// Backward pass
 		gradOutput = layers[i].Backward(gradOutput)
 	}
@@ -475,10 +475,10 @@ func (gc *GradientCheckpointing) CheckpointBackward(layers []Layer, gradOutput *
 
 // MicroBatchAccumulator handles gradient accumulation for micro-batching
 type MicroBatchAccumulator struct {
-	accumGrads   map[string]*tensor.Tensor
-	accumCount   int
-	targetSteps  int
-	mu           sync.Mutex
+	accumGrads  map[string]*tensor.Tensor
+	accumCount  int
+	targetSteps int
+	mu          sync.Mutex
 }
 
 // NewMicroBatchAccumulator creates a gradient accumulator
@@ -493,7 +493,7 @@ func NewMicroBatchAccumulator(targetSteps int) *MicroBatchAccumulator {
 func (mba *MicroBatchAccumulator) AccumulateGradients(layerID string, grads *tensor.Tensor) bool {
 	mba.mu.Lock()
 	defer mba.mu.Unlock()
-	
+
 	if existing, exists := mba.accumGrads[layerID]; exists {
 		// Add to existing gradients
 		for i := range existing.Data {
@@ -505,9 +505,9 @@ func (mba *MicroBatchAccumulator) AccumulateGradients(layerID string, grads *ten
 		copy(gradsCopy, grads.Data)
 		mba.accumGrads[layerID], _ = tensor.NewTensor(grads.Shape, gradsCopy)
 	}
-	
+
 	mba.accumCount++
-	
+
 	// Check if we've accumulated enough steps
 	if mba.accumCount >= mba.targetSteps {
 		// Normalize accumulated gradients
@@ -519,7 +519,7 @@ func (mba *MicroBatchAccumulator) AccumulateGradients(layerID string, grads *ten
 		}
 		return true
 	}
-	
+
 	return false
 }
 
@@ -527,16 +527,16 @@ func (mba *MicroBatchAccumulator) AccumulateGradients(layerID string, grads *ten
 func (mba *MicroBatchAccumulator) GetAccumulatedGradients() map[string]*tensor.Tensor {
 	mba.mu.Lock()
 	defer mba.mu.Unlock()
-	
+
 	result := make(map[string]*tensor.Tensor)
 	for k, v := range mba.accumGrads {
 		result[k] = v
 	}
-	
+
 	// Reset accumulator
 	mba.accumGrads = make(map[string]*tensor.Tensor)
 	mba.accumCount = 0
-	
+
 	return result
 }
 
@@ -545,7 +545,7 @@ func (mp *ModelParallelism) concatenateMicroBatches(outputs []*tensor.Tensor) *t
 	if len(outputs) == 0 {
 		return nil
 	}
-	
+
 	// Filter out nil outputs
 	validOutputs := make([]*tensor.Tensor, 0, len(outputs))
 	for _, out := range outputs {
@@ -553,43 +553,43 @@ func (mp *ModelParallelism) concatenateMicroBatches(outputs []*tensor.Tensor) *t
 			validOutputs = append(validOutputs, out)
 		}
 	}
-	
+
 	if len(validOutputs) == 0 {
 		// Create a dummy output if no valid outputs
 		dummyData := make([]float32, 64*1000) // Batch size 64, 1000 features
 		result, _ := tensor.NewTensor([]int{64, 1000}, dummyData)
 		return result
 	}
-	
+
 	totalRows := 0
 	cols := validOutputs[0].Shape[1]
-	
+
 	for _, out := range validOutputs {
 		totalRows += out.Shape[0]
 	}
-	
+
 	resultData := make([]float32, totalRows*cols)
 	result, _ := tensor.NewTensor([]int{totalRows, cols}, resultData)
-	
+
 	offset := 0
 	for _, out := range validOutputs {
 		rows := out.Shape[0]
 		copy(result.Data[offset*cols:(offset+rows)*cols], out.Data)
 		offset += rows
 	}
-	
+
 	return result
 }
 
 // MemoryEfficientTraining coordinates memory-efficient training techniques
 type MemoryEfficientTraining struct {
-	mp          *ModelParallelism
+	mp            *ModelParallelism
 	checkpointing *GradientCheckpointing
 	accumulator   *MicroBatchAccumulator
-	
+
 	// Activation recomputation
 	recomputeActivations bool
-	
+
 	// CPU offloading
 	offloadToCPU bool
 	cpuBuffers   map[string][]float32
@@ -612,17 +612,17 @@ func (met *MemoryEfficientTraining) TrainStep(model []Layer, input, target *tens
 	// Split input into micro-batches
 	microBatches := met.splitIntoMicroBatches(input)
 	targetBatches := met.splitIntoMicroBatches(target)
-	
+
 	totalLoss := float32(0)
-	
+
 	for i, mb := range microBatches {
 		// Forward with checkpointing
 		output := met.checkpointing.CheckpointForward(model, mb)
-		
+
 		// Compute loss
 		batchLoss := loss(output, targetBatches[i])
 		totalLoss += batchLoss
-		
+
 		// Backward with gradient accumulation
 		gradData := make([]float32, len(output.Data))
 		fillValue := 1.0 / float32(len(output.Data))
@@ -630,14 +630,14 @@ func (met *MemoryEfficientTraining) TrainStep(model []Layer, input, target *tens
 			gradData[i] = fillValue
 		}
 		gradOutput, _ := tensor.NewTensor(output.Shape, gradData)
-		
+
 		met.checkpointing.CheckpointBackward(model, gradOutput)
-		
+
 		// Accumulate gradients
 		for j, layer := range model {
 			layerID := fmt.Sprintf("layer_%d", j)
 			grads := layer.GetGradients()
-			
+
 			for _, grad := range grads {
 				if met.accumulator.AccumulateGradients(layerID, grad) {
 					// Gradients accumulated, ready for optimizer step
@@ -646,7 +646,7 @@ func (met *MemoryEfficientTraining) TrainStep(model []Layer, input, target *tens
 			}
 		}
 	}
-	
+
 	return totalLoss / float32(len(microBatches))
 }
 
@@ -656,16 +656,16 @@ func (met *MemoryEfficientTraining) splitIntoMicroBatches(input *tensor.Tensor) 
 	cols := input.Shape[1]
 	numMicroBatches := int(math.Ceil(float64(rows) / float64(met.mp.microBatchSize)))
 	batches := make([]*tensor.Tensor, numMicroBatches)
-	
+
 	for i := range numMicroBatches {
 		start := i * met.mp.microBatchSize
 		end := min(start+met.mp.microBatchSize, rows)
 		batchRows := end - start
-		
+
 		batchData := make([]float32, batchRows*cols)
 		copy(batchData, input.Data[start*cols:end*cols])
 		batches[i], _ = tensor.NewTensor([]int{batchRows, cols}, batchData)
 	}
-	
+
 	return batches
 }

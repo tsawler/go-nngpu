@@ -6,7 +6,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // Phase 8C: Memory Bandwidth Optimization - Complete Implementation Summary
@@ -14,47 +14,47 @@ import (
 
 // MemoryOptimizationSuite combines all Phase 8C optimization components
 type MemoryOptimizationSuite struct {
-	memoryPool           *GPUMemoryPool
-	bufferReuseManager   *BufferReuseManager
-	layoutOptimizer      *TensorLayoutOptimizer
-	transferOptimizer    *GPUCPUTransferOptimizer
-	memoryOptimizer      *MemoryCoalescingOptimizer
-	bandwidthMonitor     *MemoryBandwidthMonitor
-	kernelCache          *KernelCache
-	sharedMemOptimizer   *SharedMemoryOptimizer
-	isInitialized        bool
-	mutex                sync.RWMutex
+	memoryPool         *GPUMemoryPool
+	bufferReuseManager *BufferReuseManager
+	layoutOptimizer    *TensorLayoutOptimizer
+	transferOptimizer  *GPUCPUTransferOptimizer
+	memoryOptimizer    *MemoryCoalescingOptimizer
+	bandwidthMonitor   *MemoryBandwidthMonitor
+	kernelCache        *KernelCache
+	sharedMemOptimizer *SharedMemoryOptimizer
+	isInitialized      bool
+	mutex              sync.RWMutex
 }
 
 // OptimizationConfig configures the memory optimization suite
 type OptimizationConfig struct {
-	MaxMemoryPoolSize     int64 // Maximum GPU memory pool size
-	MaxBufferCacheSize    int64 // Maximum buffer cache size
-	MaxKernelCacheSize    int64 // Maximum kernel cache size
-	MaxSharedMemory       int   // Maximum shared memory per threadgroup
-	EnableTransferOpt     bool  // Enable CPU-GPU transfer optimization
+	MaxMemoryPoolSize      int64 // Maximum GPU memory pool size
+	MaxBufferCacheSize     int64 // Maximum buffer cache size
+	MaxKernelCacheSize     int64 // Maximum kernel cache size
+	MaxSharedMemory        int   // Maximum shared memory per threadgroup
+	EnableTransferOpt      bool  // Enable CPU-GPU transfer optimization
 	EnableMemoryCoalescing bool  // Enable memory coalescing optimization
-	EnableLayoutOpt       bool  // Enable tensor layout optimization
-	EnableBufferReuse     bool  // Enable buffer reuse optimization
-	EnableKernelCache     bool  // Enable kernel compilation caching
-	EnableSharedMemOpt    bool  // Enable shared memory optimization
-	BandwidthMonitoring   bool  // Enable bandwidth monitoring
+	EnableLayoutOpt        bool  // Enable tensor layout optimization
+	EnableBufferReuse      bool  // Enable buffer reuse optimization
+	EnableKernelCache      bool  // Enable kernel compilation caching
+	EnableSharedMemOpt     bool  // Enable shared memory optimization
+	BandwidthMonitoring    bool  // Enable bandwidth monitoring
 }
 
 // DefaultOptimizationConfig returns a default configuration for memory optimization
 func DefaultOptimizationConfig() *OptimizationConfig {
 	return &OptimizationConfig{
-		MaxMemoryPoolSize:     1024 * 1024 * 1024, // 1GB
-		MaxBufferCacheSize:    256 * 1024 * 1024,  // 256MB
-		MaxKernelCacheSize:    64 * 1024 * 1024,   // 64MB
-		MaxSharedMemory:       32768,               // 32KB
-		EnableTransferOpt:     true,
+		MaxMemoryPoolSize:      1024 * 1024 * 1024, // 1GB
+		MaxBufferCacheSize:     256 * 1024 * 1024,  // 256MB
+		MaxKernelCacheSize:     64 * 1024 * 1024,   // 64MB
+		MaxSharedMemory:        32768,              // 32KB
+		EnableTransferOpt:      true,
 		EnableMemoryCoalescing: true,
-		EnableLayoutOpt:       true,
-		EnableBufferReuse:     true,
-		EnableKernelCache:     true,
-		EnableSharedMemOpt:    true,
-		BandwidthMonitoring:   true,
+		EnableLayoutOpt:        true,
+		EnableBufferReuse:      true,
+		EnableKernelCache:      true,
+		EnableSharedMemOpt:     true,
+		BandwidthMonitoring:    true,
 	}
 }
 
@@ -63,9 +63,9 @@ func NewMemoryOptimizationSuite(device unsafe.Pointer, config *OptimizationConfi
 	if config == nil {
 		config = DefaultOptimizationConfig()
 	}
-	
+
 	suite := &MemoryOptimizationSuite{}
-	
+
 	// Initialize memory pool
 	if config.MaxMemoryPoolSize > 0 {
 		memoryPool, err := NewGPUMemoryPool(config.MaxMemoryPoolSize)
@@ -73,32 +73,32 @@ func NewMemoryOptimizationSuite(device unsafe.Pointer, config *OptimizationConfi
 			suite.memoryPool = memoryPool
 		}
 	}
-	
+
 	// Initialize buffer reuse manager
 	if config.EnableBufferReuse && suite.memoryPool != nil {
 		suite.bufferReuseManager = NewBufferReuseManager(suite.memoryPool)
 	}
-	
+
 	// Initialize layout optimizer
 	if config.EnableLayoutOpt {
 		suite.layoutOptimizer = NewTensorLayoutOptimizer()
 	}
-	
+
 	// Initialize transfer optimizer
 	if config.EnableTransferOpt {
 		suite.transferOptimizer = NewGPUCPUTransferOptimizer()
 	}
-	
+
 	// Initialize memory coalescing optimizer
 	if config.EnableMemoryCoalescing {
 		suite.memoryOptimizer = NewMemoryCoalescingOptimizer()
 	}
-	
+
 	// Initialize bandwidth monitor
 	if config.BandwidthMonitoring {
 		suite.bandwidthMonitor = NewMemoryBandwidthMonitor()
 	}
-	
+
 	// Initialize kernel cache
 	if config.EnableKernelCache {
 		suite.kernelCache = NewKernelCache(device)
@@ -106,7 +106,7 @@ func NewMemoryOptimizationSuite(device unsafe.Pointer, config *OptimizationConfi
 			suite.kernelCache.SetCacheParams(config.MaxKernelCacheSize, 30*time.Minute)
 		}
 	}
-	
+
 	// Initialize shared memory optimizer
 	if config.EnableSharedMemOpt {
 		suite.sharedMemOptimizer = NewSharedMemoryOptimizer()
@@ -114,7 +114,7 @@ func NewMemoryOptimizationSuite(device unsafe.Pointer, config *OptimizationConfi
 			suite.sharedMemOptimizer.maxSharedMemory = config.MaxSharedMemory
 		}
 	}
-	
+
 	suite.isInitialized = true
 	return suite
 }
@@ -128,18 +128,18 @@ func (mos *MemoryOptimizationSuite) OptimizeTensorOperation(
 	if !mos.isInitialized {
 		return nil, fmt.Errorf("memory optimization suite not initialized")
 	}
-	
+
 	mos.mutex.Lock()
 	defer mos.mutex.Unlock()
-	
+
 	start := time.Now()
-	
+
 	optimizedOp := &OptimizedOperation{
 		OperationType: operationType,
 		StartTime:     start,
 		Tensors:       make([]*OptimizedTensor, len(tensors)),
 	}
-	
+
 	// Step 1: Optimize tensor layouts
 	if mos.layoutOptimizer != nil {
 		for i, tensor := range tensors {
@@ -155,7 +155,7 @@ func (mos *MemoryOptimizationSuite) OptimizeTensorOperation(
 					Stride:         make([]int, len(tensor.Shape)),
 				}
 			}
-			
+
 			optimizedOp.Tensors[i] = &OptimizedTensor{
 				Original:   tensor,
 				Optimized:  optimized,
@@ -171,21 +171,21 @@ func (mos *MemoryOptimizationSuite) OptimizeTensorOperation(
 			}
 		}
 	}
-	
+
 	// Step 2: Optimize GPU transfers
 	if mos.transferOptimizer != nil {
 		for _, optTensor := range optimizedOp.Tensors {
 			if mos.transferOptimizer.ShouldTransferToGPU(optTensor.Optimized) {
 				transferStart := time.Now()
-				
+
 				err := optTensor.Optimized.EnsureGPU()
 				if err != nil {
 					return nil, fmt.Errorf("failed to transfer tensor to GPU: %w", err)
 				}
-				
+
 				transferTime := time.Since(transferStart)
 				mos.transferOptimizer.MarkGPUValid(optTensor.Optimized, operationType)
-				
+
 				// Record bandwidth statistics
 				if mos.bandwidthMonitor != nil {
 					tensorSize := int64(len(optTensor.Optimized.Data) * 4) // 4 bytes per float32
@@ -194,26 +194,26 @@ func (mos *MemoryOptimizationSuite) OptimizeTensorOperation(
 			}
 		}
 	}
-	
+
 	// Step 3: Optimize shared memory if applicable
 	if mos.sharedMemOptimizer != nil {
 		optimizedTensors := make([]*tensor.Tensor, len(optimizedOp.Tensors))
 		for i, optTensor := range optimizedOp.Tensors {
 			optimizedTensors[i] = optTensor.Optimized
 		}
-		
+
 		sharedMemLayout, err := OptimizeSharedMemoryForOperation(operationType, optimizedTensors, params)
 		if err == nil {
 			optimizedOp.SharedMemoryLayout = sharedMemLayout
 		}
 	}
-	
+
 	// Step 4: Setup buffer reuse if available
 	if mos.bufferReuseManager != nil {
 		scope := NewOperationScope(operationType)
 		optimizedOp.BufferScope = scope
 	}
-	
+
 	optimizedOp.OptimizationTime = time.Since(start)
 	return optimizedOp, nil
 }
@@ -244,10 +244,10 @@ func (oo *OptimizedOperation) Execute(kernelSource string, additionalParams map[
 	defer func() {
 		oo.ExecutionTime = time.Since(start)
 	}()
-	
+
 	// Execute the operation using optimized tensors and layouts
 	// This would interface with the actual GPU kernel execution
-	
+
 	return nil
 }
 
@@ -256,7 +256,7 @@ func (oo *OptimizedOperation) Cleanup() {
 	if oo.BufferScope != nil {
 		oo.BufferScope.Close()
 	}
-	
+
 	// Release any temporary tensors created during optimization
 	for _, optTensor := range oo.Tensors {
 		if optTensor.Optimized != optTensor.Original {
@@ -269,25 +269,25 @@ func (oo *OptimizedOperation) Cleanup() {
 // GetOptimizationStats returns detailed statistics about the optimization
 func (oo *OptimizedOperation) GetOptimizationStats() map[string]interface{} {
 	stats := map[string]interface{}{
-		"operation_type":      oo.OperationType,
-		"optimization_time":   oo.OptimizationTime,
-		"execution_time":      oo.ExecutionTime,
-		"total_memory_used":   oo.TotalMemoryUsed,
+		"operation_type":        oo.OperationType,
+		"optimization_time":     oo.OptimizationTime,
+		"execution_time":        oo.ExecutionTime,
+		"total_memory_used":     oo.TotalMemoryUsed,
 		"bandwidth_utilization": oo.BandwidthUtilization,
-		"num_tensors":         len(oo.Tensors),
+		"num_tensors":           len(oo.Tensors),
 	}
-	
+
 	if oo.SharedMemoryLayout != nil {
 		stats["shared_memory_optimized"] = true
 		stats["shared_memory_size"] = oo.SharedMemoryLayout.TotalSize
 		stats["shared_memory_banks"] = len(oo.SharedMemoryLayout.Banks)
 	}
-	
+
 	if oo.BufferScope != nil {
 		stats["buffer_reuse_enabled"] = true
 		stats["intermediate_tensors"] = oo.BufferScope.GetTensorCount()
 	}
-	
+
 	// Calculate memory savings from layout optimization
 	originalSize := int64(0)
 	optimizedSize := int64(0)
@@ -295,12 +295,12 @@ func (oo *OptimizedOperation) GetOptimizationStats() map[string]interface{} {
 		originalSize += int64(len(optTensor.Original.Data) * 4)
 		optimizedSize += int64(len(optTensor.Optimized.Data) * 4)
 	}
-	
+
 	if originalSize > 0 {
 		memorySavings := float64(originalSize-optimizedSize) / float64(originalSize) * 100
 		stats["memory_savings_percent"] = memorySavings
 	}
-	
+
 	return stats
 }
 
@@ -308,11 +308,11 @@ func (oo *OptimizedOperation) GetOptimizationStats() map[string]interface{} {
 func (mos *MemoryOptimizationSuite) GetSuiteStats() map[string]interface{} {
 	mos.mutex.RLock()
 	defer mos.mutex.RUnlock()
-	
+
 	stats := map[string]interface{}{
 		"initialized": mos.isInitialized,
 	}
-	
+
 	// Memory pool statistics - use suite instance only (no global fallback since none exists)
 	var poolStats PoolMemoryStats
 	var currentUsage int64
@@ -322,14 +322,14 @@ func (mos *MemoryOptimizationSuite) GetSuiteStats() map[string]interface{} {
 		currentUsage = mos.memoryPool.GetUsage()
 		hasPoolStats = true
 	}
-	
+
 	if hasPoolStats {
-		
+
 		// Calculate derived statistics for compatibility with demo expectations
 		inUseCount := int64(0)
 		availableCount := int64(0)
 		totalSize := poolStats.TotalAllocated // Use total allocated as a proxy for pool size
-		
+
 		// Estimate in-use and available counts based on allocation patterns
 		if poolStats.AllocationCount > 0 {
 			if poolStats.TotalFreed > 0 {
@@ -344,42 +344,42 @@ func (mos *MemoryOptimizationSuite) GetSuiteStats() map[string]interface{} {
 				inUseCount = 0
 			}
 		}
-		
+
 		stats["memory_pool"] = map[string]interface{}{
 			// Original fields for backward compatibility
-			"total_allocated":    poolStats.TotalAllocated,
-			"total_freed":       poolStats.TotalFreed,
-			"peak_usage":        poolStats.PeakUsage,
-			"allocation_count":  poolStats.AllocationCount,
-			"cache_hits":        poolStats.CacheHits,
-			"cache_misses":      poolStats.CacheMisses,
-			"current_usage":     currentUsage,
+			"total_allocated":     poolStats.TotalAllocated,
+			"total_freed":         poolStats.TotalFreed,
+			"peak_usage":          poolStats.PeakUsage,
+			"allocation_count":    poolStats.AllocationCount,
+			"cache_hits":          poolStats.CacheHits,
+			"cache_misses":        poolStats.CacheMisses,
+			"current_usage":       currentUsage,
 			"fragmentation_ratio": poolStats.FragmentationRatio,
-			
+
 			// Additional fields expected by demo
-			"total_size":        totalSize,
-			"in_use_count":      inUseCount,
-			"available_count":   availableCount,
-			"free_count":        poolStats.FreeCount,
+			"total_size":      totalSize,
+			"in_use_count":    inUseCount,
+			"available_count": availableCount,
+			"free_count":      poolStats.FreeCount,
 		}
 	} else {
 		// Provide default values when memory pool is not available
 		stats["memory_pool"] = map[string]interface{}{
-			"total_allocated":    int64(0),
-			"total_freed":       int64(0),
-			"peak_usage":        int64(0),
-			"allocation_count":  int64(0),
-			"cache_hits":        int64(0),
-			"cache_misses":      int64(0),
-			"current_usage":     int64(0),
+			"total_allocated":     int64(0),
+			"total_freed":         int64(0),
+			"peak_usage":          int64(0),
+			"allocation_count":    int64(0),
+			"cache_hits":          int64(0),
+			"cache_misses":        int64(0),
+			"current_usage":       int64(0),
 			"fragmentation_ratio": float32(0.0),
-			"total_size":        int64(0),
-			"in_use_count":      int64(0),
-			"available_count":   int64(0),
-			"free_count":        int64(0),
+			"total_size":          int64(0),
+			"in_use_count":        int64(0),
+			"available_count":     int64(0),
+			"free_count":          int64(0),
 		}
 	}
-	
+
 	// Buffer reuse statistics - use global instance if suite instance is not available
 	bufferStats := map[string]*BufferStats{}
 	if mos.bufferReuseManager != nil {
@@ -388,40 +388,40 @@ func (mos *MemoryOptimizationSuite) GetSuiteStats() map[string]interface{} {
 		// Fall back to global instance
 		bufferStats = globalManager.GetStats()
 	}
-	
+
 	if bufferStats != nil && len(bufferStats) > 0 {
 		stats["buffer_reuse"] = bufferStats
 	} else {
 		stats["buffer_reuse"] = map[string]*BufferStats{}
 	}
-	
+
 	// Transfer optimization statistics
 	if mos.transferOptimizer != nil {
 		stats["transfer_optimization"] = map[string]interface{}{
-			"enabled": true,
+			"enabled":               true,
 			"optimizations_applied": 0, // Could track this if needed
 		}
 	} else {
 		stats["transfer_optimization"] = map[string]interface{}{
-			"enabled": false,
+			"enabled":               false,
 			"optimizations_applied": 0,
 		}
 	}
-	
+
 	// Bandwidth monitoring statistics
 	if mos.bandwidthMonitor != nil {
 		avgBW, peakBW, totalTransfers := mos.bandwidthMonitor.GetBandwidthStats()
 		// Ensure we don't divide by zero and provide sensible defaults
 		avgBandwidthMbps := float64(0)
 		peakBandwidthMbps := float64(0)
-		
+
 		if avgBW > 0 {
 			avgBandwidthMbps = avgBW / (1024 * 1024)
 		}
 		if peakBW > 0 {
 			peakBandwidthMbps = peakBW / (1024 * 1024)
 		}
-		
+
 		stats["bandwidth_monitoring"] = map[string]interface{}{
 			"average_bandwidth_mbps": avgBandwidthMbps,
 			"peak_bandwidth_mbps":    peakBandwidthMbps,
@@ -436,13 +436,13 @@ func (mos *MemoryOptimizationSuite) GetSuiteStats() map[string]interface{} {
 			"monitoring_active":      false,
 		}
 	}
-	
+
 	// Kernel cache statistics - use global instance if suite instance is not available
 	var hitRate float64
 	var entries int
 	var sizeBytes, hitCount, missCount int64
 	var cacheEnabled bool
-	
+
 	if mos.kernelCache != nil {
 		hitRate, entries, sizeBytes, hitCount, missCount = mos.kernelCache.GetCacheStats()
 		cacheEnabled = true
@@ -452,7 +452,7 @@ func (mos *MemoryOptimizationSuite) GetSuiteStats() map[string]interface{} {
 		hitRate, entries, sizeBytes, hitCount, missCount = globalHitRate, globalEntries, globalSizeBytes, globalHitCount, globalMissCount
 		cacheEnabled = globalEntries > 0 || globalHitCount > 0 || globalMissCount > 0
 	}
-	
+
 	stats["kernel_cache"] = map[string]interface{}{
 		"hit_rate":      hitRate,
 		"entries":       int64(entries),
@@ -461,7 +461,7 @@ func (mos *MemoryOptimizationSuite) GetSuiteStats() map[string]interface{} {
 		"miss_count":    missCount,
 		"cache_enabled": cacheEnabled,
 	}
-	
+
 	// Shared memory optimization statistics
 	if mos.sharedMemOptimizer != nil {
 		sharedMemStats := GetSharedMemoryUsageStats()
@@ -469,21 +469,21 @@ func (mos *MemoryOptimizationSuite) GetSuiteStats() map[string]interface{} {
 			stats["shared_memory_optimization"] = sharedMemStats
 		} else {
 			stats["shared_memory_optimization"] = map[string]interface{}{
-				"total_optimizations": int(0),
-				"cache_size":         int(0),
-				"max_shared_memory":  int(0),
+				"total_optimizations":  int(0),
+				"cache_size":           int(0),
+				"max_shared_memory":    int(0),
 				"optimization_enabled": true,
 			}
 		}
 	} else {
 		stats["shared_memory_optimization"] = map[string]interface{}{
-			"total_optimizations": int(0),
-			"cache_size":         int(0),
-			"max_shared_memory":  int(0),
+			"total_optimizations":  int(0),
+			"cache_size":           int(0),
+			"max_shared_memory":    int(0),
 			"optimization_enabled": false,
 		}
 	}
-	
+
 	return stats
 }
 
@@ -491,15 +491,15 @@ func (mos *MemoryOptimizationSuite) GetSuiteStats() map[string]interface{} {
 func (mos *MemoryOptimizationSuite) Close() {
 	mos.mutex.Lock()
 	defer mos.mutex.Unlock()
-	
+
 	if mos.bufferReuseManager != nil {
 		mos.bufferReuseManager.Close()
 	}
-	
+
 	if mos.kernelCache != nil {
 		mos.kernelCache.Close()
 	}
-	
+
 	mos.isInitialized = false
 }
 
@@ -529,7 +529,7 @@ func OptimizeOperation(operationType string, tensors []*tensor.Tensor, params ma
 	if suite == nil {
 		return nil, fmt.Errorf("memory optimization suite not initialized")
 	}
-	
+
 	return suite.OptimizeTensorOperation(operationType, tensors, params)
 }
 
@@ -537,21 +537,21 @@ func OptimizeOperation(operationType string, tensors []*tensor.Tensor, params ma
 func Phase8CComplete() bool {
 	// Check if all major components are available
 	components := []bool{
-		GetGlobalMemoryOptimizer() != nil,        // Memory coalescing optimizer
-		GetGlobalTransferOptimizer() != nil,      // Transfer optimizer
-		GetGlobalBandwidthMonitor() != nil,       // Bandwidth monitor
-		GetGlobalBufferReuseManager() != nil,     // Buffer reuse manager
-		GetGlobalLayoutOptimizer() != nil,        // Layout optimizer
-		GetGlobalKernelCache() != nil,            // Kernel cache
-		GetGlobalSharedMemoryOptimizer() != nil,  // Shared memory optimizer
+		GetGlobalMemoryOptimizer() != nil,       // Memory coalescing optimizer
+		GetGlobalTransferOptimizer() != nil,     // Transfer optimizer
+		GetGlobalBandwidthMonitor() != nil,      // Bandwidth monitor
+		GetGlobalBufferReuseManager() != nil,    // Buffer reuse manager
+		GetGlobalLayoutOptimizer() != nil,       // Layout optimizer
+		GetGlobalKernelCache() != nil,           // Kernel cache
+		GetGlobalSharedMemoryOptimizer() != nil, // Shared memory optimizer
 	}
-	
+
 	for _, component := range components {
 		if !component {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -593,15 +593,15 @@ func InitializePhase8C(device unsafe.Pointer) error {
 		// Initialize global memory optimization suite
 		config := DefaultOptimizationConfig()
 		globalMemoryOptimizationSuite = NewMemoryOptimizationSuite(device, config)
-		
+
 		// Initialize individual global components that aren't auto-initialized
 		if globalMemoryOptimizationSuite.memoryPool != nil {
 			InitializeGlobalBufferReuseManager(globalMemoryOptimizationSuite.memoryPool)
 		}
-		
+
 		// Initialize kernel cache (even with nil device for demo purposes)
 		InitializeKernelCache(device)
-		
+
 		// Mark as initialized
 		if globalMemoryOptimizationSuite != nil {
 			globalMemoryOptimizationSuite.mutex.Lock()
@@ -609,11 +609,11 @@ func InitializePhase8C(device unsafe.Pointer) error {
 			globalMemoryOptimizationSuite.mutex.Unlock()
 		}
 	})
-	
+
 	if globalMemoryOptimizationSuite == nil {
 		return fmt.Errorf("failed to initialize memory optimization suite")
 	}
-	
+
 	return nil
 }
 
@@ -628,7 +628,7 @@ func IsPhase8CInitialized() bool {
 	if suite == nil {
 		return false
 	}
-	
+
 	suite.mutex.RLock()
 	defer suite.mutex.RUnlock()
 	return suite.isInitialized
@@ -640,11 +640,11 @@ func ResetPhase8C() {
 		globalMemoryOptimizationSuite.Close()
 		globalMemoryOptimizationSuite = nil
 	}
-	
+
 	// Reset global component singletons
 	globalBufferReuseManager = nil
 	globalKernelCache = nil
-	
+
 	// Reset the once variables to allow re-initialization
 	memoryOptimizationSuiteOnce = sync.Once{}
 	bufferReuseManagerOnce = sync.Once{}

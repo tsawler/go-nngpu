@@ -14,7 +14,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // FusedOperations provides high-performance fused operations that combine multiple
@@ -137,7 +137,7 @@ func (f *FusedConvBNReLU) GetSpeedup() float32 {
 
 func (f *FusedConvBNReLU) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error) {
 	start := time.Now()
-	
+
 	config, ok := configInterface.(*FusedConvolutionConfig)
 	if !ok {
 		return nil, fmt.Errorf("invalid config type for FusedConvBNReLU")
@@ -149,7 +149,7 @@ func (f *FusedConvBNReLU) Forward(inputs []*tensor.Tensor, configInterface inter
 
 	input := inputs[0]
 	kernel := inputs[1]
-	
+
 	// Memory optimization: Use optimized layouts and reduce transfers
 	transferOptimizer := GetGlobalTransferOptimizer()
 	if transferOptimizer == nil {
@@ -178,7 +178,7 @@ func (f *FusedConvBNReLU) Forward(inputs []*tensor.Tensor, configInterface inter
 	if bias != nil {
 		tensorsToOptimize = append(tensorsToOptimize, bias)
 	}
-	
+
 	// Batch optimize tensor layouts for convolution
 	for _, t := range tensorsToOptimize {
 		if transferOptimizer.ShouldTransferToGPU(t) {
@@ -198,7 +198,7 @@ func (f *FusedConvBNReLU) Forward(inputs []*tensor.Tensor, configInterface inter
 					bias = optimized
 				}
 			}
-			
+
 			if err := t.EnsureGPU(); err != nil {
 				return nil, fmt.Errorf("failed to move tensor to GPU: %w", err)
 			}
@@ -278,16 +278,16 @@ func (f *FusedConvBNReLU) Backward(gradOutput *tensor.Tensor, savedTensors []*te
 
 	input := savedTensors[0]
 	kernel := savedTensors[1]
-	
+
 	// Get additional saved tensors for batch norm if present
 	var gamma *tensor.Tensor
 	var mean, variance *tensor.Tensor
-	
+
 	if len(savedTensors) >= 4 {
 		gamma = savedTensors[2]
 		// beta = savedTensors[3] // Not used in backward
 	}
-	
+
 	// For proper fused backward, we need intermediate values
 	// These should be saved during forward pass
 	if config.BatchNorm != nil {
@@ -303,13 +303,13 @@ func (f *FusedConvBNReLU) Backward(gradOutput *tensor.Tensor, savedTensors []*te
 		return nil, fmt.Errorf("failed to compute ReLU mask: %w", err)
 	}
 	defer reluMask.ReleaseGPU()
-	
+
 	gradReLU, err := Mul(gradOutput, reluMask)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply ReLU backward: %w", err)
 	}
 	defer gradReLU.ReleaseGPU()
-	
+
 	// Step 2: BatchNorm backward
 	var gradBN, gradGamma, gradBeta *tensor.Tensor
 	if config.BatchNorm != nil && gamma != nil {
@@ -325,7 +325,7 @@ func (f *FusedConvBNReLU) Backward(gradOutput *tensor.Tensor, savedTensors []*te
 	} else {
 		gradBN = gradReLU
 	}
-	
+
 	// Step 3: Conv2D backward
 	gradInput, err := Conv2DBackwardInput(gradBN, kernel, input.Shape, config.Conv2DParams)
 	if err != nil {
@@ -336,7 +336,7 @@ func (f *FusedConvBNReLU) Backward(gradOutput *tensor.Tensor, savedTensors []*te
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute kernel gradient: %w", err)
 	}
-	
+
 	// Step 4: Bias backward if needed
 	var gradBias *tensor.Tensor
 	if config.Bias && len(savedTensors) >= 5 {
@@ -358,7 +358,7 @@ func (f *FusedConvBNReLU) Backward(gradOutput *tensor.Tensor, savedTensors []*te
 	if gradBias != nil {
 		results = append(results, gradBias)
 	}
-	
+
 	return results, nil
 }
 
@@ -379,7 +379,7 @@ func (f *FusedLinearActivation) GetSpeedup() float32 {
 
 func (f *FusedLinearActivation) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error) {
 	start := time.Now()
-	
+
 	config, ok := configInterface.(*FusedLinearConfig)
 	if !ok {
 		return nil, fmt.Errorf("invalid config type for FusedLinearActivation")
@@ -476,7 +476,7 @@ func (f *FusedLinearActivation) Backward(gradOutput *tensor.Tensor, savedTensors
 
 	input := savedTensors[0]
 	weight := savedTensors[1]
-	
+
 	// Get the pre-activation output if saved
 	var preActivation *tensor.Tensor
 	if len(savedTensors) > 2 {
@@ -594,7 +594,7 @@ func (f *FusedAttention) GetSpeedup() float32 {
 
 func (f *FusedAttention) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error) {
 	start := time.Now()
-	
+
 	config, ok := configInterface.(*FusedAttentionConfig)
 	if !ok {
 		return nil, fmt.Errorf("invalid config type for FusedAttention")
@@ -681,7 +681,7 @@ func (f *FusedAttention) Backward(gradOutput *tensor.Tensor, savedTensors []*ten
 	query := savedTensors[0]
 	key := savedTensors[1]
 	value := savedTensors[2]
-	
+
 	// Get saved intermediate values if available
 	var attentionWeights *tensor.Tensor
 	if len(savedTensors) > 3 {
@@ -764,7 +764,7 @@ func (f *FusedAttention) Backward(gradOutput *tensor.Tensor, savedTensors []*ten
 			return nil, fmt.Errorf("failed to create causal mask: %w", err)
 		}
 		defer mask.ReleaseGPU()
-		
+
 		gradAttentionScores, err = Mul(gradAttentionScores, mask)
 		if err != nil {
 			return nil, fmt.Errorf("failed to apply causal mask to gradients: %w", err)
@@ -834,7 +834,7 @@ func (f *FusedGELUDropout) GetSpeedup() float32 {
 
 func (f *FusedGELUDropout) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error) {
 	start := time.Now()
-	
+
 	if len(inputs) < 1 {
 		return nil, fmt.Errorf("FusedGELUDropout requires input tensor")
 	}
@@ -900,11 +900,11 @@ func (f *FusedGELUDropout) Backward(gradOutput *tensor.Tensor, savedTensors []*t
 	}
 
 	input := savedTensors[0]
-	
+
 	// Get dropout rate from config
 	dropoutRate := float32(0.1)
 	training := true
-	
+
 	if config, ok := configInterface.(map[string]interface{}); ok {
 		if rate, exists := config["dropout_rate"]; exists {
 			if r, ok := rate.(float32); ok {
@@ -926,14 +926,14 @@ func (f *FusedGELUDropout) Backward(gradOutput *tensor.Tensor, savedTensors []*t
 		if len(savedTensors) > 1 {
 			dropoutMask = savedTensors[1]
 		}
-		
+
 		if dropoutMask != nil {
 			// Apply dropout mask
 			gradDropout, err := Mul(gradOutput, dropoutMask)
 			if err != nil {
 				return nil, fmt.Errorf("failed to apply dropout mask: %w", err)
 			}
-			
+
 			// Scale by keep probability
 			keepProb := 1.0 - dropoutRate
 			scale := float32(1.0 / keepProb)
@@ -986,7 +986,7 @@ func (f *FusedLayerNormLinear) GetSpeedup() float32 {
 
 func (f *FusedLayerNormLinear) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error) {
 	start := time.Now()
-	
+
 	if len(inputs) < 4 {
 		return nil, fmt.Errorf("FusedLayerNormLinear requires input, gamma, beta, and weight tensors")
 	}
@@ -1078,7 +1078,7 @@ func (f *FusedLayerNormLinear) Backward(gradOutput *tensor.Tensor, savedTensors 
 	gamma := savedTensors[1]
 	beta := savedTensors[2]
 	weight := savedTensors[3]
-	
+
 	var bias *tensor.Tensor
 	if len(savedTensors) >= 5 {
 		bias = savedTensors[4]
@@ -1154,7 +1154,7 @@ func (f *FusedLayerNormLinear) Backward(gradOutput *tensor.Tensor, savedTensors 
 	// Step 2: LayerNorm backward
 	// Reshape gradLinearInput to match layer norm output shape if needed
 	gradLNOutput := gradLinearInput
-	
+
 	// Compute layer norm gradients
 	lnGradients, err := LayerNormBackward(gradLNOutput, input, mean, variance, gamma, epsilon)
 	if err != nil {
@@ -1164,12 +1164,12 @@ func (f *FusedLayerNormLinear) Backward(gradOutput *tensor.Tensor, savedTensors 
 
 	// Collect results
 	results := []*tensor.Tensor{
-		lnGradients.GradInput,  // grad_input
-		lnGradients.GradGamma,  // grad_gamma
-		lnGradients.GradBeta,   // grad_beta
-		gradWeight,             // grad_weight
+		lnGradients.GradInput, // grad_input
+		lnGradients.GradGamma, // grad_gamma
+		lnGradients.GradBeta,  // grad_beta
+		gradWeight,            // grad_weight
 	}
-	
+
 	if gradBias != nil {
 		results = append(results, gradBias)
 	}
@@ -1194,7 +1194,7 @@ func (f *FusedResidualBlock) GetSpeedup() float32 {
 
 func (f *FusedResidualBlock) Forward(inputs []*tensor.Tensor, configInterface interface{}) (*tensor.Tensor, error) {
 	start := time.Now()
-	
+
 	if len(inputs) < 7 {
 		return nil, fmt.Errorf("FusedResidualBlock requires input, conv1_weight, bn1_gamma, bn1_beta, conv2_weight, bn2_gamma, bn2_beta")
 	}
@@ -1274,7 +1274,7 @@ func (f *FusedResidualBlock) Backward(gradOutput *tensor.Tensor, savedTensors []
 	// Get saved intermediate values if available
 	var conv1Output, bn1Output, relu1Output, conv2Output, addOutput *tensor.Tensor
 	var bn1Mean, bn1Variance, bn2Mean, bn2Variance *tensor.Tensor
-	
+
 	if len(savedTensors) > 7 {
 		conv1Output = savedTensors[7]
 		bn1Output = savedTensors[8]
@@ -1320,7 +1320,7 @@ func (f *FusedResidualBlock) Backward(gradOutput *tensor.Tensor, savedTensors []
 		StrideH: 1, StrideW: 1,
 		PadH: 1, PadW: 1, // Assuming same padding
 	}
-	
+
 	gradConv2Input, err := Conv2DBackwardInput(gradBN2Input, conv2Weight, relu1Output.Shape, conv2Params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute second conv input gradient: %w", err)
@@ -1360,7 +1360,7 @@ func (f *FusedResidualBlock) Backward(gradOutput *tensor.Tensor, savedTensors []
 		StrideH: 1, StrideW: 1,
 		PadH: 1, PadW: 1, // Assuming same padding
 	}
-	
+
 	gradConv1Input, err := Conv2DBackwardInput(gradBN1Input, conv1Weight, input.Shape, conv1Params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute first conv input gradient: %w", err)
@@ -1963,9 +1963,9 @@ func Reshape(t *tensor.Tensor, newShape []int) (*tensor.Tensor, error) {
 	for _, dim := range newShape {
 		totalElements *= dim
 	}
-	
+
 	if totalElements != len(t.Data) {
-		return nil, fmt.Errorf("cannot reshape tensor of size %d to shape %v (size %d)", 
+		return nil, fmt.Errorf("cannot reshape tensor of size %d to shape %v (size %d)",
 			len(t.Data), newShape, totalElements)
 	}
 
@@ -2013,7 +2013,7 @@ func ReduceSum(t *tensor.Tensor, axes []int, keepDims bool) (*tensor.Tensor, err
 	for _, dim := range outputShape {
 		totalSize *= dim
 	}
-	
+
 	result, err := tensor.NewTensor(outputShape, make([]float32, totalSize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reduced tensor: %w", err)
@@ -2055,5 +2055,3 @@ func LayerNormForwardWithStats(input, gamma, beta *tensor.Tensor, epsilon float3
 	// For now, returning placeholder results
 	return normalized, mean, variance, nil
 }
-
-

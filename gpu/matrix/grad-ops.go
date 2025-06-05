@@ -10,7 +10,7 @@ import "C"
 import (
 	"fmt"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // This file contains higher-level gradient-aware operations that build on the

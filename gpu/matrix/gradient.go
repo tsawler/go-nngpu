@@ -11,8 +11,8 @@ import (
 	"runtime"
 	"unsafe"
 
-	_ "github.com/tsawler/go-nngpu/internal/cgo"
-	"github.com/tsawler/go-nngpu/tensor"
+	_ "github.com/tsawler/gometal/internal/cgo"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // GradientMode represents different gradient computation modes

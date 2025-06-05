@@ -14,7 +14,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // Phase 8C: Memory Bandwidth Optimization
@@ -64,7 +64,7 @@ func CoalescedMemoryCopy(device unsafe.Pointer, srcPtr, dstPtr unsafe.Pointer, s
 	defer runtime.UnlockOSThread()
 
 	var cErr C.CError
-	result := C.coalesced_memory_copy(C.GPUPtr(srcPtr), C.GPUPtr(dstPtr), C.long(size), 
+	result := C.coalesced_memory_copy(C.GPUPtr(srcPtr), C.GPUPtr(dstPtr), C.long(size),
 		C.long(srcStride), C.long(dstStride), C.DevicePtr(device), &cErr)
 	if result != 0 {
 		var errMsg string
@@ -118,8 +118,8 @@ func FlushGPUCache(device unsafe.Pointer) error {
 // OptimizedTensorBuffer manages efficient buffer allocation for tensors
 type OptimizedTensorBuffer struct {
 	tempBuffers []unsafe.Pointer // Temporary buffers for intermediate results
-	bufferSizes []int           // Sizes of temporary buffers
-	device      unsafe.Pointer  // Metal device
+	bufferSizes []int            // Sizes of temporary buffers
+	device      unsafe.Pointer   // Metal device
 	mutex       sync.Mutex
 }
 
@@ -193,14 +193,14 @@ func (otb *OptimizedTensorBuffer) ReleaseAll() {
 // Note: A more advanced version is available in memory-coalescing-optimizer.go
 type SimpleMemoryCoalescingOptimizer struct {
 	preferredAlignment int // Preferred memory alignment in bytes
-	cacheLineSize     int // GPU cache line size
+	cacheLineSize      int // GPU cache line size
 }
 
 // NewSimpleMemoryCoalescingOptimizer creates a new simple memory coalescing optimizer
 func NewSimpleMemoryCoalescingOptimizer() *SimpleMemoryCoalescingOptimizer {
 	return &SimpleMemoryCoalescingOptimizer{
 		preferredAlignment: 128, // 128-byte alignment for optimal coalescing
-		cacheLineSize:     64,  // Common GPU cache line size
+		cacheLineSize:      64,  // Common GPU cache line size
 	}
 }
 
@@ -226,10 +226,10 @@ func (mco *SimpleMemoryCoalescingOptimizer) optimizeForConvolution(t *tensor.Ten
 	}
 
 	batch, height, width, channels := t.Shape[0], t.Shape[1], t.Shape[2], t.Shape[3]
-	
+
 	// Pad channels to multiple of cache line size (in float32s)
 	alignedChannels := ((channels + 15) / 16) * 16 // 16 float32s = 64 bytes
-	
+
 	if alignedChannels == channels {
 		return t, nil // Already aligned
 	}
@@ -242,9 +242,9 @@ func (mco *SimpleMemoryCoalescingOptimizer) optimizeForConvolution(t *tensor.Ten
 	for b := 0; b < batch; b++ {
 		for h := 0; h < height; h++ {
 			for w := 0; w < width; w++ {
-				srcOffset := ((b*height+h)*width+w)*channels
-				dstOffset := ((b*height+h)*width+w)*alignedChannels
-				
+				srcOffset := ((b*height+h)*width + w) * channels
+				dstOffset := ((b*height+h)*width + w) * alignedChannels
+
 				copy(newData[dstOffset:dstOffset+channels], t.Data[srcOffset:srcOffset+channels])
 				// Padding channels are left as zero
 			}
@@ -261,10 +261,10 @@ func (mco *SimpleMemoryCoalescingOptimizer) optimizeForMatrixMultiplication(t *t
 	}
 
 	rows, cols := t.Shape[0], t.Shape[1]
-	
+
 	// Pad columns to multiple of 16 for vectorized operations
 	alignedCols := ((cols + 15) / 16) * 16
-	
+
 	if alignedCols == cols {
 		return t, nil // Already aligned
 	}
@@ -287,10 +287,10 @@ func (mco *SimpleMemoryCoalescingOptimizer) optimizeForMatrixMultiplication(t *t
 // optimizeForElementwise ensures data is aligned for vectorized operations
 func (mco *SimpleMemoryCoalescingOptimizer) optimizeForElementwise(t *tensor.Tensor) (*tensor.Tensor, error) {
 	totalSize := len(t.Data)
-	
+
 	// Pad to multiple of 16 for SIMD operations
 	alignedSize := ((totalSize + 15) / 16) * 16
-	
+
 	if alignedSize == totalSize {
 		return t, nil // Already aligned
 	}
@@ -307,10 +307,10 @@ func (mco *SimpleMemoryCoalescingOptimizer) optimizeForElementwise(t *tensor.Ten
 // GPU-CPU Transfer Optimizer reduces unnecessary memory transfers
 // Note: A more advanced version is available in gpu-cpu-transfer-optimizer.go
 type SimpleTransferOptimizer struct {
-	gpuDataCache   map[*tensor.Tensor]bool // Tracks which tensors have valid GPU data
-	cpuDataCache   map[*tensor.Tensor]bool // Tracks which tensors have valid CPU data
-	lastOperation  map[*tensor.Tensor]string // Last operation on each tensor
-	mutex          sync.RWMutex
+	gpuDataCache  map[*tensor.Tensor]bool   // Tracks which tensors have valid GPU data
+	cpuDataCache  map[*tensor.Tensor]bool   // Tracks which tensors have valid CPU data
+	lastOperation map[*tensor.Tensor]string // Last operation on each tensor
+	mutex         sync.RWMutex
 }
 
 // NewSimpleTransferOptimizer creates a new simple transfer optimizer
@@ -326,7 +326,7 @@ func NewSimpleTransferOptimizer() *SimpleTransferOptimizer {
 func (to *SimpleTransferOptimizer) MarkGPUValid(tensor *tensor.Tensor, operation string) {
 	to.mutex.Lock()
 	defer to.mutex.Unlock()
-	
+
 	to.gpuDataCache[tensor] = true
 	to.lastOperation[tensor] = operation
 }
@@ -335,7 +335,7 @@ func (to *SimpleTransferOptimizer) MarkGPUValid(tensor *tensor.Tensor, operation
 func (to *SimpleTransferOptimizer) MarkCPUValid(tensor *tensor.Tensor) {
 	to.mutex.Lock()
 	defer to.mutex.Unlock()
-	
+
 	to.cpuDataCache[tensor] = true
 }
 
@@ -343,7 +343,7 @@ func (to *SimpleTransferOptimizer) MarkCPUValid(tensor *tensor.Tensor) {
 func (to *SimpleTransferOptimizer) MarkGPUInvalid(tensor *tensor.Tensor) {
 	to.mutex.Lock()
 	defer to.mutex.Unlock()
-	
+
 	to.gpuDataCache[tensor] = false
 }
 
@@ -351,7 +351,7 @@ func (to *SimpleTransferOptimizer) MarkGPUInvalid(tensor *tensor.Tensor) {
 func (to *SimpleTransferOptimizer) MarkCPUInvalid(tensor *tensor.Tensor) {
 	to.mutex.Lock()
 	defer to.mutex.Unlock()
-	
+
 	to.cpuDataCache[tensor] = false
 }
 
@@ -359,7 +359,7 @@ func (to *SimpleTransferOptimizer) MarkCPUInvalid(tensor *tensor.Tensor) {
 func (to *SimpleTransferOptimizer) ShouldTransferToGPU(tensor *tensor.Tensor) bool {
 	to.mutex.RLock()
 	defer to.mutex.RUnlock()
-	
+
 	gpuValid, exists := to.gpuDataCache[tensor]
 	return !exists || !gpuValid
 }
@@ -368,7 +368,7 @@ func (to *SimpleTransferOptimizer) ShouldTransferToGPU(tensor *tensor.Tensor) bo
 func (to *SimpleTransferOptimizer) ShouldTransferToCPU(tensor *tensor.Tensor) bool {
 	to.mutex.RLock()
 	defer to.mutex.RUnlock()
-	
+
 	cpuValid, exists := to.cpuDataCache[tensor]
 	return !exists || !cpuValid
 }
@@ -377,7 +377,7 @@ func (to *SimpleTransferOptimizer) ShouldTransferToCPU(tensor *tensor.Tensor) bo
 func (to *SimpleTransferOptimizer) CleanupTensor(tensor *tensor.Tensor) {
 	to.mutex.Lock()
 	defer to.mutex.Unlock()
-	
+
 	delete(to.gpuDataCache, tensor)
 	delete(to.cpuDataCache, tensor)
 	delete(to.lastOperation, tensor)
@@ -413,7 +413,7 @@ func nextPowerOf2(n int) int {
 	if n <= 0 {
 		return 1
 	}
-	
+
 	n--
 	n |= n >> 1
 	n |= n >> 2
@@ -421,7 +421,7 @@ func nextPowerOf2(n int) int {
 	n |= n >> 8
 	n |= n >> 16
 	n++
-	
+
 	return n
 }
 
@@ -429,19 +429,19 @@ func nextPowerOf2(n int) int {
 func OptimizedTensorAlloc(shape []int, operation string) (*tensor.Tensor, error) {
 	// Initialize optimizers if needed
 	InitializeMemoryOptimizers()
-	
+
 	// Calculate size
 	size := 1
 	for _, dim := range shape {
 		size *= dim
 	}
-	
+
 	data := make([]float32, size)
 	tensor, err := tensor.NewTensor(shape, data)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Optimize layout if beneficial
 	if globalSimpleMemoryOptimizer != nil {
 		optimized, err := globalSimpleMemoryOptimizer.OptimizeTensorLayout(tensor, operation)
@@ -450,7 +450,7 @@ func OptimizedTensorAlloc(shape []int, operation string) (*tensor.Tensor, error)
 		}
 		tensor = optimized
 	}
-	
+
 	return tensor, nil
 }
 
@@ -476,13 +476,13 @@ func NewMemoryBandwidthMonitor() *MemoryBandwidthMonitor {
 func (mbm *MemoryBandwidthMonitor) RecordTransfer(bytes int64, duration time.Duration) {
 	mbm.mutex.Lock()
 	defer mbm.mutex.Unlock()
-	
+
 	mbm.transferTimes = append(mbm.transferTimes, duration)
 	mbm.transferSizes = append(mbm.transferSizes, bytes)
 	mbm.totalTransfers++
 	mbm.totalBytes += bytes
 	mbm.lastTransferTime = time.Now()
-	
+
 	// Keep only recent transfers (last 1000)
 	if len(mbm.transferTimes) > 1000 {
 		mbm.transferTimes = mbm.transferTimes[100:] // Remove oldest 100
@@ -494,15 +494,15 @@ func (mbm *MemoryBandwidthMonitor) RecordTransfer(bytes int64, duration time.Dur
 func (mbm *MemoryBandwidthMonitor) GetBandwidthStats() (avgBandwidth float64, peakBandwidth float64, totalTransfers int64) {
 	mbm.mutex.Lock()
 	defer mbm.mutex.Unlock()
-	
+
 	if len(mbm.transferTimes) == 0 {
 		return 0, 0, mbm.totalTransfers
 	}
-	
+
 	totalTime := time.Duration(0)
 	totalSize := int64(0)
 	maxBandwidth := 0.0
-	
+
 	for i, duration := range mbm.transferTimes {
 		if duration > 0 {
 			bandwidth := float64(mbm.transferSizes[i]) / duration.Seconds()
@@ -513,12 +513,12 @@ func (mbm *MemoryBandwidthMonitor) GetBandwidthStats() (avgBandwidth float64, pe
 			totalSize += mbm.transferSizes[i]
 		}
 	}
-	
+
 	avgBandwidth = 0
 	if totalTime > 0 {
 		avgBandwidth = float64(totalSize) / totalTime.Seconds()
 	}
-	
+
 	return avgBandwidth, maxBandwidth, mbm.totalTransfers
 }
 

@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // Helper function to check if two float32 slices are approximately equal

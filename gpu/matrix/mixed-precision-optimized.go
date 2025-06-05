@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // OptimizedMixedPrecisionOps provides optimized mixed precision operations
@@ -58,34 +58,34 @@ func (opt *OptimizedMixedPrecisionOps) MatMulOptimized(A, B *tensor.Tensor) (*te
 // BatchedMatMulOptimized performs batched matrix operations with optimal precision selection
 func (opt *OptimizedMixedPrecisionOps) BatchedMatMulOptimized(matrices [][]*tensor.Tensor) ([]*tensor.Tensor, error) {
 	results := make([]*tensor.Tensor, len(matrices))
-	
+
 	for i, pair := range matrices {
 		if len(pair) != 2 {
 			return nil, fmt.Errorf("each matrix pair must contain exactly 2 matrices")
 		}
-		
+
 		result, err := opt.MatMulOptimized(pair[0], pair[1])
 		if err != nil {
 			return nil, fmt.Errorf("failed batch operation %d: %w", i, err)
 		}
 		results[i] = result
 	}
-	
+
 	return results, nil
 }
 
 // PerformanceBenchmark provides comprehensive performance analysis
 type PerformanceBenchmark struct {
-	MatrixSize       int
-	Float32Time      time.Duration
+	MatrixSize         int
+	Float32Time        time.Duration
 	MixedPrecisionTime time.Duration
-	OptimizedTime    time.Duration
-	ConversionTime   time.Duration
-	ActualComputeTime time.Duration
-	MemoryUsage      int64
-	Accuracy         float64
-	Speedup          float64
-	EffectiveSpeedup float64
+	OptimizedTime      time.Duration
+	ConversionTime     time.Duration
+	ActualComputeTime  time.Duration
+	MemoryUsage        int64
+	Accuracy           float64
+	Speedup            float64
+	EffectiveSpeedup   float64
 }
 
 // BenchmarkMatrixOperation provides detailed performance analysis
@@ -93,12 +93,12 @@ func (opt *OptimizedMixedPrecisionOps) BenchmarkMatrixOperation(size int, iterat
 	// Create test data
 	dataA := make([]float32, size*size)
 	dataB := make([]float32, size*size)
-	
+
 	for i := range dataA {
-		dataA[i] = float32(i%1000) / 1000.0 - 0.5 // Range [-0.5, 0.5]
-		dataB[i] = float32((i*7)%1000) / 1000.0 - 0.5
+		dataA[i] = float32(i%1000)/1000.0 - 0.5 // Range [-0.5, 0.5]
+		dataB[i] = float32((i*7)%1000)/1000.0 - 0.5
 	}
-	
+
 	matrixA, _ := tensor.NewTensor([]int{size, size}, dataA)
 	matrixB, _ := tensor.NewTensor([]int{size, size}, dataB)
 
@@ -180,7 +180,7 @@ func (opt *OptimizedMixedPrecisionOps) BenchmarkMatrixOperation(size int, iterat
 	// Calculate performance metrics
 	benchmark.Speedup = float64(benchmark.Float32Time) / float64(benchmark.MixedPrecisionTime)
 	benchmark.EffectiveSpeedup = float64(benchmark.Float32Time) / float64(benchmark.OptimizedTime)
-	
+
 	// Estimate memory usage (rough approximation)
 	benchmark.MemoryUsage = int64(size * size * 8) // Two matrices in float32
 
@@ -199,10 +199,10 @@ func (opt *OptimizedMixedPrecisionOps) Cleanup() {
 // AdaptivePrecisionSelector automatically chooses the best precision based on operation characteristics
 type AdaptivePrecisionSelector struct {
 	// Thresholds for automatic precision selection
-	SmallMatrixThreshold  int     // Use mixed precision for matrices smaller than this
-	AccuracyThreshold     float64 // Minimum acceptable accuracy
-	PerformanceThreshold  float64 // Minimum speedup required for mixed precision
-	
+	SmallMatrixThreshold int     // Use mixed precision for matrices smaller than this
+	AccuracyThreshold    float64 // Minimum acceptable accuracy
+	PerformanceThreshold float64 // Minimum speedup required for mixed precision
+
 	// Performance history for adaptive learning
 	performanceHistory map[int]float64 // size -> best observed speedup
 	accuracyHistory    map[int]float64 // size -> best observed accuracy
@@ -211,9 +211,9 @@ type AdaptivePrecisionSelector struct {
 // NewAdaptivePrecisionSelector creates a new adaptive precision selector
 func NewAdaptivePrecisionSelector() *AdaptivePrecisionSelector {
 	return &AdaptivePrecisionSelector{
-		SmallMatrixThreshold:  512,
-		AccuracyThreshold:     1e-4,
-		PerformanceThreshold:  1.1, // At least 10% speedup required
+		SmallMatrixThreshold: 512,
+		AccuracyThreshold:    1e-4,
+		PerformanceThreshold: 1.1, // At least 10% speedup required
 		performanceHistory:   make(map[int]float64),
 		accuracyHistory:      make(map[int]float64),
 	}
@@ -225,12 +225,12 @@ func (aps *AdaptivePrecisionSelector) ShouldUseMixedPrecision(matrixSize int, op
 	if matrixSize > 1024 {
 		return false
 	}
-	
+
 	// For small matrices, check if we have performance history
 	if historicalSpeedup, exists := aps.performanceHistory[matrixSize]; exists {
 		return historicalSpeedup > aps.PerformanceThreshold
 	}
-	
+
 	// Default decision based on size
 	return matrixSize <= aps.SmallMatrixThreshold
 }
@@ -239,7 +239,7 @@ func (aps *AdaptivePrecisionSelector) ShouldUseMixedPrecision(matrixSize int, op
 func (aps *AdaptivePrecisionSelector) UpdatePerformanceHistory(matrixSize int, speedup, accuracy float64) {
 	aps.performanceHistory[matrixSize] = speedup
 	aps.accuracyHistory[matrixSize] = accuracy
-	
+
 	// Adapt thresholds based on observed performance
 	if speedup > aps.PerformanceThreshold && matrixSize > aps.SmallMatrixThreshold {
 		aps.SmallMatrixThreshold = matrixSize

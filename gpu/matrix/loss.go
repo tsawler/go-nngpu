@@ -11,8 +11,8 @@ import (
 	"runtime"
 	"unsafe"
 
-	"github.com/tsawler/go-nngpu/tensor"
-	_ "github.com/tsawler/go-nngpu/internal/cgo"
+	_ "github.com/tsawler/gometal/internal/cgo"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // LossType represents different loss function types

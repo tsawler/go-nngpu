@@ -15,7 +15,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // MemoryEfficientAutodiff provides memory-efficient automatic differentiation with

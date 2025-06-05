@@ -5,9 +5,9 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/tsawler/go-nngpu/gpu/matrix"
-	"github.com/tsawler/go-nngpu/gpu/optimizer"
-	"github.com/tsawler/go-nngpu/tensor"
+	"github.com/tsawler/gometal/gpu/matrix"
+	"github.com/tsawler/gometal/gpu/optimizer"
+	"github.com/tsawler/gometal/tensor"
 )
 
 // TestSGDOptimizer demonstrates basic SGD usage
