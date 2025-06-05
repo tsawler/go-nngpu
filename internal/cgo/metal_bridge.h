@@ -1791,4 +1791,43 @@ int analyze_kernel_performance(
     CError *err
 );
 
+// Phase 9B: Multi-GPU and Distributed Training Support
+
+// Command Queue Management
+void* createCommandQueue(void* device);
+void synchronizeCommandQueue(void* queue);
+void* createMetalEvent(void* device);
+void* createMPSGraph(void);
+
+// Unified Memory Management
+void* allocateSharedMemory(long size);
+void* createGPUBufferFromSharedMemory(void* device, void* sharedMemory, long size);
+void makeBufferGPUResident(void* buffer);
+void* memoryMapFile(const char* path, long* size, CError* error);
+void unmapMemory(void* memory, long size);
+
+// Performance Monitoring
+typedef struct {
+    float computeUtilization;
+    float memoryBandwidth;
+    float cacheHitRate;
+} GPUCounters;
+
+void getGPUCounters(GPUCounters* counters);
+void getGPUMemoryUsage(long* totalBytes, long* usedBytes);
+float getGPUPowerUsage(void);
+float getGPUTemperature(void);
+
+// MPS Graph Operations
+void* createMatMulNode(void* graph, void* inputA, void* inputB);
+void* createConv2DNode(void* graph, void* input, void* weights, long strideH, long strideW, long padH, long padW);
+void* createReLUNode(void* graph, void* input);
+void* compileGraph(void* graph, void* device);
+void executeCompiledGraph(void* compiledGraph, void* commandBuffer, void** inputs, long numInputs, void** outputs, long numOutputs);
+
+// Additional Stream Management
+int getGPUCoreCount(void* device);
+void* createPriorityCommandQueue(void* device, int priority);
+void executeBatchCommands(void* queue, void** commandBuffers, long count);
+
 #endif // METAL_BRIDGE_H

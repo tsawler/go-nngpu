@@ -30,11 +30,29 @@ int perform_mps_matrix_multiplication(
 ) {
     @autoreleasepool {
         id<MTLDevice> device = (__bridge id<MTLDevice>)mtlDevicePtr;
-        id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)_global_mtl_command_queue_ptr;
-
-        if (!device || !commandQueue) {
-            set_c_error_message(err, @"Metal device or command queue not initialized.");
+        
+        if (!device) {
+            set_c_error_message(err, @"Metal device not initialized.");
             return -1;
+        }
+        
+        // Cache the device globally for consistent access
+        if (!_global_mtl_device_ptr) {
+            _global_mtl_device_ptr = mtlDevicePtr;
+        }
+        
+        // Use global command queue for better performance
+        id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)_global_mtl_command_queue_ptr;
+        
+        // If global queue is not set, create one and cache it
+        if (!commandQueue) {
+            commandQueue = [device newCommandQueue];
+            if (!commandQueue) {
+                set_c_error_message(err, @"Failed to create command queue from device.");
+                return -1;
+            }
+            commandQueue.label = @"go-nngpu.matmul";
+            _global_mtl_command_queue_ptr = (__bridge void*)commandQueue;
         }
 
         id<MTLBuffer> A_buffer = (__bridge id<MTLBuffer>)aMatrixPtr;
@@ -114,12 +132,14 @@ int perform_mps_matrix_transpose(
 ) {
     @autoreleasepool {
         id<MTLDevice> device = (__bridge id<MTLDevice>)mtlDevicePtr;
-        id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)_global_mtl_command_queue_ptr;
-
-        if (!device || !commandQueue) {
-            set_c_error_message(err, @"Metal device or command queue not initialized.");
+        
+        if (!device) {
+            set_c_error_message(err, @"Metal device not initialized.");
             return -1;
         }
+        
+        // Note: This function currently uses CPU implementation
+        // The command queue is not needed for CPU-based transpose
 
         // Verify transpose dimensions
         if (inputRows != outputCols || inputCols != outputRows) {
@@ -162,6 +182,32 @@ int perform_mps_matrix_add(
             set_c_error_message(err, @"Matrices must have the same dimensions for element-wise addition.");
             return -2;
         }
+        
+        id<MTLDevice> device = (__bridge id<MTLDevice>)mtlDevicePtr;
+        
+        if (!device) {
+            set_c_error_message(err, @"Metal device not initialized.");
+            return -1;
+        }
+        
+        // Cache the device globally for consistent access
+        if (!_global_mtl_device_ptr) {
+            _global_mtl_device_ptr = mtlDevicePtr;
+        }
+        
+        // Use global command queue for better performance
+        id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)_global_mtl_command_queue_ptr;
+        
+        // If global queue is not set, create one and cache it
+        if (!commandQueue) {
+            commandQueue = [device newCommandQueue];
+            if (!commandQueue) {
+                set_c_error_message(err, @"Failed to create command queue from device.");
+                return -1;
+            }
+            commandQueue.label = @"go-nngpu.shared";
+            _global_mtl_command_queue_ptr = (__bridge void*)commandQueue;
+        }
 
         id<MTLBuffer> A_buffer = (__bridge id<MTLBuffer>)aMatrixPtr;
         id<MTLBuffer> B_buffer = (__bridge id<MTLBuffer>)bMatrixPtr;
@@ -172,16 +218,30 @@ int perform_mps_matrix_add(
             return -3;
         }
 
-        // Use direct CPU-based addition for simplicity and reliability
+        // For now, use optimized CPU implementation until Metal compute shaders are ready
+        long total_elements = aRows * aCols;
+        
+        // Optimized CPU addition with potential for vectorization
         float *a_data = (float*)A_buffer.contents;
         float *b_data = (float*)B_buffer.contents;
         float *result_data = (float*)C_buffer.contents;
         
-        long total_elements = aRows * aCols;
+        // Use restrict keyword for compiler optimization hints
+        float* restrict a_ptr = a_data;
+        float* restrict b_ptr = b_data;
+        float* restrict result_ptr = result_data;
         
-        // Perform element-wise addition: result[i] = a[i] + b[i]
-        for (long i = 0; i < total_elements; i++) {
-            result_data[i] = a_data[i] + b_data[i];
+        // Unrolled loop for better performance
+        long i = 0;
+        for (; i < total_elements - 3; i += 4) {
+            result_ptr[i] = a_ptr[i] + b_ptr[i];
+            result_ptr[i+1] = a_ptr[i+1] + b_ptr[i+1];
+            result_ptr[i+2] = a_ptr[i+2] + b_ptr[i+2];
+            result_ptr[i+3] = a_ptr[i+3] + b_ptr[i+3];
+        }
+        // Handle remaining elements
+        for (; i < total_elements; i++) {
+            result_ptr[i] = a_ptr[i] + b_ptr[i];
         }
 
         return 0;
@@ -283,16 +343,57 @@ int perform_mps_matrix_subtract(
             return -3;
         }
 
-        // Use direct CPU-based subtraction: A - B
+        // Add device and command queue setup for GPU acceleration  
+        id<MTLDevice> device = (__bridge id<MTLDevice>)mtlDevicePtr;
+        
+        if (!device) {
+            set_c_error_message(err, @"Metal device not initialized.");
+            return -1;
+        }
+        
+        // Cache the device globally for consistent access
+        if (!_global_mtl_device_ptr) {
+            _global_mtl_device_ptr = mtlDevicePtr;
+        }
+        
+        // Use global command queue for better performance
+        id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)_global_mtl_command_queue_ptr;
+        
+        // If global queue is not set, create one and cache it
+        if (!commandQueue) {
+            commandQueue = [device newCommandQueue];
+            if (!commandQueue) {
+                set_c_error_message(err, @"Failed to create command queue from device.");
+                return -1;
+            }
+            commandQueue.label = @"go-nngpu.shared";
+            _global_mtl_command_queue_ptr = (__bridge void*)commandQueue;
+        }
+        
+        // Use optimized CPU implementation for element-wise subtraction
+        long total_elements = aRows * aCols;
+        
+        // Optimized CPU subtraction with vectorization hints
         float *a_data = (float*)A_buffer.contents;
         float *b_data = (float*)B_buffer.contents;
         float *result_data = (float*)C_buffer.contents;
         
-        long total_elements = aRows * aCols;
+        // Use restrict keyword for compiler optimization hints
+        float* restrict a_ptr = a_data;
+        float* restrict b_ptr = b_data;
+        float* restrict result_ptr = result_data;
         
-        // Perform element-wise subtraction: result[i] = a[i] - b[i]
-        for (long i = 0; i < total_elements; i++) {
-            result_data[i] = a_data[i] - b_data[i];
+        // Unrolled loop for better performance
+        long i = 0;
+        for (; i < total_elements - 3; i += 4) {
+            result_ptr[i] = a_ptr[i] - b_ptr[i];
+            result_ptr[i+1] = a_ptr[i+1] - b_ptr[i+1];
+            result_ptr[i+2] = a_ptr[i+2] - b_ptr[i+2];
+            result_ptr[i+3] = a_ptr[i+3] - b_ptr[i+3];
+        }
+        // Handle remaining elements
+        for (; i < total_elements; i++) {
+            result_ptr[i] = a_ptr[i] - b_ptr[i];
         }
 
         return 0;

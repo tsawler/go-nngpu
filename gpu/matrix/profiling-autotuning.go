@@ -1,5 +1,9 @@
 package matrix
 
+// #cgo CFLAGS: -x objective-c
+// #cgo LDFLAGS: -framework Metal -framework MetalPerformanceShaders -framework MetalPerformanceShadersGraph -framework Foundation
+// #include "../../internal/cgo/metal_bridge.h"
+import "C"
 import (
 	"encoding/json"
 	"math/rand"
@@ -758,38 +762,50 @@ func hashString(s string) int {
 	return hash
 }
 
-// GPU system query functions (placeholders)
+// GPU system query functions using Metal bridge
 
 func getGPUMemoryTotal() int64 {
-	return 16 * 1024 * 1024 * 1024 // 16GB
+	var total, used C.long
+	C.getGPUMemoryUsage(&total, &used)
+	return int64(total)
 }
 
 func getGPUMemoryUsed() int64 {
-	return 8 * 1024 * 1024 * 1024 // 8GB
+	var total, used C.long
+	C.getGPUMemoryUsage(&total, &used)
+	return int64(used)
 }
 
 func getMemoryReadBandwidth() float64 {
-	return 400.0 // GB/s
+	// Note: Real bandwidth monitoring requires performance counters
+	var counters C.GPUCounters
+	C.getGPUCounters(&counters)
+	return float64(counters.memoryBandwidth) * 0.6 // Read portion estimate
 }
 
 func getMemoryWriteBandwidth() float64 {
-	return 300.0 // GB/s
+	// Note: Real bandwidth monitoring requires performance counters
+	var counters C.GPUCounters
+	C.getGPUCounters(&counters)
+	return float64(counters.memoryBandwidth) * 0.4 // Write portion estimate
 }
 
 func getGPUPowerUsage() float64 {
-	return 45.0 // Watts
+	return float64(C.getGPUPowerUsage())
 }
 
 func getMemoryPowerUsage() float64 {
-	return 15.0 // Watts
+	// Estimate memory power as portion of total
+	return getGPUPowerUsage() * 0.25
 }
 
 func getGPUTemperature() float64 {
-	return 65.0 // Celsius
+	return float64(C.getGPUTemperature())
 }
 
 func getMemoryTemperature() float64 {
-	return 55.0 // Celsius
+	// Estimate memory temperature relative to GPU
+	return getGPUTemperature() - 10.0
 }
 
 // ExportProfile exports profiling data to file

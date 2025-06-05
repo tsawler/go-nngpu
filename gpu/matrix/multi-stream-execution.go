@@ -1,5 +1,9 @@
 package matrix
 
+// #cgo CFLAGS: -x objective-c
+// #cgo LDFLAGS: -framework Metal -framework MetalPerformanceShaders -framework MetalPerformanceShadersGraph -framework Foundation
+// #include "../../internal/cgo/metal_bridge.h"
+import "C"
 import (
 	"fmt"
 	"runtime"
@@ -50,7 +54,7 @@ func NewStreamManager(device unsafe.Pointer, numStreams int) (*StreamManager, er
 		streamTimes:  make([]int64, numStreams),
 		eventPool: &sync.Pool{
 			New: func() interface{} {
-				return createMetalEvent()
+				return createMetalEvent(device)
 			},
 		},
 	}
@@ -333,20 +337,18 @@ func (ss *StreamScheduler) scheduleReady() {
 	ss.readyTasks = ss.readyTasks[:0]
 }
 
-// Helper functions (would be implemented in C/Metal bridge)
+// Helper functions implemented in Metal bridge
 
 func createCommandQueue(device unsafe.Pointer) unsafe.Pointer {
-	// Placeholder - would call Metal API
-	return device
+	return C.createCommandQueue(device)
 }
 
 func synchronizeCommandQueue(queue unsafe.Pointer) {
-	// Placeholder - would call Metal API
+	C.synchronizeCommandQueue(queue)
 }
 
-func createMetalEvent() unsafe.Pointer {
-	// Placeholder - would create Metal event
-	return nil
+func createMetalEvent(device unsafe.Pointer) unsafe.Pointer {
+	return C.createMetalEvent(device)
 }
 
 func sortTasksByPriority(tasks []StreamTask) {

@@ -15,6 +15,40 @@ import (
 	_ "github.com/tsawler/go-nngpu/internal/cgo"
 )
 
+// Global device pointer for unified memory system
+var globalMatrixDevice unsafe.Pointer
+
+// SetGlobalMatrixDevice sets the global device for matrix operations
+func SetGlobalMatrixDevice(device unsafe.Pointer) {
+	globalMatrixDevice = device
+}
+
+// ensureUnifiedGPU ensures tensor is on GPU using unified memory system when available
+func ensureUnifiedGPU(t *tensor.Tensor) error {
+	if globalMatrixDevice != nil {
+		// Use unified memory adapter
+		adapter := GetGlobalTensorAdapter(globalMatrixDevice)
+		// fmt.Printf("[DEBUG] Using unified memory for tensor %p\n", t)
+		return adapter.EnsureUnifiedGPU(t)
+	}
+	// Fall back to standard GPU allocation
+	// fmt.Printf("[DEBUG] Using standard GPU allocation for tensor %p\n", t)
+	return t.EnsureGPU()
+}
+
+// getUnifiedGPUPtr gets GPU pointer using unified memory system when available
+func getUnifiedGPUPtr(t *tensor.Tensor) unsafe.Pointer {
+	if globalMatrixDevice != nil {
+		// Try unified memory first
+		adapter := GetGlobalTensorAdapter(globalMatrixDevice)
+		if ptr := adapter.GetUnifiedGPUBuffer(t); ptr != nil {
+			return ptr
+		}
+	}
+	// Fall back to standard GPU pointer
+	return t.GPUPtr()
+}
+
 // MatMul performs matrix multiplication C = A * B on the GPU
 func MatMul(A, B *tensor.Tensor) (*tensor.Tensor, error) {
 	if len(A.Shape) != 2 || len(B.Shape) != 2 {
@@ -36,13 +70,13 @@ func MatMul(A, B *tensor.Tensor) (*tensor.Tensor, error) {
 		return nil, fmt.Errorf("failed to create result tensor: %w", err)
 	}
 
-	if err := A.EnsureGPU(); err != nil {
+	if err := ensureUnifiedGPU(A); err != nil {
 		return nil, fmt.Errorf("failed to move tensor A to GPU: %w", err)
 	}
-	if err := B.EnsureGPU(); err != nil {
+	if err := ensureUnifiedGPU(B); err != nil {
 		return nil, fmt.Errorf("failed to move tensor B to GPU: %w", err)
 	}
-	if err := resultTensor.EnsureGPU(); err != nil {
+	if err := ensureUnifiedGPU(resultTensor); err != nil {
 		return nil, fmt.Errorf("failed to move result tensor to GPU: %w", err)
 	}
 
@@ -51,10 +85,10 @@ func MatMul(A, B *tensor.Tensor) (*tensor.Tensor, error) {
 
 	var cErr C.CError
 	retCode := C.perform_mps_matrix_multiplication(
-		C.GPUPtr(A.GPUPtr()), C.long(A.Shape[0]), C.long(A.Shape[1]),
-		C.GPUPtr(B.GPUPtr()), C.long(B.Shape[0]), C.long(B.Shape[1]),
-		C.GPUPtr(resultTensor.GPUPtr()), C.long(resultTensor.Shape[0]), C.long(resultTensor.Shape[1]),
-		C.DevicePtr(A.DevicePtr()),
+		C.GPUPtr(getUnifiedGPUPtr(A)), C.long(A.Shape[0]), C.long(A.Shape[1]),
+		C.GPUPtr(getUnifiedGPUPtr(B)), C.long(B.Shape[0]), C.long(B.Shape[1]),
+		C.GPUPtr(getUnifiedGPUPtr(resultTensor)), C.long(resultTensor.Shape[0]), C.long(resultTensor.Shape[1]),
+		C.DevicePtr(globalMatrixDevice),
 		&cErr,
 	)
 

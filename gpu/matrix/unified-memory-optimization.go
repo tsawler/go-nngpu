@@ -1,5 +1,11 @@
 package matrix
 
+// #cgo CFLAGS: -x objective-c
+// #cgo LDFLAGS: -framework Metal -framework MetalPerformanceShaders -framework MetalPerformanceShadersGraph -framework Foundation
+// #include <stdlib.h>
+// #include <string.h>
+// #include "../../internal/cgo/metal_bridge.h"
+import "C"
 import (
 	"fmt"
 	"sync"
@@ -44,6 +50,21 @@ type SharedBuffer struct {
 	// Synchronization
 	lastWrite int64 // 0: CPU, 1: GPU
 	mu        sync.RWMutex
+}
+
+// CPUPtr returns the CPU pointer for the shared buffer
+func (sb *SharedBuffer) CPUPtr() unsafe.Pointer {
+	return sb.cpuPtr
+}
+
+// GPUBuffer returns the GPU buffer pointer
+func (sb *SharedBuffer) GPUBuffer() unsafe.Pointer {
+	return sb.gpuBuffer
+}
+
+// Size returns the buffer size
+func (sb *SharedBuffer) Size() int {
+	return sb.size
 }
 
 // MMapRegion represents a memory-mapped file region
@@ -386,6 +407,22 @@ func (umm *UnifiedMemoryManager) ReleaseSharedBuffer(buf *SharedBuffer) {
 	}
 }
 
+// MemoryStatistics represents unified memory statistics
+type MemoryStatistics struct {
+	ZeroCopyHits  int64
+	Allocations   int64
+	Deallocations int64
+}
+
+// GetStatistics returns memory management statistics
+func (umm *UnifiedMemoryManager) GetStatistics() MemoryStatistics {
+	return MemoryStatistics{
+		ZeroCopyHits:  atomic.LoadInt64(&umm.zeroCopyHits),
+		Allocations:   atomic.LoadInt64(&umm.allocations),
+		Deallocations: atomic.LoadInt64(&umm.deallocations),
+	}
+}
+
 // UpdatePattern updates access pattern statistics
 func (apo *AccessPatternOptimizer) UpdatePattern(bufferName string, accessType int) {
 	apo.mu.Lock()
@@ -433,51 +470,72 @@ func (apo *AccessPatternOptimizer) GetHint(bufferName string) int {
 	return 2 // Mixed access
 }
 
-// Helper functions (would be implemented in C/Metal bridge)
+// Helper functions implemented in Metal bridge
 
 func allocateSharedMemory(size int) unsafe.Pointer {
-	// TODO: Placeholder - simulate successful allocation for demo
-	// In a real implementation, this would call Metal unified memory APIs
-	return unsafe.Pointer(uintptr(0x2000)) // Return non-nil pointer for demo
+	return C.allocateSharedMemory(C.long(size))
 }
 
 func freeSharedMemory(ptr unsafe.Pointer, size int) {
-	// Placeholder - would free unified memory
+	if ptr != nil {
+		C.free(ptr)
+	}
 }
 
 func createGPUBufferFromSharedMemory(device, ptr unsafe.Pointer, size int) unsafe.Pointer {
-	// Placeholder - simulate successful GPU buffer creation for demo
-	return unsafe.Pointer(uintptr(0x3000)) // Return non-nil pointer for demo
+	return C.createGPUBufferFromSharedMemory(device, ptr, C.long(size))
 }
 
 func memoryMapFile(path string) ([]byte, error) {
-	// Placeholder - would memory-map file
-	return nil, nil
+	cPath := C.CString(path)
+	defer C.free(unsafe.Pointer(cPath))
+	
+	var size C.long
+	var err C.CError
+	
+	ptr := C.memoryMapFile(cPath, &size, &err)
+	if ptr == nil {
+		if err.message != nil {
+			errMsg := C.GoString(err.message)
+			C.free_c_error_message(err.message)
+			return nil, fmt.Errorf("memory map failed: %s", errMsg)
+		}
+		return nil, fmt.Errorf("memory map failed")
+	}
+	
+	// Create a Go slice from the memory-mapped region
+	return (*[1 << 30]byte)(ptr)[:size:size], nil
 }
 
 func unmapMemory(data []byte) {
-	// Placeholder - would unmap memory
+	if len(data) > 0 {
+		C.unmapMemory(unsafe.Pointer(&data[0]), C.long(len(data)))
+	}
 }
 
 func copyFloatSliceToPointer(src []float32, dst unsafe.Pointer) {
-	// Placeholder - would copy data
+	if len(src) > 0 && dst != nil {
+		C.memcpy(dst, unsafe.Pointer(&src[0]), C.size_t(len(src)*4))
+	}
 }
 
 func pointerToFloatSlice(ptr unsafe.Pointer, size int) []float32 {
-	// Placeholder - would create slice from pointer
-	return nil
+	if ptr == nil || size <= 0 {
+		return nil
+	}
+	return (*[1 << 28]float32)(ptr)[:size:size]
+}
+
+func makeBufferGPUResident(buffer unsafe.Pointer) {
+	C.makeBufferGPUResident(buffer)
 }
 
 func synchronizeGPUBuffer(buffer unsafe.Pointer) {
 	// Placeholder - would synchronize GPU buffer
 }
 
-func makeBufferGPUResident(buffer unsafe.Pointer) {
-	// Placeholder - would make buffer GPU-resident
-}
-
-func releaseGPUBuffer(buffer unsafe.Pointer) {
-	// Placeholder - would release GPU buffer
+func releaseGPUBuffer(buffer unsafe.Pointer) int {
+	return int(C.release_gpu_buffer(C.GPUPtr(buffer)))
 }
 
 func nanoTime() int64 {
